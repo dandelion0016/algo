@@ -5,12 +5,13 @@ import { Card } from '../types/game';
 
 interface CardComponentProps {
   card: Card;
-  isOwner: boolean; // プレイヤー自身のカードかどうか（自分なら裏向きでも数字が見える）
+  isOwner: boolean; // 自分（人間）のカードかどうか（自分なら伏せでも数字が見える）
   isSelected?: boolean;
   isSelectable?: boolean;
   onClick?: () => void;
   size?: 'sm' | 'md' | 'lg';
   label?: string;
+  isEliminated?: boolean;
 }
 
 export const CardComponent: React.FC<CardComponentProps> = ({
@@ -21,69 +22,84 @@ export const CardComponent: React.FC<CardComponentProps> = ({
   onClick,
   size = 'md',
   label,
+  isEliminated = false,
 }) => {
   const isBlack = card.color === 'black';
 
   // サイズクラス
   const sizeClasses = {
-    sm: 'w-12 h-18 text-base font-bold rounded-md',
-    md: 'w-16 h-24 sm:w-20 sm:h-28 text-xl sm:text-2xl font-extrabold rounded-lg',
-    lg: 'w-20 h-30 sm:w-24 sm:h-34 text-2xl sm:text-3xl font-black rounded-xl',
+    sm: 'w-10 h-16 sm:w-12 sm:h-20 text-sm sm:text-base font-bold rounded-lg',
+    md: 'w-14 h-22 sm:w-16 sm:h-26 md:w-20 md:h-30 text-lg sm:text-xl md:text-2xl font-black rounded-xl',
+    lg: 'w-18 h-28 sm:w-24 sm:h-36 text-2xl sm:text-3xl font-black rounded-2xl',
   }[size];
 
   // カラーと背景
+  // 黒カード: 深みのあるチャコール〜漆黒、洗練された立体感
+  // 白カード: ピュアホワイト、上品なソフトシャドウ
   const colorClasses = isBlack
-    ? 'bg-gradient-to-br from-zinc-800 to-zinc-950 text-white border-zinc-600 shadow-zinc-900/50'
-    : 'bg-gradient-to-br from-white to-slate-100 text-zinc-900 border-slate-300 shadow-slate-300/50';
+    ? 'bg-gradient-to-b from-zinc-800 via-zinc-900 to-zinc-950 text-white border-zinc-700 shadow-md shadow-zinc-900/40'
+    : 'bg-gradient-to-b from-white via-slate-50 to-slate-100 text-zinc-900 border-slate-200 shadow-md shadow-slate-300/50';
 
-  // 選択時・選択可能時の枠線スタイル
-  let stateClasses = 'border-2';
-  if (isSelected) {
-    stateClasses = 'border-4 border-amber-400 ring-4 ring-amber-400/40 shadow-xl scale-105';
+  // 状態クラス
+  let stateClasses = 'border-2 transition-all duration-200';
+  if (isEliminated) {
+    stateClasses += ' opacity-40 grayscale';
+  } else if (isSelected) {
+    stateClasses = 'border-4 border-algo-blue ring-4 ring-algo-blue/40 shadow-xl scale-105 z-10';
   } else if (isSelectable) {
-    stateClasses += ' cursor-pointer hover:border-amber-400 hover:scale-105 transition-all duration-150 hover:shadow-lg animate-pulse';
+    stateClasses += ' cursor-pointer hover:border-algo-blue hover:scale-105 hover:shadow-lg animate-attack-pulse';
   }
 
-  // 表示する数字の決定
-  // 1. 表向き(isOpen): 全員に数字が見える
-  // 2. 裏向き(!isOpen) かつ 自分(isOwner): 自分には数字が見える（ただし伏せ中表示）
-  // 3. 裏向き(!isOpen) かつ 相手(!isOwner): 「?」表示
+  // 表示判定
   const showNumber = card.isOpen || isOwner;
   const isSecretToOpponent = !card.isOpen && isOwner;
 
   return (
     <div className="flex flex-col items-center gap-1 select-none">
-      {label && <span className="text-xs text-zinc-400 font-medium">{label}</span>}
+      {label && <span className="text-[10px] sm:text-xs text-slate-500 font-semibold">{label}</span>}
       <div
-        onClick={isSelectable ? onClick : undefined}
-        className={`relative flex flex-col items-center justify-center shadow-md transition-transform ${sizeClasses} ${colorClasses} ${stateClasses}`}
+        onClick={isSelectable && !isEliminated ? onClick : undefined}
+        className={`relative flex flex-col items-center justify-center ${sizeClasses} ${colorClasses} ${stateClasses}`}
       >
-        {/* カード左上の色インジケータ */}
+        {/* 左上の色識別丸インジケータ */}
         <div
-          className={`absolute top-1.5 left-1.5 w-2 h-2 rounded-full ${
-            isBlack ? 'bg-zinc-400' : 'bg-slate-400'
+          className={`absolute top-1.5 left-1.5 w-2 h-2 rounded-full border ${
+            isBlack
+              ? 'bg-zinc-700 border-zinc-500'
+              : 'bg-white border-slate-300'
           }`}
         />
+
+        {/* 右上の小さな装飾 */}
+        <div
+          className={`absolute top-1.5 right-1.5 text-[8px] font-bold opacity-60 ${
+            isBlack ? 'text-zinc-400' : 'text-slate-400'
+          }`}
+        >
+          {isBlack ? 'B' : 'W'}
+        </div>
 
         {/* カード中央の数字または「?」 */}
         <div className="flex items-center justify-center">
           {showNumber ? (
-            <div className="flex flex-col items-center">
-              <span>{card.number}</span>
+            <div className="flex flex-col items-center justify-center">
+              <span className="tracking-tight">{card.number}</span>
               {isSecretToOpponent && (
-                <span className="text-[10px] tracking-tight text-amber-500 font-normal">
-                  (伏せ)
+                <span className="text-[8px] sm:text-[9px] px-1 py-0.2 rounded bg-amber-400/20 text-amber-600 font-medium tracking-tight">
+                  伏せ中
                 </span>
               )}
             </div>
           ) : (
-            <span className="text-zinc-500 font-serif text-2xl">?</span>
+            <span className="text-slate-400 font-serif text-xl sm:text-2xl font-normal opacity-70">
+              ?
+            </span>
           )}
         </div>
 
         {/* 表向きのオープンバッジ */}
         {card.isOpen && (
-          <div className="absolute bottom-1 right-1 text-[9px] px-1 bg-emerald-500/20 text-emerald-400 rounded border border-emerald-500/30">
+          <div className="absolute bottom-1 right-1 text-[8px] px-1 bg-emerald-500/15 text-emerald-600 rounded font-bold border border-emerald-500/20">
             OPEN
           </div>
         )}

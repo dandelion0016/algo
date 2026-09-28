@@ -1,4 +1,4 @@
-import { Card, CardColor } from '../types/game';
+import { Card, CardColor, Player, PlayerCount } from '../types/game';
 
 /**
  * 24枚のアルゴデッキを生成（黒0〜11、白0〜11）
@@ -55,27 +55,6 @@ export function sortCards(cards: Card[]): Card[] {
 }
 
 /**
- * ゲーム開始時の初期配札
- * プレイヤーとCPUに4枚ずつ配り、それぞれ整列。残りを山札として返す。
- */
-export function dealInitialCards(deck: Card[]): {
-  playerCards: Card[];
-  cpuCards: Card[];
-  remainingDeck: Card[];
-} {
-  const shuffled = shuffleDeck(deck);
-  const playerRaw = shuffled.slice(0, 4);
-  const cpuRaw = shuffled.slice(4, 8);
-  const remainingDeck = shuffled.slice(8);
-
-  return {
-    playerCards: sortCards(playerRaw),
-    cpuCards: sortCards(cpuRaw),
-    remainingDeck,
-  };
-}
-
-/**
  * 手札にカードをルール通りの正しい位置に挿入
  */
 export function insertCardInOrder(hand: Card[], newCard: Card): Card[] {
@@ -83,18 +62,110 @@ export function insertCardInOrder(hand: Card[], newCard: Card): Card[] {
 }
 
 /**
- * 全てのカードがオープン（表向き）になっているか判定（勝敗判定用）
+ * 人数に応じた初期手札枚数を取得（アルゴ公式ルール）
+ * 2人: 4枚
+ * 3人: 3枚
+ * 4人: 2枚
+ */
+export function getInitialCardCount(playerCount: PlayerCount): number {
+  switch (playerCount) {
+    case 2:
+      return 4;
+    case 3:
+      return 3;
+    case 4:
+      return 2;
+    default:
+      return 4;
+  }
+}
+
+/**
+ * プレイヤー初期化情報
+ */
+const CPU_PROFILES = [
+  { name: 'CPU アル', color: 'from-blue-400 to-indigo-500' },
+  { name: 'CPU ゴオ', color: 'from-amber-300 to-yellow-500' },
+  { name: 'CPU ルウ', color: 'from-emerald-400 to-teal-600' },
+];
+
+/**
+ * 2〜4人のプレイヤーと初期配札をセットアップ
+ */
+export function setupGamePlayers(
+  deck: Card[],
+  playerCount: PlayerCount
+): {
+  players: Player[];
+  remainingDeck: Card[];
+} {
+  const shuffled = shuffleDeck(deck);
+  const cardCount = getInitialCardCount(playerCount);
+
+  const players: Player[] = [];
+  let cursor = 0;
+
+  // 1. プレイヤー（人間）
+  const playerRawCards = shuffled.slice(cursor, cursor + cardCount);
+  cursor += cardCount;
+  players.push({
+    id: 'player',
+    name: 'あなた',
+    isHuman: true,
+    cards: sortCards(playerRawCards),
+    isEliminated: false,
+    avatarColor: 'from-sky-400 to-blue-600',
+  });
+
+  // 2. CPUプレイヤー
+  for (let i = 0; i < playerCount - 1; i++) {
+    const cpuCards = shuffled.slice(cursor, cursor + cardCount);
+    cursor += cardCount;
+    players.push({
+      id: `cpu-${i + 1}`,
+      name: CPU_PROFILES[i].name,
+      isHuman: false,
+      cards: sortCards(cpuCards),
+      isEliminated: false,
+      avatarColor: CPU_PROFILES[i].color,
+    });
+  }
+
+  const remainingDeck = shuffled.slice(cursor);
+
+  return {
+    players,
+    remainingDeck,
+  };
+}
+
+/**
+ * 全てのカードがオープン（表向き）になっているか判定
  */
 export function isAllOpen(cards: Card[]): boolean {
   return cards.every((c) => c.isOpen);
 }
 
 /**
- * 指定インデックスのカードがアタック予想数字と一致するか判定
+ * アタック正否判定
  */
-export function checkAttack(
-  targetCard: Card,
-  guessedNumber: number
-): boolean {
+export function checkAttack(targetCard: Card, guessedNumber: number): boolean {
   return targetCard.number === guessedNumber;
+}
+
+/**
+ * 次の手番プレイヤーインデックスを取得（脱落者をスキップ）
+ */
+export function getNextActivePlayerIndex(
+  currentIndex: number,
+  players: Player[]
+): number {
+  const total = players.length;
+  for (let i = 1; i <= total; i++) {
+    const nextIdx = (currentIndex + i) % total;
+    if (!players[nextIdx].isEliminated) {
+      return nextIdx;
+    }
+  }
+  return currentIndex;
 }

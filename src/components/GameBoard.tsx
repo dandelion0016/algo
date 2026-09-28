@@ -1,87 +1,91 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Card, GameState, Difficulty, AttackLog, PlayerType } from '../types/game';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Card, GameState, Difficulty, PlayerCount, TimeLimit, AttackLog, Player } from '../types/game';
 import {
   createDeck,
-  dealInitialCards,
+  setupGamePlayers,
   insertCardInOrder,
   isAllOpen,
   checkAttack,
+  getNextActivePlayerIndex,
 } from '../lib/algoEngine';
-import { decideCpuAttack, decideCpuContinue } from '../lib/cpuAI';
+import { decideMultiCpuAttack } from '../lib/cpuAI';
 import { CardComponent } from './CardComponent';
 import { AttackModal } from './AttackModal';
 import { GameLog } from './GameLog';
 import { RuleGuideModal } from './RuleGuideModal';
+import { SetupModal } from './SetupModal';
 import {
-  Play,
+  Layers,
+  Sparkles,
+  Trophy,
   RotateCcw,
   BookOpen,
   Bot,
   User,
-  Layers,
-  Sparkles,
-  Trophy,
-  Frown,
-  ArrowRight,
-  ShieldAlert,
+  Settings2,
+  Clock,
+  AlertTriangle,
+  Flame,
 } from 'lucide-react';
 
 export const GameBoard: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>({
-    deck: [],
-    playerCards: [],
-    cpuCards: [],
-    playerDrawnCard: null,
-    cpuDrawnCard: null,
-    currentTurn: 'player',
-    phase: 'INITIAL',
-    selectedTargetIndex: null,
+    playerCount: 2,
     difficulty: 'normal',
+    timeLimit: 30,
+    remainingTime: 30,
+    deck: [],
+    players: [],
+    activePlayerIndex: 0,
+    drawnCard: null,
+    phase: 'SETUP',
+    selectedTarget: null,
     logs: [],
     winner: null,
   });
 
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
-  const [cpuStatusText, setCpuStatusText] = useState<string>('');
+  const [cpuStatusMessage, setCpuStatusMessage] = useState<string>('');
 
-  // 新規ゲーム開始
-  const startNewGame = useCallback((diff: Difficulty = gameState.difficulty) => {
-    const rawDeck = createDeck();
-    const { playerCards, cpuCards, remainingDeck } = dealInitialCards(rawDeck);
+  // 新規ゲーム初期化
+  const initializeGame = useCallback(
+    (
+      count: PlayerCount = gameState.playerCount,
+      diff: Difficulty = gameState.difficulty,
+      limit: TimeLimit = gameState.timeLimit
+    ) => {
+      const rawDeck = createDeck();
+      const { players, remainingDeck } = setupGamePlayers(rawDeck, count);
 
-    // プレイヤー先攻でスタート
-    setGameState({
-      deck: remainingDeck,
-      playerCards,
-      cpuCards,
-      playerDrawnCard: null,
-      cpuDrawnCard: null,
-      currentTurn: 'player',
-      phase: 'PLAYER_TURN_START',
-      selectedTargetIndex: null,
-      difficulty: diff,
-      logs: [],
-      winner: null,
-    });
-    setCpuStatusText('');
-  }, [gameState.difficulty]);
-
-  // 初回起動時にゲーム準備
-  useEffect(() => {
-    startNewGame('normal');
-  }, []);
+      setGameState({
+        playerCount: count,
+        difficulty: diff,
+        timeLimit: limit,
+        remainingTime: limit,
+        deck: remainingDeck,
+        players,
+        activePlayerIndex: 0, // 人間先攻
+        drawnCard: null,
+        phase: 'PLAYER_TURN_START',
+        selectedTarget: null,
+        logs: [],
+        winner: null,
+      });
+      setCpuStatusMessage('');
+    },
+    [gameState.playerCount, gameState.difficulty, gameState.timeLimit]
+  );
 
   // プレイヤーが山札からドロー
   const handlePlayerDraw = () => {
-    if (gameState.phase !== 'PLAYER_TURN_START' || gameState.currentTurn !== 'player') return;
+    if (gameState.phase !== 'PLAYER_TURN_START') return;
 
     if (gameState.deck.length === 0) {
-      // 山札切れの場合はドローなしで直接アタック対象選択へ
       setGameState((prev) => ({
         ...prev,
-        playerDrawnCard: null,
+        drawnCard: null,
         phase: 'PLAYER_SELECT_TARGET',
       }));
       return;
@@ -93,140 +97,235 @@ export const GameBoard: React.FC = () => {
     setGameState((prev) => ({
       ...prev,
       deck: nextDeck,
-      playerDrawnCard: drawn,
+      drawnCard: drawn,
       phase: 'PLAYER_SELECT_TARGET',
     }));
   };
 
-  // プレイヤーが相手のカードをクリック
-  const handleSelectCpuCard = (index: number) => {
-    if (
-      gameState.phase !== 'PLAYER_SELECT_TARGET' ||
-      gameState.currentTurn !== 'player' ||
-      gameState.cpuCards[index].isOpen
-    ) {
+  // プレイヤーが相手の伏せカードを選択
+  const handleSelectTargetCard = (playerId: string, cardIndex: number) => {
+    if (gameState.phase !== 'PLAYER_SELECT_TARGET') return;
+
+    const targetPlayer = gameState.players.find((p) => p.id === playerId);
+    if (!targetPlayer || targetPlayer.isEliminated || targetPlayer.cards[cardIndex].isOpen) {
       return;
     }
 
     setGameState((prev) => ({
       ...prev,
-      selectedTargetIndex: index,
+      selectedTarget: { playerId, cardIndex },
       phase: 'PLAYER_GUESS_NUMBER',
     }));
   };
 
   // プレイヤーが数字を予想してアタック確定
   const handleConfirmGuess = (guessedNumber: number) => {
-    if (
-      gameState.phase !== 'PLAYER_GUESS_NUMBER' ||
-      gameState.selectedTargetIndex === null
-    ) {
-      return;
-    }
+    if (gameState.phase !== 'PLAYER_GUESS_NUMBER' || !gameState.selectedTarget) return;
 
-    const targetIdx = gameState.selectedTargetIndex;
-    const targetCard = gameState.cpuCards[targetIdx];
+    const { playerId, cardIndex } = gameState.selectedTarget;
+    const targetPlayer = gameState.players.find((p) => p.id === playerId);
+    if (!targetPlayer) return;
+
+    const targetCard = targetPlayer.cards[cardIndex];
     const isHit = checkAttack(targetCard, guessedNumber);
 
     const log: AttackLog = {
       id: `log-${Date.now()}`,
-      attacker: 'player',
-      targetIndex: targetIdx,
+      attackerId: 'player',
+      attackerName: 'あなた',
+      targetPlayerId: targetPlayer.id,
+      targetPlayerName: targetPlayer.name,
+      targetCardIndex: cardIndex,
       targetColor: targetCard.color,
       guessedNumber,
       isHit,
       actualNumber: targetCard.number,
-      drawnCard: gameState.playerDrawnCard || undefined,
+      drawnCard: gameState.drawnCard || undefined,
       timestamp: Date.now(),
       message: isHit
-        ? `相手の左から${targetIdx + 1}番目 [${targetCard.color === 'black' ? '黒' : '白'}] を [${guessedNumber}] と推理して【的中】！`
-        : `相手の左から${targetIdx + 1}番目 [${targetCard.color === 'black' ? '黒' : '白'}] を [${guessedNumber}] と推理して【ハズレ】…`,
+        ? `${targetPlayer.name} の左から ${cardIndex + 1} 番目 [${targetCard.color === 'black' ? '黒' : '白'}] を [${guessedNumber}] と推理して【的中】！`
+        : `${targetPlayer.name} の左から ${cardIndex + 1} 番目 [${targetCard.color === 'black' ? '黒' : '白'}] を [${guessedNumber}] と推理して【ハズレ】。`,
     };
 
     if (isHit) {
-      // 的中：相手の該当カードをオープン
-      const updatedCpuCards = gameState.cpuCards.map((c, i) =>
-        i === targetIdx ? { ...c, isOpen: true } : c
-      );
+      const updatedPlayers = gameState.players.map((p) => {
+        if (p.id !== playerId) return p;
+        const newCards = p.cards.map((c, i) => (i === cardIndex ? { ...c, isOpen: true } : c));
+        return {
+          ...p,
+          cards: newCards,
+          isEliminated: isAllOpen(newCards),
+        };
+      });
 
-      // 勝利判定
-      if (isAllOpen(updatedCpuCards)) {
+      const activePlayers = updatedPlayers.filter((p) => !p.isEliminated);
+      if (activePlayers.length === 1) {
         setGameState((prev) => ({
           ...prev,
-          cpuCards: updatedCpuCards,
+          players: updatedPlayers,
           logs: [log, ...prev.logs],
-          winner: 'player',
+          winner: activePlayers[0],
           phase: 'GAME_OVER',
         }));
         return;
       }
 
-      // まだ勝負がついていない場合：コンティニュー or ステイの選択へ
       setGameState((prev) => ({
         ...prev,
-        cpuCards: updatedCpuCards,
+        players: updatedPlayers,
         logs: [log, ...prev.logs],
-        selectedTargetIndex: null,
+        selectedTarget: null,
         phase: 'PLAYER_DECIDE_NEXT',
       }));
     } else {
-      // ハズレ：引いたカードがあればオープンにして自分の手札に加える
-      let updatedPlayerCards = [...gameState.playerCards];
-      if (gameState.playerDrawnCard) {
-        const openedDrawn: Card = { ...gameState.playerDrawnCard, isOpen: true };
-        updatedPlayerCards = insertCardInOrder(updatedPlayerCards, openedDrawn);
+      const playerIdx = gameState.players.findIndex((p) => p.id === 'player');
+      const updatedPlayers = [...gameState.players];
+      if (gameState.drawnCard) {
+        const openedDrawn: Card = { ...gameState.drawnCard, isOpen: true };
+        updatedPlayers[playerIdx] = {
+          ...updatedPlayers[playerIdx],
+          cards: insertCardInOrder(updatedPlayers[playerIdx].cards, openedDrawn),
+        };
       }
+
+      const nextActiveIdx = getNextActivePlayerIndex(0, updatedPlayers);
+      const isNextCpu = !updatedPlayers[nextActiveIdx].isHuman;
 
       setGameState((prev) => ({
         ...prev,
-        playerCards: updatedPlayerCards,
-        playerDrawnCard: null,
-        selectedTargetIndex: null,
+        players: updatedPlayers,
+        drawnCard: null,
+        selectedTarget: null,
+        activePlayerIndex: nextActiveIdx,
+        remainingTime: prev.timeLimit,
         logs: [log, ...prev.logs],
-        currentTurn: 'cpu',
-        phase: 'CPU_THINKING',
+        phase: isNextCpu ? 'CPU_ACTING' : 'PLAYER_TURN_START',
       }));
     }
   };
 
   // プレイヤーが「続けてアタック」を選択
-  const handlePlayerContinueAttack = () => {
+  const handlePlayerContinue = () => {
     setGameState((prev) => ({
       ...prev,
       phase: 'PLAYER_SELECT_TARGET',
-      selectedTargetIndex: null,
+      selectedTarget: null,
     }));
   };
 
   // プレイヤーが「ステイ（手番終了）」を選択
   const handlePlayerStay = () => {
-    let updatedPlayerCards = [...gameState.playerCards];
-    if (gameState.playerDrawnCard) {
-      // ステイ時は引いたカードを「裏向き」のまま手札に配置
-      const closedDrawn: Card = { ...gameState.playerDrawnCard, isOpen: false };
-      updatedPlayerCards = insertCardInOrder(updatedPlayerCards, closedDrawn);
+    const playerIdx = gameState.players.findIndex((p) => p.id === 'player');
+    const updatedPlayers = [...gameState.players];
+    if (gameState.drawnCard) {
+      const closedDrawn: Card = { ...gameState.drawnCard, isOpen: false };
+      updatedPlayers[playerIdx] = {
+        ...updatedPlayers[playerIdx],
+        cards: insertCardInOrder(updatedPlayers[playerIdx].cards, closedDrawn),
+      };
     }
+
+    const nextActiveIdx = getNextActivePlayerIndex(0, updatedPlayers);
+    const isNextCpu = !updatedPlayers[nextActiveIdx].isHuman;
 
     setGameState((prev) => ({
       ...prev,
-      playerCards: updatedPlayerCards,
-      playerDrawnCard: null,
-      currentTurn: 'cpu',
-      phase: 'CPU_THINKING',
+      players: updatedPlayers,
+      drawnCard: null,
+      activePlayerIndex: nextActiveIdx,
+      remainingTime: prev.timeLimit,
+      phase: isNextCpu ? 'CPU_ACTING' : 'PLAYER_TURN_START',
     }));
   };
 
+  // 持ち時間カウントダウン処理（プレイヤー手番時のみ）
+  useEffect(() => {
+    if (
+      gameState.timeLimit === 0 ||
+      gameState.phase === 'SETUP' ||
+      gameState.phase === 'GAME_OVER' ||
+      gameState.phase === 'CPU_ACTING'
+    ) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setGameState((prev) => {
+        if (prev.remainingTime <= 1) {
+          // 時間切れ処理
+          clearInterval(interval);
+          const playerIdx = prev.players.findIndex((p) => p.id === 'player');
+          const updatedPlayers = [...prev.players];
+
+          // まだドローしていなければ山札から引いてオープンペナルティ
+          let newDeck = [...prev.deck];
+          let penaltyCard = prev.drawnCard;
+          if (!penaltyCard && newDeck.length > 0) {
+            penaltyCard = newDeck[0];
+            newDeck = newDeck.slice(1);
+          }
+
+          if (penaltyCard) {
+            updatedPlayers[playerIdx] = {
+              ...updatedPlayers[playerIdx],
+              cards: insertCardInOrder(updatedPlayers[playerIdx].cards, {
+                ...penaltyCard,
+                isOpen: true,
+              }),
+            };
+          }
+
+          const nextIdx = getNextActivePlayerIndex(0, updatedPlayers);
+          const timeOutLog: AttackLog = {
+            id: `log-${Date.now()}`,
+            attackerId: 'player',
+            attackerName: 'あなた',
+            targetPlayerId: '',
+            targetPlayerName: '',
+            targetCardIndex: 0,
+            targetColor: 'black',
+            guessedNumber: 0,
+            isHit: false,
+            timestamp: Date.now(),
+            message: '時間切れ！引いたカードがオープンペナルティとなり手番終了。',
+          };
+
+          return {
+            ...prev,
+            deck: newDeck,
+            players: updatedPlayers,
+            drawnCard: null,
+            selectedTarget: null,
+            remainingTime: prev.timeLimit,
+            activePlayerIndex: nextIdx,
+            logs: [timeOutLog, ...prev.logs],
+            phase: updatedPlayers[nextIdx].isHuman ? 'PLAYER_TURN_START' : 'CPU_ACTING',
+          };
+        }
+
+        return {
+          ...prev,
+          remainingTime: prev.remainingTime - 1,
+        };
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [gameState.phase, gameState.timeLimit]);
+
   // CPU手番の自律処理
   useEffect(() => {
-    if (gameState.phase !== 'CPU_THINKING' || gameState.winner !== null) return;
+    if (gameState.phase !== 'CPU_ACTING' || gameState.winner !== null) return;
+
+    const currentCpu = gameState.players[gameState.activePlayerIndex];
+    if (!currentCpu || currentCpu.isHuman || currentCpu.isEliminated) return;
 
     let isMounted = true;
-    setCpuStatusText('CPUがドロー中...');
+    setCpuStatusMessage(`${currentCpu.name} が山札からドロー中...`);
 
-    const timer = setTimeout(() => {
+    const turnTimeout = setTimeout(() => {
       if (!isMounted) return;
 
-      // 1. CPUがドロー
       let currentDeck = [...gameState.deck];
       let cpuDrawn: Card | null = null;
       if (currentDeck.length > 0) {
@@ -234,27 +333,41 @@ export const GameBoard: React.FC = () => {
         currentDeck = currentDeck.slice(1);
       }
 
-      setCpuStatusText('CPUが推理を思考中...');
+      setCpuStatusMessage(`${currentCpu.name} がアタック対象を思考中...`);
 
-      const thinkTimer = setTimeout(() => {
+      const thinkTimeout = setTimeout(() => {
         if (!isMounted) return;
 
-        // 2. CPUの推理決定
-        const decision = decideCpuAttack(
-          gameState.playerCards,
-          gameState.cpuCards,
+        const decision = decideMultiCpuAttack(
+          currentCpu,
           cpuDrawn,
+          gameState.players,
           gameState.difficulty,
           gameState.logs
         );
 
-        const targetCard = gameState.playerCards[decision.targetIndex];
+        const targetPlayer = gameState.players.find((p) => p.id === decision.targetPlayerId);
+        if (!targetPlayer) {
+          const nextIdx = getNextActivePlayerIndex(gameState.activePlayerIndex, gameState.players);
+          setGameState((prev) => ({
+            ...prev,
+            activePlayerIndex: nextIdx,
+            remainingTime: prev.timeLimit,
+            phase: prev.players[nextIdx].isHuman ? 'PLAYER_TURN_START' : 'CPU_ACTING',
+          }));
+          return;
+        }
+
+        const targetCard = targetPlayer.cards[decision.targetCardIndex];
         const isHit = checkAttack(targetCard, decision.guessedNumber);
 
         const log: AttackLog = {
           id: `log-${Date.now()}`,
-          attacker: 'cpu',
-          targetIndex: decision.targetIndex,
+          attackerId: currentCpu.id,
+          attackerName: currentCpu.name,
+          targetPlayerId: targetPlayer.id,
+          targetPlayerName: targetPlayer.name,
+          targetCardIndex: decision.targetCardIndex,
           targetColor: targetCard.color,
           guessedNumber: decision.guessedNumber,
           isHit,
@@ -262,246 +375,320 @@ export const GameBoard: React.FC = () => {
           drawnCard: cpuDrawn || undefined,
           timestamp: Date.now(),
           message: isHit
-            ? `CPUがあなたの左から${decision.targetIndex + 1}番目 [${targetCard.color === 'black' ? '黒' : '白'}] を [${decision.guessedNumber}] と推理して【的中】！`
-            : `CPUがあなたの左から${decision.targetIndex + 1}番目 [${targetCard.color === 'black' ? '黒' : '白'}] を [${decision.guessedNumber}] と推理して【ハズレ】。`,
+            ? `${currentCpu.name} が ${targetPlayer.name} の左から ${decision.targetCardIndex + 1} 番目 [${targetCard.color === 'black' ? '黒' : '白'}] を [${decision.guessedNumber}] と推理して【的中】！`
+            : `${currentCpu.name} が ${targetPlayer.name} の左から ${decision.targetCardIndex + 1} 番目 [${targetCard.color === 'black' ? '黒' : '白'}] を [${decision.guessedNumber}] と推理して【ハズレ】。`,
         };
 
         if (isHit) {
-          // 的中
-          const updatedPlayerCards = gameState.playerCards.map((c, i) =>
-            i === decision.targetIndex ? { ...c, isOpen: true } : c
-          );
+          const updatedPlayers = gameState.players.map((p) => {
+            if (p.id !== targetPlayer.id) return p;
+            const newCards = p.cards.map((c, i) =>
+              i === decision.targetCardIndex ? { ...c, isOpen: true } : c
+            );
+            return {
+              ...p,
+              cards: newCards,
+              isEliminated: isAllOpen(newCards),
+            };
+          });
 
-          if (isAllOpen(updatedPlayerCards)) {
-            // CPU勝利
+          const activePlayers = updatedPlayers.filter((p) => !p.isEliminated);
+          if (activePlayers.length === 1) {
             setGameState((prev) => ({
               ...prev,
               deck: currentDeck,
-              playerCards: updatedPlayerCards,
+              players: updatedPlayers,
               logs: [log, ...prev.logs],
-              winner: 'cpu',
+              winner: activePlayers[0],
               phase: 'GAME_OVER',
             }));
-            setCpuStatusText('CPUの勝利！');
+            setCpuStatusMessage(`${activePlayers[0].name} の完全勝利！`);
             return;
           }
 
-          // 継続するかステイするか
-          const shouldContinue = decideCpuContinue(
-            updatedPlayerCards,
-            gameState.cpuCards,
-            cpuDrawn,
-            gameState.difficulty
-          );
-
-          if (shouldContinue) {
-            // CPUがさらにアタック（今回は簡潔に1手番1的中後ステイ、または次回さらに発展可能）
-            // ステイして伏せカードに追加
-            let updatedCpuCards = [...gameState.cpuCards];
-            if (cpuDrawn) {
-              updatedCpuCards = insertCardInOrder(updatedCpuCards, {
-                ...cpuDrawn,
-                isOpen: false,
-              });
-            }
-            setGameState((prev) => ({
-              ...prev,
-              deck: currentDeck,
-              playerCards: updatedPlayerCards,
-              cpuCards: updatedCpuCards,
-              logs: [log, ...prev.logs],
-              currentTurn: 'player',
-              phase: 'PLAYER_TURN_START',
-            }));
-            setCpuStatusText('CPUは的中後にステイしました。あなたのターンです。');
-          } else {
-            // ステイ
-            let updatedCpuCards = [...gameState.cpuCards];
-            if (cpuDrawn) {
-              updatedCpuCards = insertCardInOrder(updatedCpuCards, {
-                ...cpuDrawn,
-                isOpen: false,
-              });
-            }
-            setGameState((prev) => ({
-              ...prev,
-              deck: currentDeck,
-              playerCards: updatedPlayerCards,
-              cpuCards: updatedCpuCards,
-              logs: [log, ...prev.logs],
-              currentTurn: 'player',
-              phase: 'PLAYER_TURN_START',
-            }));
-            setCpuStatusText('CPUは的中後にステイしました。あなたのターンです。');
-          }
-        } else {
-          // ハズレ：CPUの引いたカードが表向きでCPU手札に追加
-          let updatedCpuCards = [...gameState.cpuCards];
+          // CPUは的中後安全にステイ
+          const cpuIdx = updatedPlayers.findIndex((p) => p.id === currentCpu.id);
           if (cpuDrawn) {
-            updatedCpuCards = insertCardInOrder(updatedCpuCards, {
-              ...cpuDrawn,
-              isOpen: true,
-            });
+            updatedPlayers[cpuIdx] = {
+              ...updatedPlayers[cpuIdx],
+              cards: insertCardInOrder(updatedPlayers[cpuIdx].cards, {
+                ...cpuDrawn,
+                isOpen: false,
+              }),
+            };
           }
+
+          const nextIdx = getNextActivePlayerIndex(gameState.activePlayerIndex, updatedPlayers);
+          const isNextHuman = updatedPlayers[nextIdx].isHuman;
 
           setGameState((prev) => ({
             ...prev,
             deck: currentDeck,
-            cpuCards: updatedCpuCards,
+            players: updatedPlayers,
             logs: [log, ...prev.logs],
-            currentTurn: 'player',
-            phase: 'PLAYER_TURN_START',
+            activePlayerIndex: nextIdx,
+            remainingTime: prev.timeLimit,
+            phase: isNextHuman ? 'PLAYER_TURN_START' : 'CPU_ACTING',
           }));
-          setCpuStatusText('CPUの推理はハズレました。あなたのターンです。');
-        }
-      }, 1500);
+          setCpuStatusMessage(`${currentCpu.name} は的中後にステイしました。`);
+        } else {
+          // ハズレ
+          const updatedPlayers = [...gameState.players];
+          const cpuIdx = updatedPlayers.findIndex((p) => p.id === currentCpu.id);
+          if (cpuDrawn) {
+            updatedPlayers[cpuIdx] = {
+              ...updatedPlayers[cpuIdx],
+              cards: insertCardInOrder(updatedPlayers[cpuIdx].cards, {
+                ...cpuDrawn,
+                isOpen: true,
+              }),
+            };
+          }
 
-      return () => clearTimeout(thinkTimer);
+          const nextIdx = getNextActivePlayerIndex(gameState.activePlayerIndex, updatedPlayers);
+          const isNextHuman = updatedPlayers[nextIdx].isHuman;
+
+          setGameState((prev) => ({
+            ...prev,
+            deck: currentDeck,
+            players: updatedPlayers,
+            logs: [log, ...prev.logs],
+            activePlayerIndex: nextIdx,
+            remainingTime: prev.timeLimit,
+            phase: isNextHuman ? 'PLAYER_TURN_START' : 'CPU_ACTING',
+          }));
+          setCpuStatusMessage(`${currentCpu.name} の推理はハズレました。`);
+        }
+      }, 1400);
+
+      return () => clearTimeout(thinkTimeout);
     }, 1000);
 
     return () => {
       isMounted = false;
-      clearTimeout(timer);
+      clearTimeout(turnTimeout);
     };
-  }, [gameState.phase, gameState.winner]);
+  }, [gameState.phase, gameState.activePlayerIndex, gameState.winner]);
 
-  // プレイヤーが既に確認できている数字（ヒント用：自分の手札＋場に出ているオープンカード）
+  // ヒント用：確認済み数字
+  const humanPlayer = gameState.players.find((p) => p.isHuman);
   const knownNumbers: number[] = [];
-  gameState.playerCards.forEach((c) => knownNumbers.push(c.number));
-  gameState.cpuCards.forEach((c) => {
-    if (c.isOpen) knownNumbers.push(c.number);
+  if (humanPlayer) {
+    humanPlayer.cards.forEach((c) => knownNumbers.push(c.number));
+  }
+  gameState.players.forEach((p) => {
+    p.cards.forEach((c) => {
+      if (c.isOpen && !knownNumbers.includes(c.number)) {
+        knownNumbers.push(c.number);
+      }
+    });
   });
-  if (gameState.playerDrawnCard) {
-    knownNumbers.push(gameState.playerDrawnCard.number);
+  if (gameState.drawnCard && !knownNumbers.includes(gameState.drawnCard.number)) {
+    knownNumbers.push(gameState.drawnCard.number);
   }
 
-  return (
-    <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-      {/* Top Header */}
-      <header className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center font-black text-zinc-950 text-xl shadow-lg shadow-amber-500/20">
-            A
-          </div>
-          <div>
-            <h1 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
-              algo <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">Web対戦</span>
-            </h1>
-            <p className="text-xs text-zinc-400">数字当て論理推理ボードゲーム</p>
-          </div>
-        </div>
+  // 1. セットアップ画面
+  if (gameState.phase === 'SETUP') {
+    return (
+      <div className="min-h-screen py-8 px-4 flex flex-col justify-center items-center">
+        <SetupModal
+          playerCount={gameState.playerCount}
+          difficulty={gameState.difficulty}
+          timeLimit={gameState.timeLimit}
+          onSelectPlayerCount={(count) => setGameState((prev) => ({ ...prev, playerCount: count }))}
+          onSelectDifficulty={(diff) => setGameState((prev) => ({ ...prev, difficulty: diff }))}
+          onSelectTimeLimit={(limit) =>
+            setGameState((prev) => ({ ...prev, timeLimit: limit, remainingTime: limit }))
+          }
+          onStartGame={() =>
+            initializeGame(gameState.playerCount, gameState.difficulty, gameState.timeLimit)
+          }
+          onOpenRules={() => setIsRuleModalOpen(true)}
+        />
+        <RuleGuideModal isOpen={isRuleModalOpen} onClose={() => setIsRuleModalOpen(false)} />
+      </div>
+    );
+  }
 
-        <div className="flex items-center gap-3">
-          {/* Difficulty Selector */}
-          <div className="flex items-center bg-zinc-800 rounded-xl p-1 border border-zinc-700 text-xs">
-            {(['easy', 'normal', 'hard'] as Difficulty[]).map((diff) => (
-              <button
-                key={diff}
-                onClick={() => startNewGame(diff)}
-                className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
-                  gameState.difficulty === diff
-                    ? 'bg-amber-500 text-zinc-950 shadow-md'
-                    : 'text-zinc-400 hover:text-white'
+  // 2. 対戦盤面
+  const activePlayer = gameState.players[gameState.activePlayerIndex];
+  const opponents = gameState.players.filter((p) => !p.isHuman);
+
+  return (
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 space-y-4">
+      {/* Top Header */}
+      <header className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
+        <div className="w-full h-3.5 algo-diamond-pattern border-b border-slate-100" />
+
+        <div className="p-3.5 sm:p-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl overflow-hidden shadow-sm border border-slate-200">
+              <img src="/app-icon.jpg" alt="algo" className="w-full h-full object-cover" />
+            </div>
+            <div>
+              <h1 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+                algo
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-algo-blue/15 text-algo-blue">
+                  {gameState.playerCount}人対戦
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-algo-yellow text-slate-950">
+                  {gameState.difficulty === 'easy'
+                    ? '初級'
+                    : gameState.difficulty === 'normal'
+                    ? '中級'
+                    : '上級'}
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                  {gameState.timeLimit === 0 ? '無制限' : `${gameState.timeLimit}秒`}
+                </span>
+              </h1>
+              <p className="text-[11px] text-slate-500 font-medium">数字当て論理推理ボードゲーム</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* カウントダウンタイマー表示 */}
+            {gameState.timeLimit > 0 && activePlayer?.isHuman && (
+              <div
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-black text-xs transition-all ${
+                  gameState.remainingTime <= 5
+                    ? 'bg-rose-50 border-rose-300 text-rose-600 animate-pulse ring-2 ring-rose-200'
+                    : 'bg-algo-blue-light/60 border-algo-blue/30 text-algo-navy'
                 }`}
               >
-                {diff === 'easy' ? '初級' : diff === 'normal' ? '中級' : '上級'}
-              </button>
-            ))}
+                <Clock className={`w-3.5 h-3.5 ${gameState.remainingTime <= 5 ? 'text-rose-500' : 'text-algo-blue'}`} />
+                <span>残り {gameState.remainingTime} 秒</span>
+              </div>
+            )}
+
+            <button
+              onClick={() => setIsRuleModalOpen(true)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all shadow-2xs"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-algo-blue" />
+              <span>ルール</span>
+            </button>
+
+            <button
+              onClick={() => initializeGame()}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all shadow-2xs"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-slate-600" />
+              <span>再戦</span>
+            </button>
+
+            <button
+              onClick={() => setGameState((prev) => ({ ...prev, phase: 'SETUP' }))}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-2xs"
+            >
+              <Settings2 className="w-3.5 h-3.5 text-algo-yellow" />
+              <span>設定</span>
+            </button>
           </div>
-
-          {/* Rule Modal Button */}
-          <button
-            onClick={() => setIsRuleModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-zinc-200 hover:text-white hover:bg-zinc-700 text-xs font-semibold transition-all"
-          >
-            <BookOpen className="w-4 h-4 text-amber-400" />
-            <span>ルール</span>
-          </button>
-
-          {/* Restart Button */}
-          <button
-            onClick={() => startNewGame(gameState.difficulty)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-zinc-200 hover:text-white hover:bg-zinc-700 text-xs font-semibold transition-all"
-          >
-            <RotateCcw className="w-4 h-4" />
-            <span>リセット</span>
-          </button>
         </div>
       </header>
 
-      {/* Main Grid: Game Field & Log */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      {/* Main Game Field Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         {/* Left 3 cols: Board Field */}
-        <div className="lg:col-span-3 space-y-6">
-          {/* CPU Area */}
-          <section className="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-5 shadow-lg relative overflow-hidden">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center border border-purple-500/30">
-                  <Bot className="w-4 h-4" />
+        <div className="lg:col-span-3 space-y-4">
+          {/* Opponents Area */}
+          <div className={`grid gap-3 ${opponents.length === 1 ? 'grid-cols-1' : opponents.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+            {opponents.map((opp) => {
+              const isCurrentTurn = activePlayer?.id === opp.id;
+              const openCount = opp.cards.filter((c) => c.isOpen).length;
+
+              return (
+                <div
+                  key={opp.id}
+                  className={`bg-white rounded-3xl p-4 border transition-all relative ${
+                    opp.isEliminated
+                      ? 'border-slate-200 bg-slate-50/60 opacity-60'
+                      : isCurrentTurn
+                      ? 'border-algo-blue ring-4 ring-algo-blue/20 shadow-md'
+                      : 'border-slate-200 shadow-sm'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`w-7 h-7 rounded-xl bg-gradient-to-br ${opp.avatarColor} text-white flex items-center justify-center font-bold text-xs shadow-2xs`}
+                      >
+                        <Bot className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="font-black text-xs text-slate-900 block">{opp.name}</span>
+                        <span className="text-[10px] text-slate-400 font-semibold">
+                          ({openCount}/{opp.cards.length} 枚OPEN)
+                        </span>
+                      </div>
+                    </div>
+
+                    {opp.isEliminated ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-bold">
+                        脱落
+                      </span>
+                    ) : isCurrentTurn ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-algo-blue text-white font-bold animate-pulse">
+                        思考中
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-center gap-2 py-1 min-h-24">
+                    {opp.cards.map((card, idx) => (
+                      <CardComponent
+                        key={card.id}
+                        card={card}
+                        isOwner={false}
+                        size={opponents.length === 1 ? 'md' : 'sm'}
+                        label={`#${idx + 1}`}
+                        isEliminated={opp.isEliminated}
+                        isSelectable={
+                          activePlayer?.isHuman &&
+                          gameState.phase === 'PLAYER_SELECT_TARGET' &&
+                          !opp.isEliminated &&
+                          !card.isOpen
+                        }
+                        isSelected={
+                          gameState.selectedTarget?.playerId === opp.id &&
+                          gameState.selectedTarget?.cardIndex === idx
+                        }
+                        onClick={() => handleSelectTargetCard(opp.id, idx)}
+                      />
+                    ))}
+                  </div>
                 </div>
-                <h3 className="font-bold text-sm text-zinc-200">CPUの手札 (相手)</h3>
-                <span className="text-xs text-zinc-500">
-                  ({gameState.cpuCards.filter((c) => c.isOpen).length}/{gameState.cpuCards.length} 枚オープン)
-                </span>
-              </div>
-              {gameState.currentTurn === 'cpu' && (
-                <span className="flex items-center gap-1.5 text-xs text-purple-400 font-bold animate-pulse">
-                  <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
-                  CPUのターン
-                </span>
-              )}
+              );
+            })}
+          </div>
+
+          {/* Player Attack Notice */}
+          {gameState.phase === 'PLAYER_SELECT_TARGET' && (
+            <div className="text-center">
+              <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-algo-blue-light border border-algo-blue/30 text-algo-navy text-xs font-black shadow-xs animate-attack-pulse">
+                <span>👆 推理したい相手の伏せカード（?）をクリックしてください！</span>
+              </span>
             </div>
+          )}
 
-            {/* CPU Cards Row */}
-            <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-4 py-2 min-h-32">
-              {gameState.cpuCards.map((card, idx) => (
-                <CardComponent
-                  key={card.id}
-                  card={card}
-                  isOwner={false}
-                  isSelected={gameState.selectedTargetIndex === idx}
-                  isSelectable={
-                    gameState.currentTurn === 'player' &&
-                    gameState.phase === 'PLAYER_SELECT_TARGET' &&
-                    !card.isOpen
-                  }
-                  onClick={() => handleSelectCpuCard(idx)}
-                  label={`#${idx + 1}`}
-                />
-              ))}
-            </div>
-
-            {gameState.phase === 'PLAYER_SELECT_TARGET' && (
-              <div className="mt-3 text-center">
-                <p className="text-xs font-bold text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded-xl py-2 px-4 inline-block animate-pulse">
-                  👆 推理したい相手の伏せカード（?）をクリックしてください！
-                </p>
-              </div>
-            )}
-          </section>
-
-          {/* Center Table: Deck, Drawn Card, Status */}
-          <section className="bg-gradient-to-b from-zinc-900/90 to-zinc-900/40 border border-zinc-800 rounded-2xl p-6 shadow-inner flex flex-col md:flex-row items-center justify-around gap-6">
+          {/* Center Table */}
+          <section className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-around gap-6">
             {/* Deck Pile */}
-            <div className="flex flex-col items-center gap-2">
+            <div className="flex flex-col items-center gap-1.5">
               <div
-                onClick={
-                  gameState.phase === 'PLAYER_TURN_START' && gameState.currentTurn === 'player'
-                    ? handlePlayerDraw
-                    : undefined
-                }
-                className={`relative w-20 h-28 sm:w-24 sm:h-32 rounded-xl border-2 flex flex-col items-center justify-center select-none shadow-xl transition-all ${
-                  gameState.phase === 'PLAYER_TURN_START' && gameState.currentTurn === 'player'
-                    ? 'border-amber-400 bg-gradient-to-br from-amber-500/20 to-zinc-800 cursor-pointer hover:scale-105 hover:shadow-amber-500/20 animate-bounce'
-                    : 'border-zinc-700 bg-zinc-800/80 text-zinc-500'
+                onClick={gameState.phase === 'PLAYER_TURN_START' ? handlePlayerDraw : undefined}
+                className={`relative w-20 h-28 sm:w-24 sm:h-32 rounded-2xl border-2 flex flex-col items-center justify-center select-none transition-all ${
+                  gameState.phase === 'PLAYER_TURN_START'
+                    ? 'border-algo-yellow-dark bg-algo-yellow-light/80 shadow-lg shadow-amber-200/50 cursor-pointer hover:scale-105 animate-bounce'
+                    : 'border-slate-200 bg-slate-50 text-slate-400'
                 }`}
               >
-                <Layers className="w-8 h-8 mb-1 text-amber-400/80" />
-                <span className="text-xs font-bold">山札</span>
-                <span className="text-lg font-black text-white">{gameState.deck.length} 枚</span>
-                {gameState.phase === 'PLAYER_TURN_START' && gameState.currentTurn === 'player' && (
-                  <span className="absolute -bottom-2.5 px-2 py-0.5 rounded-full bg-amber-500 text-zinc-950 text-[10px] font-black uppercase tracking-wider">
+                <Layers className="w-7 h-7 mb-1 text-algo-blue" />
+                <span className="text-[10px] font-bold text-slate-500">山札</span>
+                <span className="text-lg font-black text-slate-900">{gameState.deck.length} 枚</span>
+                {gameState.phase === 'PLAYER_TURN_START' && (
+                  <span className="absolute -bottom-2 px-2.5 py-0.5 rounded-full bg-algo-yellow text-slate-950 text-[10px] font-black border border-amber-300 shadow-xs">
                     引く
                   </span>
                 )}
@@ -509,84 +696,101 @@ export const GameBoard: React.FC = () => {
             </div>
 
             {/* Drawn Card display */}
-            <div className="flex flex-col items-center gap-2">
-              <span className="text-xs text-zinc-400 font-semibold">引いたカード</span>
-              {gameState.playerDrawnCard ? (
-                <div className="scale-105 transition-transform animate-in zoom-in-75">
-                  <CardComponent
-                    card={gameState.playerDrawnCard}
-                    isOwner={true}
-                    size="md"
-                  />
+            <div className="flex flex-col items-center gap-1.5">
+              <span className="text-xs font-bold text-slate-500">引いたカード</span>
+              {gameState.drawnCard ? (
+                <div className="scale-105 transition-transform animate-card-draw">
+                  <CardComponent card={gameState.drawnCard} isOwner={true} size="md" />
                 </div>
               ) : (
-                <div className="w-16 h-24 sm:w-20 sm:h-28 rounded-lg border-2 border-dashed border-zinc-800 flex items-center justify-center text-xs text-zinc-600">
+                <div className="w-16 h-24 sm:w-20 sm:h-28 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center text-xs text-slate-400 font-semibold bg-slate-50/50">
                   なし
                 </div>
               )}
             </div>
 
-            {/* Action & Status Guidance */}
-            <div className="flex-1 max-w-sm text-center md:text-left space-y-2">
+            {/* Turn Guidance */}
+            <div className="flex-1 max-w-md text-center md:text-left space-y-2">
               {gameState.phase === 'PLAYER_TURN_START' && (
-                <div>
-                  <h4 className="font-bold text-amber-400 text-sm">あなたのターン</h4>
-                  <p className="text-xs text-zinc-300 mt-1">
-                    まずは中央の山札をクリックしてカードを引いてください。
+                <div className="p-3.5 bg-algo-blue-light/50 border border-algo-blue/20 rounded-2xl space-y-1">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-black text-slate-900 text-sm flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-algo-blue" />
+                      <span>あなたのターン</span>
+                    </h4>
+                    {gameState.timeLimit > 0 && (
+                      <span className="text-xs font-bold text-algo-blue">残り {gameState.remainingTime}秒</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-600 font-medium">
+                    中央の山札をクリックしてカードを引いてください。
                   </p>
                 </div>
               )}
 
               {gameState.phase === 'PLAYER_SELECT_TARGET' && (
-                <div>
-                  <h4 className="font-bold text-amber-400 text-sm">アタック対象を選択</h4>
-                  <p className="text-xs text-zinc-300 mt-1">
-                    上のCPU手札から、推理したい伏せカードをクリックしてください。
+                <div className="p-3.5 bg-algo-blue-light/50 border border-algo-blue/20 rounded-2xl space-y-1">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-black text-slate-900 text-sm">アタック対象を選択</h4>
+                    {gameState.timeLimit > 0 && (
+                      <span className="text-xs font-bold text-algo-blue">残り {gameState.remainingTime}秒</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-600 font-medium">
+                    相手の手札から推理したい伏せカードをクリックしてください。
                   </p>
                 </div>
               )}
 
               {gameState.phase === 'PLAYER_DECIDE_NEXT' && (
-                <div className="space-y-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl">
-                  <h4 className="font-bold text-amber-400 text-sm">✨ アタック的中！</h4>
-                  <p className="text-xs text-zinc-300">
-                    続けて他のカードを推理しますか？それともステイして手番を終えますか？
+                <div className="p-4 bg-algo-yellow-light/80 border border-algo-yellow-dark/40 rounded-2xl space-y-2.5 shadow-sm">
+                  <h4 className="font-black text-slate-900 text-sm flex items-center gap-1.5">
+                    <Flame className="w-4 h-4 text-amber-500" />
+                    <span>✨ アタック的中！お見事！</span>
+                  </h4>
+                  <p className="text-xs text-slate-700 font-medium">
+                    続けて別のカードにアタックしますか？それともステイして手番を終えますか？
                   </p>
                   <div className="flex gap-2">
                     <button
-                      onClick={handlePlayerContinueAttack}
-                      className="flex-1 py-1.5 rounded-lg bg-amber-500 text-zinc-950 font-bold text-xs hover:brightness-110 transition-all"
+                      onClick={handlePlayerContinue}
+                      className="flex-1 py-2 rounded-xl bg-gradient-to-r from-algo-blue to-algo-blue-dark text-white font-black text-xs hover:brightness-105 shadow-sm transition-all"
                     >
                       続けてアタック
                     </button>
                     <button
                       onClick={handlePlayerStay}
-                      className="flex-1 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-200 font-bold text-xs hover:bg-zinc-700 transition-all"
+                      className="flex-1 py-2 rounded-xl bg-white border border-slate-300 text-slate-800 font-bold text-xs hover:bg-slate-50 transition-all shadow-2xs"
                     >
-                      ステイ (終了)
+                      ステイ（手札に加える）
                     </button>
                   </div>
                 </div>
               )}
 
-              {gameState.phase === 'CPU_THINKING' && (
-                <div className="space-y-2">
-                  <h4 className="font-bold text-purple-400 text-sm flex items-center gap-2">
-                    <Bot className="w-4 h-4" />
-                    CPUの手番
+              {gameState.phase === 'CPU_ACTING' && (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-1">
+                  <h4 className="font-black text-slate-900 text-sm flex items-center gap-1.5">
+                    <Bot className="w-4 h-4 text-algo-blue" />
+                    <span>{activePlayer?.name} の手番</span>
                   </h4>
-                  <p className="text-xs text-zinc-300">{cpuStatusText}</p>
+                  <p className="text-xs text-slate-600 font-medium animate-pulse">{cpuStatusMessage}</p>
                 </div>
               )}
 
               {gameState.phase === 'GAME_OVER' && (
-                <div className="space-y-2">
-                  <h4 className="font-black text-lg text-white">
-                    {gameState.winner === 'player' ? '🎉 あなたの勝利！' : '💀 CPUの勝利'}
+                <div className="p-4 bg-gradient-to-br from-algo-yellow/40 to-algo-blue/20 border border-amber-300 rounded-2xl space-y-2 text-center shadow-md">
+                  <div className="w-10 h-10 mx-auto rounded-full bg-amber-400 text-slate-950 flex items-center justify-center shadow-md">
+                    <Trophy className="w-6 h-6" />
+                  </div>
+                  <h4 className="font-black text-base text-slate-900">
+                    {gameState.winner?.isHuman
+                      ? '🎉 おめでとうございます！あなたの完全勝利！'
+                      : `💀 ${gameState.winner?.name} の勝利！`}
                   </h4>
                   <button
-                    onClick={() => startNewGame(gameState.difficulty)}
-                    className="w-full py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-zinc-950 font-bold text-xs shadow-md"
+                    onClick={() => initializeGame()}
+                    className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black text-xs shadow-md transition-all"
                   >
                     もう一度対戦する
                   </button>
@@ -595,74 +799,81 @@ export const GameBoard: React.FC = () => {
             </div>
           </section>
 
-          {/* Player Area */}
-          <section className="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-5 shadow-lg relative overflow-hidden">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
-                  <User className="w-4 h-4" />
+          {/* Player Hand Area */}
+          {humanPlayer && (
+            <section className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm relative overflow-hidden">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-xl bg-algo-blue text-white flex items-center justify-center font-bold text-xs shadow-2xs">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <h3 className="font-black text-sm text-slate-900">{humanPlayer.name} の手札</h3>
+                  <span className="text-xs font-semibold text-slate-400">
+                    ({humanPlayer.cards.filter((c) => c.isOpen).length}/{humanPlayer.cards.length} 枚OPEN)
+                  </span>
                 </div>
-                <h3 className="font-bold text-sm text-zinc-200">あなたの手札</h3>
-                <span className="text-xs text-zinc-500">
-                  ({gameState.playerCards.filter((c) => c.isOpen).length}/{gameState.playerCards.length} 枚オープン)
-                </span>
+
+                {activePlayer?.isHuman && (
+                  <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-algo-yellow text-slate-950 text-xs font-black shadow-2xs">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                    あなたのターン
+                  </span>
+                )}
               </div>
-              {gameState.currentTurn === 'player' && (
-                <span className="flex items-center gap-1.5 text-xs text-amber-400 font-bold animate-pulse">
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-                  あなたのターン
-                </span>
-              )}
-            </div>
 
-            {/* Player Cards Row */}
-            <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-4 py-2 min-h-32">
-              {gameState.playerCards.map((card, idx) => (
-                <CardComponent
-                  key={card.id}
-                  card={card}
-                  isOwner={true}
-                  label={`#${idx + 1}`}
-                />
-              ))}
-            </div>
+              {/* Player Cards */}
+              <div className="flex flex-wrap items-center justify-center gap-3 py-2 min-h-28">
+                {humanPlayer.cards.map((card, idx) => (
+                  <CardComponent
+                    key={card.id}
+                    card={card}
+                    isOwner={true}
+                    size="md"
+                    label={`#${idx + 1}`}
+                  />
+                ))}
+              </div>
 
-            <div className="mt-3 text-center">
-              <p className="text-[11px] text-zinc-500">
-                ※ 手札は左から小さい順（同数は黒が左）に並んでいます。「(伏せ)」は相手には見えていません。
-              </p>
-            </div>
-          </section>
+              <div className="mt-2 text-center">
+                <p className="text-[11px] text-slate-400 font-medium">
+                  ※ 手札は左から小さい順（同数は黒が左）に並んでいます。「伏せ中」の数字は相手には見えていません。
+                </p>
+              </div>
+            </section>
+          )}
         </div>
 
-        {/* Right 1 col: Log & Help */}
-        <div className="lg:col-span-1 space-y-6">
+        {/* Right 1 col: Log & Visuals */}
+        <div className="lg:col-span-1 space-y-4">
           <GameLog logs={gameState.logs} />
         </div>
       </div>
 
       {/* Modals */}
-      {gameState.selectedTargetIndex !== null &&
-        gameState.phase === 'PLAYER_GUESS_NUMBER' && (
-          <AttackModal
-            targetIndex={gameState.selectedTargetIndex}
-            targetColor={gameState.cpuCards[gameState.selectedTargetIndex].color}
-            onConfirmGuess={handleConfirmGuess}
-            onCancel={() =>
-              setGameState((prev) => ({
-                ...prev,
-                selectedTargetIndex: null,
-                phase: 'PLAYER_SELECT_TARGET',
-              }))
-            }
-            disabledNumbers={knownNumbers}
-          />
-        )}
+      {gameState.selectedTarget && gameState.phase === 'PLAYER_GUESS_NUMBER' && (
+        <AttackModal
+          targetPlayerName={
+            gameState.players.find((p) => p.id === gameState.selectedTarget?.playerId)?.name || ''
+          }
+          targetIndex={gameState.selectedTarget.cardIndex}
+          targetColor={
+            gameState.players.find((p) => p.id === gameState.selectedTarget?.playerId)?.cards[
+              gameState.selectedTarget.cardIndex
+            ].color || 'black'
+          }
+          onConfirmGuess={handleConfirmGuess}
+          onCancel={() =>
+            setGameState((prev) => ({
+              ...prev,
+              selectedTarget: null,
+              phase: 'PLAYER_SELECT_TARGET',
+            }))
+          }
+          disabledNumbers={knownNumbers}
+        />
+      )}
 
-      <RuleGuideModal
-        isOpen={isRuleModalOpen}
-        onClose={() => setIsRuleModalOpen(false)}
-      />
+      <RuleGuideModal isOpen={isRuleModalOpen} onClose={() => setIsRuleModalOpen(false)} />
     </div>
   );
 };

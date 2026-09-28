@@ -1,20 +1,20 @@
-import { Card, CardColor, Difficulty, AttackLog } from '../types/game';
+import { Card, CardColor, Difficulty, AttackLog, Player } from '../types/game';
 import { compareCards } from './algoEngine';
 
-export interface CpuAttackDecision {
-  targetIndex: number;
+export interface MultiCpuAttackDecision {
+  targetPlayerId: string;
+  targetCardIndex: number;
   guessedNumber: number;
 }
 
 /**
- * CPUから見た「まだ場・手元に出ていない（未知の）カード一覧」を取得
+ * CPUから見て「まだ誰のオープンでもなく、自分の手元にもない未知のカード」を取得
  */
-export function getAvailableUnknownCards(
-  cpuHand: Card[],
+export function getAvailableUnknownCardsMulti(
+  cpuPlayer: Player,
   cpuDrawnCard: Card | null,
-  playerHand: Card[]
+  allPlayers: Player[]
 ): { color: CardColor; number: number }[] {
-  // 全24枚のセット
   const allCards: { color: CardColor; number: number }[] = [];
   for (const c of ['black', 'white'] as CardColor[]) {
     for (let n = 0; n <= 11; n++) {
@@ -22,17 +22,22 @@ export function getAvailableUnknownCards(
     }
   }
 
-  // CPUが知っているカード（自分の手札、引いたカード、相手の表向きカード）
   const knownCards = new Set<string>();
-  for (const c of cpuHand) {
+
+  // 1. 自分自身の手札
+  for (const c of cpuPlayer.cards) {
     knownCards.add(`${c.color}-${c.number}`);
   }
+  // 2. 自分が引いたカード
   if (cpuDrawnCard) {
     knownCards.add(`${cpuDrawnCard.color}-${cpuDrawnCard.number}`);
   }
-  for (const c of playerHand) {
-    if (c.isOpen) {
-      knownCards.add(`${c.color}-${c.number}`);
+  // 3. 全プレイヤーのオープンカード
+  for (const p of allPlayers) {
+    for (const c of p.cards) {
+      if (c.isOpen) {
+        knownCards.add(`${c.color}-${c.number}`);
+      }
     }
   }
 
@@ -40,75 +45,67 @@ export function getAvailableUnknownCards(
 }
 
 /**
- * プレイヤーの手札の特定インデックスのカード（裏向き）について、
- * 並び順ルールおよび既知カードから取りうる数字候補を計算する
+ * 特定プレイヤーの裏向きカードについて、取りうる数字候補を計算
  */
 export function getPossibleNumbersForTarget(
   targetIndex: number,
-  playerHand: Card[],
+  targetHand: Card[],
   availableUnknownCards: { color: CardColor; number: number }[],
-  logs: AttackLog[] = []
+  logs: AttackLog[] = [],
+  targetPlayerId: string = ''
 ): number[] {
-  const targetCard = playerHand[targetIndex];
+  const targetCard = targetHand[targetIndex];
   if (targetCard.isOpen) return [];
 
   const targetColor = targetCard.color;
 
-  // 1. 同色の未知カードから候補を絞る
+  // 1. 同色の未知カード
   let candidates = availableUnknownCards
     .filter((c) => c.color === targetColor)
     .map((c) => c.number);
 
-  // 2. 左側にあるオープンカードによる下限チェック
+  // 2. 左側のオープンカードによる下限チェック
   for (let i = targetIndex - 1; i >= 0; i--) {
-    const leftCard = playerHand[i];
+    const leftCard = targetHand[i];
     if (leftCard.isOpen) {
-      // targetCard は leftCard より大きくなければならない
       candidates = candidates.filter((candNum) => {
-        const dummyTarget: Card = {
+        const dummy: Card = {
           id: 'dummy',
           color: targetColor,
           number: candNum,
           isOpen: false,
         };
-        return compareCards(leftCard, dummyTarget) < 0;
+        return compareCards(leftCard, dummy) < 0;
       });
-      break; // 直近のオープンカードが最も強い制約
+      break;
     }
   }
 
-  // 3. 右側にあるオープンカードによる上限チェック
-  for (let i = targetIndex + 1; i < playerHand.length; i++) {
-    const rightCard = playerHand[i];
+  // 3. 右側のオープンカードによる上限チェック
+  for (let i = targetIndex + 1; i < targetHand.length; i++) {
+    const rightCard = targetHand[i];
     if (rightCard.isOpen) {
-      // targetCard は rightCard より小さくなければならない
       candidates = candidates.filter((candNum) => {
-        const dummyTarget: Card = {
+        const dummy: Card = {
           id: 'dummy',
           color: targetColor,
           number: candNum,
           isOpen: false,
         };
-        return compareCards(dummyTarget, rightCard) < 0;
+        return compareCards(dummy, rightCard) < 0;
       });
-      break; // 直近のオープンカードが最も強い制約
+      break;
     }
   }
 
-  // 4. 左側の裏向きカード枚数による物理的最小値（最低でも (枚数 - 1) 分のスペースが必要）
-  const unopenLeftCount = targetIndex;
-  // 右側の裏向きカード枚数による物理的最大値
-  const unopenRightCount = playerHand.length - 1 - targetIndex;
-
-  candidates = candidates.filter((num) => {
-    // 粗い足切り（0〜11の範囲内での最小スロット確保）
-    return num >= Math.floor(unopenLeftCount / 2) && num <= 11 - Math.floor(unopenRightCount / 2);
-  });
-
-  // 5. 過去に同じターゲットに対して外した数字を除外
+  // 4. 過去にそのカードに対して外した履歴を除外
   const failedGuesses = new Set<number>();
   for (const log of logs) {
-    if (log.targetIndex === targetIndex && !log.isHit) {
+    if (
+      log.targetPlayerId === targetPlayerId &&
+      log.targetCardIndex === targetIndex &&
+      !log.isHit
+    ) {
       failedGuesses.add(log.guessedNumber);
     }
   }
@@ -118,142 +115,144 @@ export function getPossibleNumbersForTarget(
 }
 
 /**
- * CPUのアタック思考メイン関数
+ * 2〜4人対戦におけるCPUのアタック決定ロジック
  */
-export function decideCpuAttack(
-  playerHand: Card[],
-  cpuHand: Card[],
+export function decideMultiCpuAttack(
+  currentCpu: Player,
   cpuDrawnCard: Card | null,
+  allPlayers: Player[],
   difficulty: Difficulty,
   logs: AttackLog[] = []
-): CpuAttackDecision {
-  // プレイヤーの裏向きカードのインデックス一覧
-  const closedIndices: number[] = [];
-  playerHand.forEach((card, index) => {
-    if (!card.isOpen) closedIndices.push(index);
-  });
+): MultiCpuAttackDecision {
+  // アタック対象となりうる相手プレイヤー一覧（脱落しておらず、伏せカードがあるプレイヤー）
+  const opponents = allPlayers.filter(
+    (p) => p.id !== currentCpu.id && !p.isEliminated && p.cards.some((c) => !c.isOpen)
+  );
 
-  if (closedIndices.length === 0) {
-    return { targetIndex: 0, guessedNumber: 0 };
+  if (opponents.length === 0) {
+    return { targetPlayerId: '', targetCardIndex: 0, guessedNumber: 0 };
   }
 
-  const unknownCards = getAvailableUnknownCards(cpuHand, cpuDrawnCard, playerHand);
+  const unknownCards = getAvailableUnknownCardsMulti(currentCpu, cpuDrawnCard, allPlayers);
 
-  // 各裏向きカードの候補を算出
-  const targetCandidateMap = new Map<number, number[]>();
-  for (const idx of closedIndices) {
-    const candidates = getPossibleNumbersForTarget(
-      idx,
-      playerHand,
-      unknownCards,
-      difficulty === 'hard' ? logs : []
-    );
-    // 候補が空（異常系保険）なら未知カードの同色から全選択
-    if (candidates.length === 0) {
-      const fallback = unknownCards
-        .filter((c) => c.color === playerHand[idx].color)
-        .map((c) => c.number);
-      targetCandidateMap.set(idx, fallback.length > 0 ? fallback : [0]);
-    } else {
-      targetCandidateMap.set(idx, candidates);
-    }
+  interface TargetCandidate {
+    playerId: string;
+    cardIndex: number;
+    candidates: number[];
   }
 
-  // 難易度別の選択
-  if (difficulty === 'easy') {
-    // ランダムに対象を選び、ランダムに予想
-    const chosenIdx = closedIndices[Math.floor(Math.random() * closedIndices.length)];
-    const candidates = targetCandidateMap.get(chosenIdx) || [0];
-    const guessedNumber = candidates[Math.floor(Math.random() * candidates.length)];
-    return { targetIndex: chosenIdx, guessedNumber };
-  }
+  const allTargetCandidates: TargetCandidate[] = [];
 
-  if (difficulty === 'normal') {
-    // 最も候補が少ない（確定に近い）カードを優先して狙う
-    let bestIdx = closedIndices[0];
-    let minCandidateCount = 999;
-
-    for (const idx of closedIndices) {
-      const count = targetCandidateMap.get(idx)?.length || 999;
-      if (count < minCandidateCount) {
-        minCandidateCount = count;
-        bestIdx = idx;
+  for (const opp of opponents) {
+    opp.cards.forEach((card, idx) => {
+      if (!card.isOpen) {
+        let cands = getPossibleNumbersForTarget(
+          idx,
+          opp.cards,
+          unknownCards,
+          difficulty === 'hard' ? logs : [],
+          opp.id
+        );
+        if (cands.length === 0) {
+          // フォールバック
+          cands = unknownCards
+            .filter((c) => c.color === card.color)
+            .map((c) => c.number);
+          if (cands.length === 0) cands = [0];
+        }
+        allTargetCandidates.push({
+          playerId: opp.id,
+          cardIndex: idx,
+          candidates: cands,
+        });
       }
-    }
-
-    const candidates = targetCandidateMap.get(bestIdx) || [0];
-    const guessedNumber = candidates[Math.floor(Math.random() * candidates.length)];
-    return { targetIndex: bestIdx, guessedNumber };
+    });
   }
 
-  // hard: 確定カード（候補数=1）があれば即座にそれを狙う！
-  for (const idx of closedIndices) {
-    const cands = targetCandidateMap.get(idx) || [];
-    if (cands.length === 1) {
-      return { targetIndex: idx, guessedNumber: cands[0] };
+  if (allTargetCandidates.length === 0) {
+    return {
+      targetPlayerId: opponents[0].id,
+      targetCardIndex: 0,
+      guessedNumber: 0,
+    };
+  }
+
+  // Easy: ランダムな対象・ランダムな数字
+  if (difficulty === 'easy') {
+    const picked = allTargetCandidates[Math.floor(Math.random() * allTargetCandidates.length)];
+    const guessedNumber = picked.candidates[Math.floor(Math.random() * picked.candidates.length)];
+    return {
+      targetPlayerId: picked.playerId,
+      targetCardIndex: picked.cardIndex,
+      guessedNumber,
+    };
+  }
+
+  // Hard: 確定マス（候補数1）があれば最優先！
+  if (difficulty === 'hard') {
+    const confirmed = allTargetCandidates.find((tc) => tc.candidates.length === 1);
+    if (confirmed) {
+      return {
+        targetPlayerId: confirmed.playerId,
+        targetCardIndex: confirmed.cardIndex,
+        guessedNumber: confirmed.candidates[0],
+      };
     }
   }
 
-  // 確定がない場合、候補数が最小のインデックスを選択
-  let bestIdx = closedIndices[0];
-  let minCount = 999;
+  // Normal & Hard (確定なし): 最も候補数が少ない対象を選ぶ
+  allTargetCandidates.sort((a, b) => a.candidates.length - b.candidates.length);
+  const bestTarget = allTargetCandidates[0];
+  const guessedNumber =
+    difficulty === 'hard'
+      ? bestTarget.candidates[Math.floor(bestTarget.candidates.length / 2)]
+      : bestTarget.candidates[Math.floor(Math.random() * bestTarget.candidates.length)];
 
-  for (const idx of closedIndices) {
-    const count = targetCandidateMap.get(idx)?.length || 999;
-    if (count < minCount) {
-      minCount = count;
-      bestIdx = idx;
-    }
-  }
-
-  const bestCandidates = targetCandidateMap.get(bestIdx) || [0];
-  // 中央値（最もありそうな数字）またはランダム
-  const guessedNumber = bestCandidates[Math.floor(bestCandidates.length / 2)];
-  return { targetIndex: bestIdx, guessedNumber };
+  return {
+    targetPlayerId: bestTarget.playerId,
+    targetCardIndex: bestTarget.cardIndex,
+    guessedNumber,
+  };
 }
 
 /**
- * CPUがアタック的中後に「続けてアタックするか（コンティニュー）」または「ステイするか」を判断
+ * アタック的中後の継続判定（マルチプレイヤー版）
  */
-export function decideCpuContinue(
-  playerHand: Card[],
-  cpuHand: Card[],
+export function decideMultiCpuContinue(
+  currentCpu: Player,
   cpuDrawnCard: Card | null,
+  allPlayers: Player[],
   difficulty: Difficulty
 ): boolean {
-  // 残り裏向きカードが0枚なら勝利なので継続不要（自動終了）
-  const remainingClosed = playerHand.filter((c) => !c.isOpen).length;
-  if (remainingClosed === 0) return false;
+  const opponents = allPlayers.filter(
+    (p) => p.id !== currentCpu.id && !p.isEliminated && p.cards.some((c) => !c.isOpen)
+  );
+  if (opponents.length === 0) return false;
 
-  if (difficulty === 'easy') {
-    // 50% でステイ
-    return Math.random() > 0.5;
-  }
+  if (difficulty === 'easy') return Math.random() > 0.6;
 
-  // 確定できるカードがあるなら継続する
-  const unknownCards = getAvailableUnknownCards(cpuHand, cpuDrawnCard, playerHand);
-  for (let i = 0; i < playerHand.length; i++) {
-    if (!playerHand[i].isOpen) {
-      const cands = getPossibleNumbersForTarget(i, playerHand, unknownCards);
-      if (cands.length === 1) {
-        return true; // 確実に当てられるならアタック続行！
+  // 確定できる相手カードがあるなら継続
+  const unknownCards = getAvailableUnknownCardsMulti(currentCpu, cpuDrawnCard, allPlayers);
+  for (const opp of opponents) {
+    for (let i = 0; i < opp.cards.length; i++) {
+      if (!opp.cards[i].isOpen) {
+        const cands = getPossibleNumbersForTarget(i, opp.cards, unknownCards);
+        if (cands.length === 1) return true;
       }
     }
   }
 
   if (difficulty === 'hard') {
-    // 候補が2つ以下のカードがあれば勝負、そうでなければステイで安全策
-    for (let i = 0; i < playerHand.length; i++) {
-      if (!playerHand[i].isOpen) {
-        const cands = getPossibleNumbersForTarget(i, playerHand, unknownCards);
-        if (cands.length <= 2) {
-          return true;
+    for (const opp of opponents) {
+      for (let i = 0; i < opp.cards.length; i++) {
+        if (!opp.cards[i].isOpen) {
+          const cands = getPossibleNumbersForTarget(i, opp.cards, unknownCards);
+          if (cands.length <= 2) return true;
         }
       }
     }
-    return false; // 安全に伏せて手札にする
+    return false;
   }
 
-  // Normal: 確率30%で継続
-  return Math.random() < 0.3;
+  return Math.random() < 0.25;
 }
