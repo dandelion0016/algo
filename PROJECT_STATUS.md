@@ -12,11 +12,11 @@
 
 | 項目 | 現在値 |
 | :--- | :--- |
-| **カレントフェーズ** | **Phase 0-A: 要件定義 ＆ 初期基盤構築 (Walking Skeleton)** |
-| **フェーズステータス** | `WAITING_USER_APPROVAL` (要件定義 ＆ 基盤疎通完了、Gate 0-A 承認待ち) |
-| **ゲート承認状態** | `BLOCKED_WAITING_APPROVAL` (ユーザーからのGate 0-A承認受領待ち) |
-| **主担当ロール** | 管理者 (`role:manager`) ＋ システムアーキテクト (`role:architect`) |
-| **作業ブランチ** | `main` |
+| **カレントフェーズ** | **Phase 0-B: システム設計書作成（6領域専門ドキュメント策定）** |
+| **フェーズステータス** | `IN_PROGRESS` (6領域の専門システム設計書群を自律策定中) |
+| **ゲート承認状態** | `OPEN` (Gate 0-A 承認・PR #1 マージ完了、Phase 0-B 進行中) |
+| **主担当ロール** | 各専門サブエージェント ＋ システムアーキテクト (`role:architect`) |
+| **作業ブランチ** | `feature/phase-0b-system-design` |
 | **リポジトリ** | `https://github.com/dandelion0016/algo` (Private) |
 | **最終更新日時** | 2026-09-28 |
 
@@ -24,12 +24,13 @@
 
 ## 2. フェーズ別ロードマップ ＆ ゲートステータス
 
-- [ ] **Phase 0-A: 要件定義 ＆ 初期基盤構築** `[WAITING_USER_APPROVAL]`
+- [x] **Phase 0-A: 要件定義 ＆ 初期基盤構築** `[COMPLETED]`
   - [x] 1. GitHubリポジトリ新設 (`dandelion0016/algo` Private)
-  - [x] 2. 要件定義書作成 (`specs/requirements.md`)
-  - [x] 3. Walking Skeleton構築（Next.js + TS + Tailwind + アルゴCPU対戦UI ＆ コアルール疎通 ＆ ユニットテスト全件合格）
-  - 🛑 **Gate 0-A**: 人間による要件・初期基盤FIX承認 `[承認待ち ⏳]`
-- [ ] **Phase 0-B: システム設計書作成（6領域専門ドキュメント策定）** `[NOT_STARTED]`
+  - [x] 2. 要件定義書作成 (`specs/requirements.md` アルゴ公式ルール・AWS無料枠インフラ方針)
+  - [x] 3. Walking Skeleton構築（2〜4人対戦、難易度選択、持ち時間三択、パステルイエロー×スカイブルー新UI、画像アセット生成）
+  - [x] 4. 実機画面スクリーンショット撮影・検証完了
+  - 🛑 **Gate 0-A**: 人間による要件・初期基盤FIX承認 `[APPROVED ✅ (2026-09-28)]`
+- [ ] **Phase 0-B: システム設計書作成（6領域専門ドキュメント策定）** `[IN_PROGRESS]`
   - [ ] 1. フロントエンド設計 (`docs/design/frontend/`)
   - [ ] 2. バックエンド設計 (`docs/design/backend/`)
   - [ ] 3. データベース設計 (`docs/design/database/`)
@@ -54,33 +55,28 @@
 
 ---
 
-## 3. 現在のフェーズ詳細とタスク状況 (Phase 0-A)
+## 3. 現在のフェーズ詳細とタスク状況 (Phase 0-B)
 
 ### 目的と完了条件 (Definition of Done)
-- **目的**: ユーザー要求に基づく要件定義書（`specs/requirements.md`）の作成、およびUIからコアルール・CPU思考ロジックまで疎通する最小限のWalking Skeletonの自律構築。
+- **目的**: 確定した要件定義書（`specs/requirements.md`）および初期基盤コード（Walking Skeleton）に基づき、フロント・バックエンド・DB・セキュリティ・SRE・インフラの6領域において人間がレビューしやすい専門設計書群（Mermaid図、一覧表、型定義）を自律策定すること。
 - **完了条件**:
-  1. `specs/requirements.md` が作成され、ゲームルール・CPU対戦・UI要件が網羅されていること。 -> **[完了]**
-  2. Walking Skeletonが起動し、Next.js画面上で実際にカードが配られ、CPUとのアタック・推理対戦の基本フローが動作すること。 -> **[完了]**
-  3. ユニットテスト（Vitest 8件）が全件合格し、Next.js本番ビルドが正常完了すること。 -> **[完了]**
-  4. ユーザーから「要件定義と初期基盤のFIX承認」が得られること。 -> **[承認待ち]**
+  1. `docs/design/` 配下の全6領域の設計書がアルゴWeb対戦システム向けに具体的に更新・記述されていること。
+  2. システムアーキテクトによる横断点検が完了し、設計間の矛盾や抜け漏れがないこと。
+  3. 人間ゲートキーパーから「設計書FIX承認 (Gate 0-B)」が得られること。
 
 ### 作業チェックリスト
-- [x] ユーザーからシステム要求・構想のインプット受領（アルゴWeb化・CPU対戦優先）
-- [x] GitHub Privateリポジトリ `dandelion0016/algo` 新設
-- [x] `system-architect` による要件定義書ドラフト作成 (`specs/requirements.md`)
-- [x] Next.js 15 + TypeScript + Tailwind CSS によるWalking Skeleton基盤構築
-- [x] アルゴコアルール（カード定義、ソートルール、アタック判定、勝敗判定）実装 (`src/lib/algoEngine.ts`)
-- [x] CPU対戦思考ロジック（論理的推論・候補絞り込み）実装 (`src/lib/cpuAI.ts`)
-- [x] 動作確認・テスト実行（Vitest 8件全合格、Next.jsビルド成功）
-- [x] GitHubへの初期コミットプッシュ (`origin/main`)
-- [ ] 成果物サマリ提示とユーザーへのFIX承認要請 (Gate 0-A)
+- [ ] フロントエンド設計書群の更新 (`docs/design/frontend/`)
+- [ ] バックエンド設計書群の更新 (`docs/design/backend/`)
+- [ ] データベース設計書群の更新 (`docs/design/database/`)
+- [ ] セキュリティ設計書群の更新 (`docs/design/security/`)
+- [ ] SRE・運用設計書群の更新 (`docs/design/sre/`)
+- [ ] インフラ基盤設計書群の更新 (`docs/design/infrastructure/` - AWS無料枠最大活用)
+- [ ] システムアーキテクトによる全体整合性点検
+- [ ] トピックブランチプッシュ ＆ PR作成
+- [ ] 人間への設計書FIX承認要請 (Gate 0-B)
 
 ### 関連成果物・ドキュメント
 - 要件定義書: `specs/requirements.md`
-- 盤面コンポーネント: `src/components/GameBoard.tsx`
-- コアルールエンジン: `src/lib/algoEngine.ts`
-- CPU思考AI: `src/lib/cpuAI.ts`
-- ユニットテスト: `src/lib/__tests__/algoEngine.test.ts`
 - 設計書ディレクトリ: `docs/design/`
 - ADRディレクトリ: `docs/adr/`
 
@@ -88,10 +84,8 @@
 
 ## 4. 人間ゲートキーパーへの確認・承認要請 (Human-in-the-Loop)
 
-- **現在のステータス**: 🛑 **Gate 0-A: 要件定義 ＆ 初期基盤FIX承認待ち**
-- **ユーザーへの確認・アクション依頼**:
-  - 要件定義書（`specs/requirements.md`）およびWalking Skeleton（Next.js + アルゴCPU対戦UI）をご確認ください。
-  - 内容に問題がなければ、Gate 0-A のFIX承認をお願いいたします。承認後、直ちに「Phase 0-B: システム設計書作成（6領域ドキュメント策定）」へ進行します。
+- **現在のステータス**: Phase 0-B 設計書策定中
+- **次アクション**: 6領域の専門設計書群が完成後、Gate 0-B のFIX承認を要請します。
 
 ---
 
@@ -102,8 +96,8 @@
 | 2026-09-28 | Phase 0-A | 管理者 (`role:manager`) | `antigravity-governance-starter` をベースに `dandelion0016/algo` リポジトリを新規初期化。GitHub Privateリポジトリを作成。 |
 | 2026-09-28 | Phase 0-A | システムアーキテクト (`role:architect`) | アルゴの公式ルール（黒白0〜11、並び順規約、CPU対戦フロー、勝敗条件）を網羅した要件定義書（`specs/requirements.md`）を作成。 |
 | 2026-09-28 | Phase 0-A | 管理者 (`role:manager`) | Next.js 15 (App Router) + TypeScript + Tailwind CSS によるWalking Skeleton基盤を構築。 |
-| 2026-09-28 | Phase 0-A | バックエンド担当 (`role:backend/dev`) | アルゴコアルール（24枚デッキ、Fisher-Yatesシャッフル、黒白ソート比較、アタック判定、勝敗判定）を `src/lib/algoEngine.ts` に実装。 |
-| 2026-09-28 | Phase 0-A | バックエンド担当 (`role:backend/dev`) | CPU対戦推論ロジック（Easy/Normal/Hard、左右オープンカードによる範囲制約・未知カードフィルタリング）を `src/lib/cpuAI.ts` に実装。 |
-| 2026-09-28 | Phase 0-A | フロントエンド担当 (`role:frontend/dev`) | カードコンポーネント (`CardComponent.tsx`)、数字予想モーダル (`AttackModal.tsx`)、対戦ログ (`GameLog.tsx`)、ルール解説モーダル (`RuleGuideModal.tsx`)、盤面管理 (`GameBoard.tsx`) を実装。 |
-| 2026-09-28 | Phase 0-A | テスト担当 | Vitestによるユニットテスト 8件を実行、全件PASS。`next build` による本番最適化ビルドも成功。 |
-| 2026-09-28 | Phase 0-A | 管理者 (`role:manager`) | リモート `origin/main` への初回プッシュ完了。Gate 0-A 承認待ち状態に移行。 |
+| 2026-09-28 | Phase 0-A | バックエンド担当 (`role:backend/dev`) | 2〜4人対戦対応のアルゴコアルールおよびマルチCPU推論AIを実装。持ち時間（30秒/15秒/無制限）機能を実装。 |
+| 2026-09-28 | Phase 0-A | フロントエンド担当 (`role:frontend/dev`) | パステルイエロー（`#FCF97A`）× スカイブルー（`#7BA6EF`）の新UI、幾何学ダイヤパターン、生成AIバナー・アプリアイコンを実装。 |
+| 2026-09-28 | Phase 0-A | システムアーキテクト (`role:architect`) | 要件定義書にAWS利用方針および無料枠最大活用（Always Free）のインフラ要件を追記。 |
+| 2026-09-28 | Phase 0-A | 人間ゲートキーパー | Gate 0-A を正式承認。PR #1 を `main` ブランチへマージ完了。 |
+| 2026-09-28 | Phase 0-B | 管理者 (`role:manager`) | `main` よりトピックブランチ `feature/phase-0b-system-design` を新設し、「Phase 0-B: システム設計書作成（6領域策定）」へ移行。 |
