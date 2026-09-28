@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Card, GameState, Difficulty, PlayerCount, AttackLog, Player } from '../types/game';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Card, GameState, Difficulty, PlayerCount, TimeLimit, AttackLog, Player } from '../types/game';
 import {
   createDeck,
   setupGamePlayers,
@@ -10,7 +10,7 @@ import {
   checkAttack,
   getNextActivePlayerIndex,
 } from '../lib/algoEngine';
-import { decideMultiCpuAttack, decideMultiCpuContinue } from '../lib/cpuAI';
+import { decideMultiCpuAttack } from '../lib/cpuAI';
 import { CardComponent } from './CardComponent';
 import { AttackModal } from './AttackModal';
 import { GameLog } from './GameLog';
@@ -25,8 +25,8 @@ import {
   Bot,
   User,
   Settings2,
-  Crown,
-  CheckCircle2,
+  Clock,
+  AlertTriangle,
   Flame,
 } from 'lucide-react';
 
@@ -34,6 +34,8 @@ export const GameBoard: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>({
     playerCount: 2,
     difficulty: 'normal',
+    timeLimit: 30,
+    remainingTime: 30,
     deck: [],
     players: [],
     activePlayerIndex: 0,
@@ -47,18 +49,24 @@ export const GameBoard: React.FC = () => {
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
   const [cpuStatusMessage, setCpuStatusMessage] = useState<string>('');
 
-  // 新規ゲーム初期化（セットアップ画面に戻る、または同じ設定で即再開）
+  // 新規ゲーム初期化
   const initializeGame = useCallback(
-    (count: PlayerCount = gameState.playerCount, diff: Difficulty = gameState.difficulty) => {
+    (
+      count: PlayerCount = gameState.playerCount,
+      diff: Difficulty = gameState.difficulty,
+      limit: TimeLimit = gameState.timeLimit
+    ) => {
       const rawDeck = createDeck();
       const { players, remainingDeck } = setupGamePlayers(rawDeck, count);
 
       setGameState({
         playerCount: count,
         difficulty: diff,
+        timeLimit: limit,
+        remainingTime: limit,
         deck: remainingDeck,
         players,
-        activePlayerIndex: 0, // プレイヤー（人間）先攻
+        activePlayerIndex: 0, // 人間先攻
         drawnCard: null,
         phase: 'PLAYER_TURN_START',
         selectedTarget: null,
@@ -67,7 +75,7 @@ export const GameBoard: React.FC = () => {
       });
       setCpuStatusMessage('');
     },
-    [gameState.playerCount, gameState.difficulty]
+    [gameState.playerCount, gameState.difficulty, gameState.timeLimit]
   );
 
   // プレイヤーが山札からドロー
@@ -75,7 +83,6 @@ export const GameBoard: React.FC = () => {
     if (gameState.phase !== 'PLAYER_TURN_START') return;
 
     if (gameState.deck.length === 0) {
-      // 山札切れはドローなしで直接アタック対象選択へ
       setGameState((prev) => ({
         ...prev,
         drawnCard: null,
@@ -141,22 +148,18 @@ export const GameBoard: React.FC = () => {
     };
 
     if (isHit) {
-      // 的中：対象カードをオープン
       const updatedPlayers = gameState.players.map((p) => {
         if (p.id !== playerId) return p;
         const newCards = p.cards.map((c, i) => (i === cardIndex ? { ...c, isOpen: true } : c));
-        const isEliminated = isAllOpen(newCards);
         return {
           ...p,
           cards: newCards,
-          isEliminated,
+          isEliminated: isAllOpen(newCards),
         };
       });
 
-      // 生き残り判定
       const activePlayers = updatedPlayers.filter((p) => !p.isEliminated);
       if (activePlayers.length === 1) {
-        // あなたの完全勝利！
         setGameState((prev) => ({
           ...prev,
           players: updatedPlayers,
@@ -167,7 +170,6 @@ export const GameBoard: React.FC = () => {
         return;
       }
 
-      // 勝負継続：コンティニュー or ステイ選択へ
       setGameState((prev) => ({
         ...prev,
         players: updatedPlayers,
@@ -176,7 +178,6 @@ export const GameBoard: React.FC = () => {
         phase: 'PLAYER_DECIDE_NEXT',
       }));
     } else {
-      // ハズレ：引いたカードをオープンにして自分の手札に加える
       const playerIdx = gameState.players.findIndex((p) => p.id === 'player');
       const updatedPlayers = [...gameState.players];
       if (gameState.drawnCard) {
@@ -187,7 +188,6 @@ export const GameBoard: React.FC = () => {
         };
       }
 
-      // 次の手番へ
       const nextActiveIdx = getNextActivePlayerIndex(0, updatedPlayers);
       const isNextCpu = !updatedPlayers[nextActiveIdx].isHuman;
 
@@ -197,6 +197,7 @@ export const GameBoard: React.FC = () => {
         drawnCard: null,
         selectedTarget: null,
         activePlayerIndex: nextActiveIdx,
+        remainingTime: prev.timeLimit,
         logs: [log, ...prev.logs],
         phase: isNextCpu ? 'CPU_ACTING' : 'PLAYER_TURN_START',
       }));
@@ -217,7 +218,6 @@ export const GameBoard: React.FC = () => {
     const playerIdx = gameState.players.findIndex((p) => p.id === 'player');
     const updatedPlayers = [...gameState.players];
     if (gameState.drawnCard) {
-      // ステイ時は引いたカードを「裏向き」のまま手札に配置
       const closedDrawn: Card = { ...gameState.drawnCard, isOpen: false };
       updatedPlayers[playerIdx] = {
         ...updatedPlayers[playerIdx],
@@ -233,9 +233,85 @@ export const GameBoard: React.FC = () => {
       players: updatedPlayers,
       drawnCard: null,
       activePlayerIndex: nextActiveIdx,
+      remainingTime: prev.timeLimit,
       phase: isNextCpu ? 'CPU_ACTING' : 'PLAYER_TURN_START',
     }));
   };
+
+  // 持ち時間カウントダウン処理（プレイヤー手番時のみ）
+  useEffect(() => {
+    if (
+      gameState.timeLimit === 0 ||
+      gameState.phase === 'SETUP' ||
+      gameState.phase === 'GAME_OVER' ||
+      gameState.phase === 'CPU_ACTING'
+    ) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setGameState((prev) => {
+        if (prev.remainingTime <= 1) {
+          // 時間切れ処理
+          clearInterval(interval);
+          const playerIdx = prev.players.findIndex((p) => p.id === 'player');
+          const updatedPlayers = [...prev.players];
+
+          // まだドローしていなければ山札から引いてオープンペナルティ
+          let newDeck = [...prev.deck];
+          let penaltyCard = prev.drawnCard;
+          if (!penaltyCard && newDeck.length > 0) {
+            penaltyCard = newDeck[0];
+            newDeck = newDeck.slice(1);
+          }
+
+          if (penaltyCard) {
+            updatedPlayers[playerIdx] = {
+              ...updatedPlayers[playerIdx],
+              cards: insertCardInOrder(updatedPlayers[playerIdx].cards, {
+                ...penaltyCard,
+                isOpen: true,
+              }),
+            };
+          }
+
+          const nextIdx = getNextActivePlayerIndex(0, updatedPlayers);
+          const timeOutLog: AttackLog = {
+            id: `log-${Date.now()}`,
+            attackerId: 'player',
+            attackerName: 'あなた',
+            targetPlayerId: '',
+            targetPlayerName: '',
+            targetCardIndex: 0,
+            targetColor: 'black',
+            guessedNumber: 0,
+            isHit: false,
+            timestamp: Date.now(),
+            message: '時間切れ！引いたカードがオープンペナルティとなり手番終了。',
+          };
+
+          return {
+            ...prev,
+            deck: newDeck,
+            players: updatedPlayers,
+            drawnCard: null,
+            selectedTarget: null,
+            remainingTime: prev.timeLimit,
+            activePlayerIndex: nextIdx,
+            logs: [timeOutLog, ...prev.logs],
+            phase: updatedPlayers[nextIdx].isHuman ? 'PLAYER_TURN_START' : 'CPU_ACTING',
+          };
+        }
+
+        return {
+          ...prev,
+          remainingTime: prev.remainingTime - 1,
+        };
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [gameState.phase, gameState.timeLimit]);
 
   // CPU手番の自律処理
   useEffect(() => {
@@ -250,7 +326,6 @@ export const GameBoard: React.FC = () => {
     const turnTimeout = setTimeout(() => {
       if (!isMounted) return;
 
-      // 1. CPUドロー
       let currentDeck = [...gameState.deck];
       let cpuDrawn: Card | null = null;
       if (currentDeck.length > 0) {
@@ -263,7 +338,6 @@ export const GameBoard: React.FC = () => {
       const thinkTimeout = setTimeout(() => {
         if (!isMounted) return;
 
-        // 2. CPUアタック決定
         const decision = decideMultiCpuAttack(
           currentCpu,
           cpuDrawn,
@@ -274,11 +348,11 @@ export const GameBoard: React.FC = () => {
 
         const targetPlayer = gameState.players.find((p) => p.id === decision.targetPlayerId);
         if (!targetPlayer) {
-          // 例外安全策：次の手番へ
           const nextIdx = getNextActivePlayerIndex(gameState.activePlayerIndex, gameState.players);
           setGameState((prev) => ({
             ...prev,
             activePlayerIndex: nextIdx,
+            remainingTime: prev.timeLimit,
             phase: prev.players[nextIdx].isHuman ? 'PLAYER_TURN_START' : 'CPU_ACTING',
           }));
           return;
@@ -306,7 +380,6 @@ export const GameBoard: React.FC = () => {
         };
 
         if (isHit) {
-          // 的中
           const updatedPlayers = gameState.players.map((p) => {
             if (p.id !== targetPlayer.id) return p;
             const newCards = p.cards.map((c, i) =>
@@ -319,7 +392,6 @@ export const GameBoard: React.FC = () => {
             };
           });
 
-          // 勝敗判定
           const activePlayers = updatedPlayers.filter((p) => !p.isEliminated);
           if (activePlayers.length === 1) {
             setGameState((prev) => ({
@@ -334,7 +406,7 @@ export const GameBoard: React.FC = () => {
             return;
           }
 
-          // 的中後ステイ処理（CPUは安全に伏せて自分の手札に加える）
+          // CPUは的中後安全にステイ
           const cpuIdx = updatedPlayers.findIndex((p) => p.id === currentCpu.id);
           if (cpuDrawn) {
             updatedPlayers[cpuIdx] = {
@@ -355,11 +427,12 @@ export const GameBoard: React.FC = () => {
             players: updatedPlayers,
             logs: [log, ...prev.logs],
             activePlayerIndex: nextIdx,
+            remainingTime: prev.timeLimit,
             phase: isNextHuman ? 'PLAYER_TURN_START' : 'CPU_ACTING',
           }));
           setCpuStatusMessage(`${currentCpu.name} は的中後にステイしました。`);
         } else {
-          // ハズレ：CPUの引いたカードをオープンして追加
+          // ハズレ
           const updatedPlayers = [...gameState.players];
           const cpuIdx = updatedPlayers.findIndex((p) => p.id === currentCpu.id);
           if (cpuDrawn) {
@@ -381,6 +454,7 @@ export const GameBoard: React.FC = () => {
             players: updatedPlayers,
             logs: [log, ...prev.logs],
             activePlayerIndex: nextIdx,
+            remainingTime: prev.timeLimit,
             phase: isNextHuman ? 'PLAYER_TURN_START' : 'CPU_ACTING',
           }));
           setCpuStatusMessage(`${currentCpu.name} の推理はハズレました。`);
@@ -396,7 +470,7 @@ export const GameBoard: React.FC = () => {
     };
   }, [gameState.phase, gameState.activePlayerIndex, gameState.winner]);
 
-  // ヒント用：プレイヤーが確認済みの数字
+  // ヒント用：確認済み数字
   const humanPlayer = gameState.players.find((p) => p.isHuman);
   const knownNumbers: number[] = [];
   if (humanPlayer) {
@@ -413,16 +487,22 @@ export const GameBoard: React.FC = () => {
     knownNumbers.push(gameState.drawnCard.number);
   }
 
-  // 1. セットアップ画面の表示
+  // 1. セットアップ画面
   if (gameState.phase === 'SETUP') {
     return (
       <div className="min-h-screen py-8 px-4 flex flex-col justify-center items-center">
         <SetupModal
           playerCount={gameState.playerCount}
           difficulty={gameState.difficulty}
+          timeLimit={gameState.timeLimit}
           onSelectPlayerCount={(count) => setGameState((prev) => ({ ...prev, playerCount: count }))}
           onSelectDifficulty={(diff) => setGameState((prev) => ({ ...prev, difficulty: diff }))}
-          onStartGame={() => initializeGame(gameState.playerCount, gameState.difficulty)}
+          onSelectTimeLimit={(limit) =>
+            setGameState((prev) => ({ ...prev, timeLimit: limit, remainingTime: limit }))
+          }
+          onStartGame={() =>
+            initializeGame(gameState.playerCount, gameState.difficulty, gameState.timeLimit)
+          }
           onOpenRules={() => setIsRuleModalOpen(true)}
         />
         <RuleGuideModal isOpen={isRuleModalOpen} onClose={() => setIsRuleModalOpen(false)} />
@@ -430,15 +510,14 @@ export const GameBoard: React.FC = () => {
     );
   }
 
-  // 2. 対戦盤面の表示
+  // 2. 対戦盤面
   const activePlayer = gameState.players[gameState.activePlayerIndex];
   const opponents = gameState.players.filter((p) => !p.isHuman);
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 space-y-4">
-      {/* Top Header with Diamond Argyle Banner */}
+      {/* Top Header */}
       <header className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
-        {/* Geometric Diamond Pattern Bar (添付画像スタイル) */}
         <div className="w-full h-3.5 algo-diamond-pattern border-b border-slate-100" />
 
         <div className="p-3.5 sm:p-4 flex flex-wrap items-center justify-between gap-3">
@@ -459,12 +538,29 @@ export const GameBoard: React.FC = () => {
                     ? '中級'
                     : '上級'}
                 </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                  {gameState.timeLimit === 0 ? '無制限' : `${gameState.timeLimit}秒`}
+                </span>
               </h1>
               <p className="text-[11px] text-slate-500 font-medium">数字当て論理推理ボードゲーム</p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            {/* カウントダウンタイマー表示 */}
+            {gameState.timeLimit > 0 && activePlayer?.isHuman && (
+              <div
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-black text-xs transition-all ${
+                  gameState.remainingTime <= 5
+                    ? 'bg-rose-50 border-rose-300 text-rose-600 animate-pulse ring-2 ring-rose-200'
+                    : 'bg-algo-blue-light/60 border-algo-blue/30 text-algo-navy'
+                }`}
+              >
+                <Clock className={`w-3.5 h-3.5 ${gameState.remainingTime <= 5 ? 'text-rose-500' : 'text-algo-blue'}`} />
+                <span>残り {gameState.remainingTime} 秒</span>
+              </div>
+            )}
+
             <button
               onClick={() => setIsRuleModalOpen(true)}
               className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all shadow-2xs"
@@ -496,7 +592,7 @@ export const GameBoard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         {/* Left 3 cols: Board Field */}
         <div className="lg:col-span-3 space-y-4">
-          {/* Opponents Area (2〜4人対応) */}
+          {/* Opponents Area */}
           <div className={`grid gap-3 ${opponents.length === 1 ? 'grid-cols-1' : opponents.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
             {opponents.map((opp) => {
               const isCurrentTurn = activePlayer?.id === opp.id;
@@ -513,7 +609,6 @@ export const GameBoard: React.FC = () => {
                       : 'border-slate-200 shadow-sm'
                   }`}
                 >
-                  {/* Opponent Header */}
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <div
@@ -540,7 +635,6 @@ export const GameBoard: React.FC = () => {
                     ) : null}
                   </div>
 
-                  {/* Cards Row */}
                   <div className="flex flex-wrap items-center justify-center gap-2 py-1 min-h-24">
                     {opp.cards.map((card, idx) => (
                       <CardComponent
@@ -569,7 +663,7 @@ export const GameBoard: React.FC = () => {
             })}
           </div>
 
-          {/* Player Attack Instruction Notice */}
+          {/* Player Attack Notice */}
           {gameState.phase === 'PLAYER_SELECT_TARGET' && (
             <div className="text-center">
               <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-algo-blue-light border border-algo-blue/30 text-algo-navy text-xs font-black shadow-xs animate-attack-pulse">
@@ -578,7 +672,7 @@ export const GameBoard: React.FC = () => {
             </div>
           )}
 
-          {/* Center Table (Deck, Drawn Card, Action Guidance) */}
+          {/* Center Table */}
           <section className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-around gap-6">
             {/* Deck Pile */}
             <div className="flex flex-col items-center gap-1.5">
@@ -615,14 +709,19 @@ export const GameBoard: React.FC = () => {
               )}
             </div>
 
-            {/* Guidance / Turn Action Box */}
+            {/* Turn Guidance */}
             <div className="flex-1 max-w-md text-center md:text-left space-y-2">
               {gameState.phase === 'PLAYER_TURN_START' && (
-                <div className="p-3 bg-algo-blue-light/50 border border-algo-blue/20 rounded-2xl space-y-1">
-                  <h4 className="font-black text-slate-900 text-sm flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-algo-blue" />
-                    <span>あなたのターン</span>
-                  </h4>
+                <div className="p-3.5 bg-algo-blue-light/50 border border-algo-blue/20 rounded-2xl space-y-1">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-black text-slate-900 text-sm flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-algo-blue" />
+                      <span>あなたのターン</span>
+                    </h4>
+                    {gameState.timeLimit > 0 && (
+                      <span className="text-xs font-bold text-algo-blue">残り {gameState.remainingTime}秒</span>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-600 font-medium">
                     中央の山札をクリックしてカードを引いてください。
                   </p>
@@ -630,8 +729,13 @@ export const GameBoard: React.FC = () => {
               )}
 
               {gameState.phase === 'PLAYER_SELECT_TARGET' && (
-                <div className="p-3 bg-algo-blue-light/50 border border-algo-blue/20 rounded-2xl space-y-1">
-                  <h4 className="font-black text-slate-900 text-sm">アタック対象を選択</h4>
+                <div className="p-3.5 bg-algo-blue-light/50 border border-algo-blue/20 rounded-2xl space-y-1">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-black text-slate-900 text-sm">アタック対象を選択</h4>
+                    {gameState.timeLimit > 0 && (
+                      <span className="text-xs font-bold text-algo-blue">残り {gameState.remainingTime}秒</span>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-600 font-medium">
                     相手の手札から推理したい伏せカードをクリックしてください。
                   </p>
@@ -658,7 +762,7 @@ export const GameBoard: React.FC = () => {
                       onClick={handlePlayerStay}
                       className="flex-1 py-2 rounded-xl bg-white border border-slate-300 text-slate-800 font-bold text-xs hover:bg-slate-50 transition-all shadow-2xs"
                     >
-                      ステイ（伏せて手札へ）
+                      ステイ（手札に加える）
                     </button>
                   </div>
                 </div>
@@ -717,7 +821,7 @@ export const GameBoard: React.FC = () => {
                 )}
               </div>
 
-              {/* Player Cards Row */}
+              {/* Player Cards */}
               <div className="flex flex-wrap items-center justify-center gap-3 py-2 min-h-28">
                 {humanPlayer.cards.map((card, idx) => (
                   <CardComponent
