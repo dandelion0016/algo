@@ -1,66 +1,111 @@
-# セキュリティ 監査ログ ＆ トレーサビリティ設計書
+# セキュリティ 監査ログ ＆ トレーサビリティ設計書 (Audit Logging Spec)
+
+本設計書は、「アルゴ（algo）Web対戦システム」における対戦監査ログ、システムログ、およびトレーサビリティの設計を定義します。
+ゲームの公平性の検証（チート・不具合調査）とセキュリティインシデント追跡を可能にしつつ、**AWS CloudWatch Logs の無料枠（5GBデータ取り込み/月）を圧迫しない効率的なロギングと機密情報マスキング**を定めます。
+
+---
 
 ## 1. 監査ログ基本方針
-- **目的**: AIエージェントおよびユーザーによる重要操作を事後検証・説明可能（Accountability）にするため、改ざん不可能な形で永続化する。
-- **記録原則**:
-  - 全ログは **JSON構造化フォーマット** で記録。
-  - 機密情報（パスワード、Bearerトークン、クレジットカード番号、個人特定情報）は **記録前に必ずマスキング**。
-  - トレースID（W3C Trace Context準拠）を全レイヤーで伝搬し、1つのリクエストを起点とする全ログ・スパンを横断追跡可能にする。
+
+1. **ゲーム公平性の証明（Auditability）**:
+   - すべてのアタック、的中/ハズレ判定、ドロー、カード開示、ターン遷移をタイムスタンプ付きの構造化JSONで記録。
+   - 勝敗に関する疑義や不具合発生時に、最初の手札配分から完全再現（リプレイ）可能な状態を保持。
+2. **プライバシー保護 ＆ PIIマスキング**:
+   - メールアドレス、認証JWT、セッショントークンはログ出力前に完全にマスキング。
+   - クライアントIPアドレスは末尾オクテットをハッシュ化またはゼロ埋め（`192.168.1.***`）して記録。
+3. **無料枠を意識したログ保持ポリシー**:
+   - CloudWatch Logs のログ保持期間（Retention Period）を **30日** に設定し、古いログが蓄積して無料枠（5GB）を超過することを防止。
 
 ---
 
-## 2. 監査対象イベント一覧
+## 2. 監査対象イベントマトリクス
 
-| イベント種別 (`eventType`) | 重要度 | トリガー条件 | 必須記録項目 |
+| イベント種別 (`eventType`) | 重要度 | 記録タイミング | 主な記録項目 |
 | :--- | :---: | :--- | :--- |
-| `AUTH_LOGIN_SUCCESS` | INFO | 認証トークン発行成功 | `userId`, `tenantId`, `ipAddress` |
-| `AUTH_LOGIN_FAILURE` | WARN | パスワード誤り、不正トークン | 入力識別子（ハッシュ化）, `ipAddress`, `reason` |
-| `TOOL_INVOCATION` | INFO | AIエージェントによるツール実行 | `toolName`, `arguments`（マスキング済）, `executionTimeMs` |
-| `HITL_APPROVAL_REQUEST`| INFO | 破壊的操作の承認待ち起票 | `actionType`, `targetResourceId`, `requestedBy` |
-| `HITL_APPROVAL_RESOLVED`| WARN | HITLの承認または却下の実行 | `ticketId`, `resolvedBy`, `decision` (APPROVED/REJECTED) |
-| `SECURITY_POLICY_BLOCKED`| ALERT| テナント越境試行、Guardrails遮断 | `blockedReason`, `ruleId`, `requestDetails` |
-| `DATA_DELETION` | WARN | リソースの物理/論理削除 | `resourceId`, `targetType`, `userId` |
+| `MATCH_INIT` | INFO | 対戦開始時（山札シャッフル・手札配布） | `matchId`, `playerCount`, `initialHandSizes`, `starterId` |
+| `TURN_DRAW` | INFO | 山札からカードを引いた時 | `matchId`, `turnNumber`, `playerId`, `drawCardColor` (数字は秘匿) |
+| `TURN_ATTACK` | INFO | プレイヤーが相手カードを推理した時 | `matchId`, `turnNumber`, `attackerId`, `targetPlayerId`, `targetCardIndex`, `declaredNumber`, `isHit` |
+| `TURN_STAY` | INFO | 的中後、ステイを選択して手番終了した時 | `matchId`, `turnNumber`, `playerId` |
+| `MATCH_FINISH` | INFO | 勝敗決定（全滅または単独生存） | `matchId`, `winnerId`, `durationSec`, `totalTurns`, `finalHands` |
+| `SECURITY_RULE_VIOLATION` | WARN | 不正なパラメータ、手番外操作検知 | `matchId`, `playerId`, `violationType`, `requestPayload` |
+| `AUTH_LINK_GUEST` | INFO | ゲストからCognitoアカウントへの昇格 | `userId`, `guestIdHash`, `timestamp` |
 
 ---
 
-## 3. 構造化監査ログスキーマ
+## 3. 構造化対戦ログスキーマ (JSON)
 
+### 3.1 アタック判定イベント例 (`TURN_ATTACK`)
 ```json
 {
-  "timestamp": "2026-09-28T12:00:00.123Z",
-  "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
-  "spanId": "00f067aa0ba902b7",
-  "eventType": "TOOL_INVOCATION",
-  "severity": "INFO",
-  "principal": {
-    "userId": "usr_01H1234567890",
-    "tenantId": "tenant_acme",
-    "roles": ["user"],
-    "isAgent": true,
-    "agentName": "backend-agent"
+  "timestamp": "2026-09-28T12:34:56.789Z",
+  "logLevel": "INFO",
+  "eventType": "TURN_ATTACK",
+  "matchId": "match_9f8e7d6c5b4a",
+  "turnNumber": 4,
+  "attacker": {
+    "playerId": "usr_alpha123",
+    "role": "player"
   },
   "action": {
-    "service": "resource-service",
-    "operation": "create_resource",
-    "resourceId": "res_9876543210"
+    "targetPlayerId": "cpu_bot_hard",
+    "targetCardIndex": 2,
+    "declaredNumber": 7,
+    "result": "HIT",
+    "revealedCard": {
+      "color": "black",
+      "number": 7
+    },
+    "isTargetEliminated": false
   },
-  "client": {
-    "ipAddress": "192.0.2.1",
-    "userAgent": "Mozilla/5.0..."
-  },
-  "execution": {
-    "status": "SUCCESS",
-    "durationMs": 42
+  "metadata": {
+    "timeRemainingMs": 18450,
+    "clientVersion": "1.0.0"
+  }
+}
+```
+
+### 3.2 不正ルール違反イベント例 (`SECURITY_RULE_VIOLATION`)
+```json
+{
+  "timestamp": "2026-09-28T12:35:10.123Z",
+  "logLevel": "WARN",
+  "eventType": "SECURITY_RULE_VIOLATION",
+  "matchId": "match_9f8e7d6c5b4a",
+  "playerId": "guest_attacker99",
+  "clientIp": "203.0.113.***",
+  "violationType": "INVALID_NUMBER_RANGE",
+  "details": {
+    "attemptedValue": 15,
+    "expectedRange": "0 <= n <= 11",
+    "action": "ATTACK_REJECTED"
   }
 }
 ```
 
 ---
 
-## 4. マスキング規則 ＆ 改ざん防止
-1. **マスキング正規表現フィルタ**:
-   - `Authorization: Bearer .*` ➔ `Authorization: Bearer [REDACTED]`
-   - `password`, `secret`, `apiKey`, `token` キーの値 ➔ `[REDACTED]`
-   - メールアドレス ➔ `u***@example.com`
-2. **改ざん防止（WORMストレージ）**:
-   - 監査ログは Amazon S3 Glacier または CloudWatch Logs の Object Lock（WORM: Write Once, Read Many）を有効化し、管理者であっても一定期間削除・変更できない設定とする。
+## 4. 機密情報マスキング規約
+
+ログ出力ライブラリ（Winston / Pino 等）のカスタムフォーマッターにより、以下のパターンを機械的に置換します：
+
+```typescript
+export function sanitizeLogData(data: Record<string, unknown>): Record<string, unknown> {
+  const SENSITIVE_KEYS = ['password', 'authorization', 'token', 'idToken', 'refreshToken', 'email'];
+  const cloned = { ...data };
+
+  for (const [key, value] of Object.entries(cloned)) {
+    if (SENSITIVE_KEYS.includes(key.toLowerCase())) {
+      cloned[key] = '[REDACTED]';
+    } else if (typeof value === 'object' && value !== null) {
+      cloned[key] = sanitizeLogData(value as Record<string, unknown>);
+    }
+  }
+
+  // IPアドレスの部分匿名化
+  if (typeof cloned.ipAddress === 'string') {
+    cloned.ipAddress = cloned.ipAddress.replace(/\.\d+$/, '.***');
+  }
+
+  return cloned;
+}
+```
