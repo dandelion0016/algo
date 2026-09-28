@@ -10,54 +10,69 @@ interface GameLogProps {
 
 export const GameLog: React.FC<GameLogProps> = ({ logs }) => {
   return (
-    <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-4 flex flex-col h-full max-h-72 sm:max-h-96">
-      <div className="flex items-center gap-2 pb-3 mb-2 border-b border-zinc-800">
-        <ScrollText className="w-4 h-4 text-amber-400" />
-        <h4 className="text-sm font-bold text-zinc-200">対戦ログ</h4>
-        <span className="text-xs text-zinc-500 ml-auto">{logs.length} 件</span>
+    <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col h-full max-h-72 lg:max-h-120">
+      <div className="flex items-center gap-2 pb-3 mb-3 border-b border-slate-100">
+        <div className="w-7 h-7 rounded-xl bg-algo-blue/15 text-algo-blue flex items-center justify-center">
+          <ScrollText className="w-4 h-4 text-algo-blue" />
+        </div>
+        <h4 className="text-sm font-black text-slate-800">対戦ログ</h4>
+        <span className="text-xs font-bold text-slate-400 ml-auto">{logs.length} 件</span>
       </div>
 
       <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 text-xs">
         {logs.length === 0 ? (
-          <p className="text-zinc-500 text-center py-8">まだアタック履歴はありません</p>
+          <div className="text-center py-10 text-slate-400 space-y-1">
+            <p className="font-bold">まだアタック履歴はありません</p>
+            <p className="text-[11px]">手番が進むとここに履歴が表示されます</p>
+          </div>
         ) : (
           logs.map((log) => {
-            const isPlayer = log.attacker === 'player';
             const isHit = log.isHit;
+            const isPlayerAttacker = log.attackerId === 'player';
 
             return (
               <div
                 key={log.id}
-                className={`p-2.5 rounded-xl border flex items-start gap-2.5 transition-colors ${
+                className={`p-3 rounded-2xl border transition-all ${
                   isHit
-                    ? 'bg-emerald-950/20 border-emerald-800/40 text-emerald-200'
-                    : 'bg-zinc-800/40 border-zinc-800 text-zinc-300'
+                    ? 'bg-emerald-50/70 border-emerald-200/80 text-emerald-950'
+                    : 'bg-slate-50 border-slate-200/60 text-slate-700'
                 }`}
               >
-                <div className="mt-0.5">
-                  {isHit ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  ) : (
-                    <XCircle className="w-4 h-4 text-rose-400" />
-                  )}
-                </div>
-
-                <div className="flex-1 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span
-                      className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${
-                        isPlayer
-                          ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                          : 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
-                      }`}
-                    >
-                      {isPlayer ? 'あなた' : 'CPU'}
-                    </span>
-                    <span className="text-[10px] text-zinc-500">
-                      {isHit ? '的中！' : 'ハズレ'}
-                    </span>
+                <div className="flex items-start gap-2.5">
+                  <div className="mt-0.5">
+                    {isHit ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                    )}
                   </div>
-                  <p className="text-zinc-200 leading-relaxed">{log.message}</p>
+
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`font-black px-2 py-0.5 rounded-md text-[10px] ${
+                          isPlayerAttacker
+                            ? 'bg-algo-blue text-white'
+                            : 'bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {log.attackerName}
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                          isHit
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-rose-100 text-rose-700'
+                        }`}
+                      >
+                        {isHit ? '的中！' : 'ハズレ'}
+                      </span>
+                    </div>
+                    <p className="text-slate-800 font-medium leading-relaxed">
+                      {log.message}
+                    </p>
+                  </div>
                 </div>
               </div>
             );

@@ -7,24 +7,34 @@ export interface Card {
   isOpen: boolean;   // 表向きかどうか
 }
 
-export type PlayerType = 'player' | 'cpu';
+export type PlayerCount = 2 | 3 | 4;
+export type Difficulty = 'easy' | 'normal' | 'hard';
+
+export interface Player {
+  id: string;
+  name: string;
+  isHuman: boolean;
+  cards: Card[];
+  isEliminated: boolean;
+  avatarColor: string;
+}
 
 export type GamePhase =
-  | 'INITIAL'              // ゲーム開始準備
-  | 'PLAYER_TURN_START'    // プレイヤーターン開始（ドロー待ち）
-  | 'PLAYER_SELECT_TARGET' // 相手の裏向きカードを選択中
-  | 'PLAYER_GUESS_NUMBER'  // 数字を予想入力中
-  | 'PLAYER_DECIDE_NEXT'   // アタック成功後の継続/ステイ選択
-  | 'CPU_THINKING'         // CPU思考中
-  | 'ROUND_RESOLVE'        // アタック結果の演出・確認
-  | 'GAME_OVER';           // 決着
-
-export type Difficulty = 'easy' | 'normal' | 'hard';
+  | 'SETUP'                 // 初期設定（人数・難易度選択）
+  | 'PLAYER_TURN_START'     // プレイヤードロー待ち
+  | 'PLAYER_SELECT_TARGET'  // 相手の裏向きカードを選択中
+  | 'PLAYER_GUESS_NUMBER'   // 数字を予想入力中
+  | 'PLAYER_DECIDE_NEXT'    // アタック成功後の継続/ステイ選択
+  | 'CPU_ACTING'            // CPU思考・実行中
+  | 'GAME_OVER';            // 決着
 
 export interface AttackLog {
   id: string;
-  attacker: PlayerType;
-  targetIndex: number;
+  attackerId: string;
+  attackerName: string;
+  targetPlayerId: string;
+  targetPlayerName: string;
+  targetCardIndex: number;
   targetColor: CardColor;
   guessedNumber: number;
   isHit: boolean;
@@ -35,15 +45,17 @@ export interface AttackLog {
 }
 
 export interface GameState {
-  deck: Card[];
-  playerCards: Card[];
-  cpuCards: Card[];
-  playerDrawnCard: Card | null;
-  cpuDrawnCard: Card | null;
-  currentTurn: PlayerType;
-  phase: GamePhase;
-  selectedTargetIndex: number | null;
+  playerCount: PlayerCount;
   difficulty: Difficulty;
+  deck: Card[];
+  players: Player[];
+  activePlayerIndex: number;
+  drawnCard: Card | null;
+  phase: GamePhase;
+  selectedTarget: {
+    playerId: string;
+    cardIndex: number;
+  } | null;
   logs: AttackLog[];
-  winner: PlayerType | null;
+  winner: Player | null;
 }
