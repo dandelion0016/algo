@@ -1,0 +1,35 @@
+#!/bin/sh
+
+# ==============================================================================
+# Git Native Pre-Push Hook: Guard Against Destructive Push Operations
+# ==============================================================================
+# Prevents direct pushes to protected branches (main, master) and force pushes.
+# Enable in repository via:
+#   git config core.hooksPath .githooks
+# ==============================================================================
+
+remote="$1"
+url="$2"
+
+z40="0000000000000000000000000000000000000000"
+
+while read local_ref local_sha remote_ref remote_sha
+do
+    # Check for branch deletion
+    if [ "$local_sha" = "$z40" ]; then
+        if [ "$remote_ref" = "refs/heads/main" ] || [ "$remote_ref" = "refs/heads/master" ]; then
+            echo "❌ [GIT GUARD ERROR] Remote deletion of protected branch '$remote_ref' is forbidden!" >&2
+            exit 1
+        fi
+        continue
+    fi
+
+    # Check for direct push to main / master
+    if [ "$remote_ref" = "refs/heads/main" ] || [ "$remote_ref" = "refs/heads/master" ]; then
+        echo "❌ [GIT GUARD ERROR] Direct push to protected branch '$remote_ref' is strictly prohibited!" >&2
+        echo "💡 [GUIDANCE] Please create a topic branch (e.g., feature/issue-<number>-<description>) and open a Pull Request." >&2
+        exit 1
+    fi
+done
+
+exit 0

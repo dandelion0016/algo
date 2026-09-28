@@ -1,0 +1,26 @@
+{
+  "toolPermission": "proceed-in-sandbox",
+  "enableTerminalSandbox": true,
+  "permissions": {
+    "allow": [
+      "command(gh issue *)",
+      "command(gh pr *)",
+      "command(git status)",
+      "command(git diff *)",
+      "command(git add *)",
+      "command(git commit *)",
+      "command(npm test*)",
+      "command(pytest*)",
+      "command(cargo test*)",
+      "command(go test*)"
+    ],
+    "ask": [
+      "command(git push*)",
+      "command(npm publish*)",
+      "command(rm -rf *)",
+      "command(terraform apply*)",
+      "command(aws *)",
+      "command(gcloud *)"
+    ]
+  }
+}

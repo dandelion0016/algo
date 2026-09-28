@@ -1,0 +1,30 @@
+#!/bin/sh
+
+# ==============================================================================
+# Git Native Pre-Commit Hook: Source File Auto-Format & Linter Check
+# ==============================================================================
+# Automatically formats and checks syntax for staged files before commit.
+# ==============================================================================
+
+# Get staged files (Added, Copied, Modified, Renamed)
+staged_files=$(git diff --cached --name-only --diff-filter=ACMR)
+
+if [ -z "$staged_files" ]; then
+    exit 0
+fi
+
+# Run auto-format and lint script on staged files
+if command -v node >/dev/null 2>&1; then
+    node .agents/hooks/auto-format-lint.js $staged_files
+elif command -v powershell >/dev/null 2>&1; then
+    powershell -NoProfile -ExecutionPolicy Bypass -File .agents/hooks/auto-format-lint.ps1 $staged_files
+fi
+
+# Re-stage any files that were formatted
+for file in $staged_files; do
+    if [ -f "$file" ]; then
+        git add "$file"
+    fi
+done
+
+exit 0

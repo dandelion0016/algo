@@ -1,0 +1,87 @@
+{
+  "phase-transition-guard": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "replace_file_content|write_to_file|run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node hooks/guard-phase.js || node .agents/hooks/guard-phase.js || powershell -NoProfile -ExecutionPolicy Bypass -File hooks/guard-phase.ps1",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "destructive-operation-guard": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "run_command|call_mcp_tool",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node hooks/guard-destructive.js || node .agents/hooks/guard-destructive.js || powershell -NoProfile -ExecutionPolicy Bypass -File hooks/guard-destructive.ps1",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "token-budget-guard": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "view_file|run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node hooks/token-budget-guard.js || node .agents/hooks/token-budget-guard.js || powershell -NoProfile -ExecutionPolicy Bypass -File hooks/token-budget-guard.ps1",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "circuit-breaker-guard": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "run_command|replace_file_content|write_to_file|call_mcp_tool",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node hooks/circuit-breaker.js || node .agents/hooks/circuit-breaker.js || powershell -NoProfile -ExecutionPolicy Bypass -File hooks/circuit-breaker.ps1",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "token-context-monitor": {
+    "enabled": true,
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "node hooks/token-context-monitor.js || node .agents/hooks/token-context-monitor.js || powershell -NoProfile -ExecutionPolicy Bypass -File hooks/token-context-monitor.ps1",
+        "timeout": 10
+      }
+    ]
+  },
+  "source-format-lint-hook": {
+    "enabled": true,
+    "PostToolUse": [
+      {
+        "matcher": "write_to_file|replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node hooks/auto-format-lint.js || node .agents/hooks/auto-format-lint.js || powershell -NoProfile -ExecutionPolicy Bypass -File hooks/auto-format-lint.ps1",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
