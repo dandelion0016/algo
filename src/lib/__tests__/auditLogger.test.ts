@@ -66,6 +66,7 @@ describe('auditLogger', () => {
         'TIMEOUT_PENALTY',
         'GAME_OVER',
         'SECURITY_VIOLATION',
+        'CLIENT_CRASH',
       ];
 
       for (const t of types) {

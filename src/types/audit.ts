@@ -10,7 +10,8 @@ export type AuditEventType =
   | 'TURN_PASS'
   | 'TIMEOUT_PENALTY'
   | 'GAME_OVER'
-  | 'SECURITY_VIOLATION';
+  | 'SECURITY_VIOLATION'
+  | 'CLIENT_CRASH';
 
 /**
  * 監査イベントオブジェクト (AuditEvent)

@@ -14,6 +14,7 @@
 | **全エラー率 (4xx + 5xx)**| `(TotalErrorRequests ÷ TotalRequests) × 100` | **0.1% 未満** | 過去30日間ローリング | パス解決不正（404急増）やOAC認証失敗（403）の検知。 |
 | **オリジン応答時間** | S3 / Lambda オリジンレイテンシ (p95) | **< 150 ms** | 過去30日間ローリング | 静的アセット配信遅延の調査。 |
 | **ゼロコスト維持率** | 月額利用料金 | **$0.00** | 毎月（1日〜末日） | 累計料金が $0.01（1セント）に到達した時点でアラート即時発報。 |
+| **クライアント健全性 (SLI-003)** | `(ClientCrashEvents ÷ TotalSessions) × 100` | **< 0.05%** | 過去30日間ローリング | ErrorBoundary捕捉エラー急増。直近デプロイのフロントエンド不具合調査。 |
 
 ---
 
@@ -30,6 +31,10 @@
 ### 2.2 AWS Budgets メトリクス (`AWS/Budgets`)
 - `ActualSpend`: 当月実績利用額（閾値: $0.01）
 - `ForecastedSpend`: 当月末予想利用額（閾値: $0.01）
+
+### 2.3 クライアント健全性メトリクス (`algo/ClientMetrics`)
+- `ClientCrashRate`: クライアント側クラッシュ率（SLI-003: ErrorBoundaryが捕捉した例外ログを集計、目標 < 0.05%）
+- `CrashEventCount`: クラッシュイベント総数（監査ログ `CLIENT_CRASH` より抽出）
 
 ---
 

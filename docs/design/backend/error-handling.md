@@ -82,10 +82,16 @@
 
 ### 3.1 React Error Boundary による画面クラッシュ防止
 
-- ゲーム画面全体を包含する `GameErrorBoundary` コンポーネントを配置。
+- ゲーム画面全体を包含する `ErrorBoundary`（別名 `GameErrorBoundary`）コンポーネントを配置。
 - 万が一レンダリング中や状態更新中に捕捉されない例外が発生した場合でも、画面全体が真っ白（White-out）になるのを防ぎ、以下のフォールバックUIを表示：
-  - 「ゲームの進行中に予期せぬエラーが発生しました」
-  - 「現在の盤面をリセットして再起動する」ボタン（`initializeGame` 呼び出し）
+  - **北欧モダンデザイン**: パステル調イエロー・スカイブルー、柔らかなカード枠、システム保護警告アイコン。
+  - **タイトル**: 「予期せぬエラーが発生しました」
+  - **説明文**: 「ゲームの処理中に問題が発生しました。以下のボタンから安全にリカバリできます。」
+  - **リカバリ操作**:
+    - 「ページを再読み込み」ボタン: `window.location.reload()`
+    - 「ゲームを初期化して再開」ボタン: `localStorage.clear()` / `sessionStorage.clear()` 後に `window.location.href = '/'`
+    - 「エラー詳細を表示」アコーディオン/トグル: `error.message`、`error.stack`、`componentStack` を安全に表示。
+  - **クラッシュレポート基盤**: `componentDidCatch` 内で `recordAuditEvent('CLIENT_CRASH', ...)` を自動発行し、CloudWatch/SREメトリクス（SLI-003）へ構造化ログを送信。
 
 ### 3.2 不正操作時の視覚的・触覚的フィードバック
 
