@@ -13,11 +13,15 @@
 | 指標 | 状況 |
 | :--- | :--- |
 | **対象フェーズ** | Phase 1: 自律実装 ＆ 継続的受入・仕上げ |
+| **GitHub Projects (カンバン)** | [algo Phase 1 ボード](https://github.com/dandelion0016/algo/projects)（ブラウザでリアルタイム把握可能） |
 | **総ギャップIssue数** | 15件 (#5 〜 #19) |
 | **完了（PRマージ済み）** | 5件 (#5, #6, #7, #8, #9) |
 | **進行中 / レビュー待ち** | 0件 |
 | **未着手** | 10件 (#10 〜 #19) |
 | **進捗率** | 33.3% (5 / 15) |
+
+> 💡 **人間向けリアルタイム進捗確認（GitHub Projects）**:
+> ブラウザから [GitHub Projects (algo)](https://github.com/dandelion0016/algo/projects) を開くことで、全Issueの対応状況がカンバン形式（Todo ➔ In Progress ➔ In Review ➔ Done）で一目で確認できます。AIエージェントは各作業ステップで自動的にラベル（`status:in-progress`, `status:in-review`, `status:done`）を更新します。
 
 ---
 

@@ -68,8 +68,8 @@
   4. 人間ゲートキーパーによる受入確認・全要件充足で Gate 1（プロジェクト完了）を達成すること。
 
 ### 作業・Issue進捗管理方針
-- **Issue・タスク詳細管理**: **[TASK_PROGRESS.md](TASK_PROGRESS.md)**
-  ※ 個別Issue（#5〜#19）の実装状態、ブランチ、PR、テスト結果は上記ファイルおよびGitHub Issue/PRで自律管理されます（日常的なタスク更新に伴うゲートキーパー承認は不要）。
+- **Issue・タスク詳細管理**: **[TASK_PROGRESS.md](TASK_PROGRESS.md)** ＆ **[GitHub Projects (algo)](https://github.com/dandelion0016/algo/projects)**
+  ※ 個別Issue（#5〜#19）の実装状態、ブランチ、PR、テスト結果は上記ファイルおよびGitHub Projects/カンバンで自律管理されます（日常的なタスク更新に伴うゲートキーパー承認は不要。人間はGitHub Projectsでいつでも状況をリアルタイム把握可能）。
 - **フェーズゲート（Gate 1）**: 全15件のIssue解消および受入完了後、本ファイルにて最終リリース・検収承認を要請します。
 
 ### 関連成果物・ドキュメント
