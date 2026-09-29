@@ -13,7 +13,10 @@
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
         },
         "StringLike": {
-          "token.actions.githubusercontent.com:sub": "repo:dandelion0016/algo:ref:refs/heads/*"
+          "token.actions.githubusercontent.com:sub": [
+            "repo:dandelion0016/algo:*",
+            "repo:dandelion0016*/algo*:*"
+          ]
         }
       }
     }
