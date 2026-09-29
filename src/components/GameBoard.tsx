@@ -11,7 +11,7 @@ import {
   getNextActivePlayerIndex,
   maskCardForPlayer,
 } from '../lib/algoEngine';
-import { decideMultiCpuAttack } from '../lib/cpuAI';
+import { decideMultiCpuAttack, decideMultiCpuContinue } from '../lib/cpuAI';
 import { CardComponent } from './CardComponent';
 import { AttackModal } from './AttackModal';
 import { GameLog } from './GameLog';
@@ -338,7 +338,7 @@ export const GameBoard: React.FC = () => {
     return () => clearInterval(interval);
   }, [gameState.phase, gameState.timeLimit, userId]);
 
-  // CPU手番の自律処理
+  // CPU手番の自律処理（連続アタックループ対応）
   useEffect(() => {
     if (gameState.phase !== 'CPU_ACTING' || gameState.winner !== null) return;
 
@@ -346,9 +346,16 @@ export const GameBoard: React.FC = () => {
     if (!currentCpu || currentCpu.isHuman || currentCpu.isEliminated) return;
 
     let isMounted = true;
-    setCpuStatusMessage(`${currentCpu.name} が山札からドロー中...`);
+    let timerId: ReturnType<typeof setTimeout> | null = null;
 
-    const turnTimeout = setTimeout(() => {
+    const delay = (ms: number) =>
+      new Promise<void>((resolve) => {
+        timerId = setTimeout(resolve, ms);
+      });
+
+    const executeCpuTurn = async () => {
+      setCpuStatusMessage(`${currentCpu.name} が山札からドロー中...`);
+      await delay(900);
       if (!isMounted) return;
 
       let currentDeck = [...gameState.deck];
@@ -358,24 +365,40 @@ export const GameBoard: React.FC = () => {
         currentDeck = currentDeck.slice(1);
       }
 
-      setCpuStatusMessage(`${currentCpu.name} がアタック対象を思考中...`);
+      let currentPlayers = [...gameState.players];
+      let currentLogs = [...gameState.logs];
+      const MAX_ATTACK_COUNT = 10;
+      let loopCount = 0;
 
-      const thinkTimeout = setTimeout(() => {
+      while (loopCount < MAX_ATTACK_COUNT) {
+        if (!isMounted) return;
+        loopCount++;
+
+        setCpuStatusMessage(
+          loopCount === 1
+            ? `${currentCpu.name} がアタック対象を思考中...`
+            : `${currentCpu.name} が連続アタック対象を思考中...`
+        );
+
+        // 思考ディレイ: 初回は1200ms、継続時は要件指定の700〜1000ms（800ms）
+        await delay(loopCount === 1 ? 1200 : 800);
         if (!isMounted) return;
 
         const decision = decideMultiCpuAttack(
           currentCpu,
           cpuDrawn,
-          gameState.players,
+          currentPlayers,
           gameState.difficulty,
-          gameState.logs
+          currentLogs
         );
 
-        const targetPlayer = gameState.players.find((p) => p.id === decision.targetPlayerId);
+        const targetPlayer = currentPlayers.find((p) => p.id === decision.targetPlayerId);
         if (!targetPlayer) {
-          const nextIdx = getNextActivePlayerIndex(gameState.activePlayerIndex, gameState.players);
+          // 攻撃可能対象が不在の場合は手番交代
+          const nextIdx = getNextActivePlayerIndex(gameState.activePlayerIndex, currentPlayers);
           setGameState((prev) => ({
             ...prev,
+            deck: currentDeck,
             activePlayerIndex: nextIdx,
             remainingTime: prev.timeLimit,
             phase: prev.players[nextIdx].isHuman ? 'PLAYER_TURN_START' : 'CPU_ACTING',
@@ -384,10 +407,14 @@ export const GameBoard: React.FC = () => {
         }
 
         const targetCard = targetPlayer.cards[decision.targetCardIndex];
+        if (!targetCard) {
+          return;
+        }
+
         const isHit = checkAttack(targetCard, decision.guessedNumber);
 
         const log: AttackLog = {
-          id: `log-${Date.now()}`,
+          id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
           attackerId: currentCpu.id,
           attackerName: currentCpu.name,
           targetPlayerId: targetPlayer.id,
@@ -404,8 +431,11 @@ export const GameBoard: React.FC = () => {
             : `${currentCpu.name} が ${targetPlayer.name} の左から ${decision.targetCardIndex + 1} 番目 [${targetCard.color === 'black' ? '黒' : '白'}] を [${decision.guessedNumber}] と推理して【ハズレ】。`,
         };
 
+        currentLogs = [log, ...currentLogs];
+
         if (isHit) {
-          const updatedPlayers = gameState.players.map((p) => {
+          // 的中処理: 被弾カードを開示し脱落判定
+          currentPlayers = currentPlayers.map((p) => {
             if (p.id !== targetPlayer.id) return p;
             const newCards = p.cards.map((c, i) =>
               i === decision.targetCardIndex ? { ...c, isOpen: true } : c
@@ -417,13 +447,21 @@ export const GameBoard: React.FC = () => {
             };
           });
 
-          const activePlayers = updatedPlayers.filter((p) => !p.isEliminated);
+          // 盤面状態を即座にUIへ反映
+          setGameState((prev) => ({
+            ...prev,
+            deck: currentDeck,
+            players: currentPlayers,
+            logs: currentLogs,
+          }));
+
+          const activePlayers = currentPlayers.filter((p) => !p.isEliminated);
           if (activePlayers.length === 1) {
             setGameState((prev) => ({
               ...prev,
               deck: currentDeck,
-              players: updatedPlayers,
-              logs: [log, ...prev.logs],
+              players: currentPlayers,
+              logs: currentLogs,
               winner: activePlayers[0],
               phase: 'GAME_OVER',
             }));
@@ -431,67 +469,162 @@ export const GameBoard: React.FC = () => {
             return;
           }
 
-          // CPUは的中後安全にステイ
-          const cpuIdx = updatedPlayers.findIndex((p) => p.id === currentCpu.id);
-          if (cpuDrawn) {
-            updatedPlayers[cpuIdx] = {
-              ...updatedPlayers[cpuIdx],
-              cards: insertCardInOrder(updatedPlayers[cpuIdx].cards, {
-                ...cpuDrawn,
-                isOpen: false,
-              }),
+          // 的中後の継続判定（decideMultiCpuContinue）
+          const shouldContinue =
+            loopCount < MAX_ATTACK_COUNT &&
+            decideMultiCpuContinue(currentCpu, cpuDrawn, currentPlayers, gameState.difficulty);
+
+          if (shouldContinue) {
+            // ログに「CPUはさらにアタックを継続します」を記録
+            const continueLog: AttackLog = {
+              id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+              attackerId: currentCpu.id,
+              attackerName: currentCpu.name,
+              targetPlayerId: '',
+              targetPlayerName: '',
+              targetCardIndex: 0,
+              targetColor: 'black',
+              guessedNumber: 0,
+              isHit: true,
+              timestamp: Date.now(),
+              message: 'CPUはさらにアタックを継続します',
             };
+            currentLogs = [continueLog, ...currentLogs];
+
+            setGameState((prev) => ({
+              ...prev,
+              logs: currentLogs,
+            }));
+            setCpuStatusMessage(`${currentCpu.name} はさらにアタックを継続します...`);
+
+            // 適切なディレイ（700〜1000ms）を挟んで連続アタックループ
+            await delay(800);
+            continue;
+          } else {
+            // ステイ (false)
+            // ログに「CPUは手札に加えてステイしました」を記録
+            const stayLog: AttackLog = {
+              id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+              attackerId: currentCpu.id,
+              attackerName: currentCpu.name,
+              targetPlayerId: '',
+              targetPlayerName: '',
+              targetCardIndex: 0,
+              targetColor: 'black',
+              guessedNumber: 0,
+              isHit: true,
+              timestamp: Date.now(),
+              message: 'CPUは手札に加えてステイしました',
+            };
+            currentLogs = [stayLog, ...currentLogs];
+
+            // 引いたカードを手札に伏せて整列挿入し、次のプレイヤーへ手番を遷移
+            const cpuIdx = currentPlayers.findIndex((p) => p.id === currentCpu.id);
+            if (cpuDrawn && cpuIdx !== -1) {
+              currentPlayers[cpuIdx] = {
+                ...currentPlayers[cpuIdx],
+                cards: insertCardInOrder(currentPlayers[cpuIdx].cards, {
+                  ...cpuDrawn,
+                  isOpen: false,
+                }),
+              };
+            }
+
+            const nextIdx = getNextActivePlayerIndex(gameState.activePlayerIndex, currentPlayers);
+            const isNextHuman = currentPlayers[nextIdx].isHuman;
+
+            setGameState((prev) => ({
+              ...prev,
+              deck: currentDeck,
+              players: currentPlayers,
+              logs: currentLogs,
+              activePlayerIndex: nextIdx,
+              remainingTime: prev.timeLimit,
+              phase: isNextHuman ? 'PLAYER_TURN_START' : 'CPU_ACTING',
+            }));
+            setCpuStatusMessage(`${currentCpu.name} は手札に加えてステイしました。`);
+            return;
           }
-
-          const nextIdx = getNextActivePlayerIndex(gameState.activePlayerIndex, updatedPlayers);
-          const isNextHuman = updatedPlayers[nextIdx].isHuman;
-
-          setGameState((prev) => ({
-            ...prev,
-            deck: currentDeck,
-            players: updatedPlayers,
-            logs: [log, ...prev.logs],
-            activePlayerIndex: nextIdx,
-            remainingTime: prev.timeLimit,
-            phase: isNextHuman ? 'PLAYER_TURN_START' : 'CPU_ACTING',
-          }));
-          setCpuStatusMessage(`${currentCpu.name} は的中後にステイしました。`);
         } else {
-          // ハズレ
-          const updatedPlayers = [...gameState.players];
-          const cpuIdx = updatedPlayers.findIndex((p) => p.id === currentCpu.id);
-          if (cpuDrawn) {
-            updatedPlayers[cpuIdx] = {
-              ...updatedPlayers[cpuIdx],
-              cards: insertCardInOrder(updatedPlayers[cpuIdx].cards, {
+          // ハズレ (isHit === false)
+          // 引いたカードを手札にオープンで配置し、次のプレイヤーへ手番を遷移
+          const cpuIdx = currentPlayers.findIndex((p) => p.id === currentCpu.id);
+          if (cpuDrawn && cpuIdx !== -1) {
+            currentPlayers[cpuIdx] = {
+              ...currentPlayers[cpuIdx],
+              cards: insertCardInOrder(currentPlayers[cpuIdx].cards, {
                 ...cpuDrawn,
                 isOpen: true,
               }),
             };
           }
 
-          const nextIdx = getNextActivePlayerIndex(gameState.activePlayerIndex, updatedPlayers);
-          const isNextHuman = updatedPlayers[nextIdx].isHuman;
+          const nextIdx = getNextActivePlayerIndex(gameState.activePlayerIndex, currentPlayers);
+          const isNextHuman = currentPlayers[nextIdx].isHuman;
 
           setGameState((prev) => ({
             ...prev,
             deck: currentDeck,
-            players: updatedPlayers,
-            logs: [log, ...prev.logs],
+            players: currentPlayers,
+            logs: currentLogs,
             activePlayerIndex: nextIdx,
             remainingTime: prev.timeLimit,
             phase: isNextHuman ? 'PLAYER_TURN_START' : 'CPU_ACTING',
           }));
           setCpuStatusMessage(`${currentCpu.name} の推理はハズレました。`);
+          return;
         }
-      }, 1400);
+      }
 
-      return () => clearTimeout(thinkTimeout);
-    }, 1000);
+      // ループガード（最大10回）上限到達時のステイ処理
+      const stayLog: AttackLog = {
+        id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        attackerId: currentCpu.id,
+        attackerName: currentCpu.name,
+        targetPlayerId: '',
+        targetPlayerName: '',
+        targetCardIndex: 0,
+        targetColor: 'black',
+        guessedNumber: 0,
+        isHit: true,
+        timestamp: Date.now(),
+        message: 'CPUは手札に加えてステイしました',
+      };
+      currentLogs = [stayLog, ...currentLogs];
+
+      const cpuIdx = currentPlayers.findIndex((p) => p.id === currentCpu.id);
+      if (cpuDrawn && cpuIdx !== -1) {
+        currentPlayers[cpuIdx] = {
+          ...currentPlayers[cpuIdx],
+          cards: insertCardInOrder(currentPlayers[cpuIdx].cards, {
+            ...cpuDrawn,
+            isOpen: false,
+          }),
+        };
+      }
+
+      const nextIdx = getNextActivePlayerIndex(gameState.activePlayerIndex, currentPlayers);
+      const isNextHuman = currentPlayers[nextIdx].isHuman;
+
+      setGameState((prev) => ({
+        ...prev,
+        deck: currentDeck,
+        players: currentPlayers,
+        logs: currentLogs,
+        activePlayerIndex: nextIdx,
+        remainingTime: prev.timeLimit,
+        phase: isNextHuman ? 'PLAYER_TURN_START' : 'CPU_ACTING',
+      }));
+      setCpuStatusMessage(`${currentCpu.name} は手札に加えてステイしました。`);
+    };
+
+    executeCpuTurn();
 
     return () => {
       isMounted = false;
-      clearTimeout(turnTimeout);
+      if (timerId) {
+        clearTimeout(timerId);
+      }
     };
   }, [gameState.phase, gameState.activePlayerIndex, gameState.winner]);
 
