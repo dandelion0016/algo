@@ -192,3 +192,13 @@ export function maskCardForPlayer(card: Card, isOwner: boolean): PublicCard {
     isOpen: false,
   };
 }
+
+/**
+ * ゲーム状態の整合性検証・自己修復ユーティリティの再エクスポート
+ */
+export {
+  validateAndReconcileGameState,
+  reconcileGameState,
+  sanitizeGameState,
+  type ReconciliationResult,
+} from './stateReconciliation';
