@@ -26,15 +26,18 @@
 
 ```mermaid
 flowchart TD
-    User["ユーザー / プレイヤーブラウザ<br>(PC / タブレット / スマホ)"] -->|HTTPS (Port 443)| Route53["Amazon Route 53<br>(DNS / ドメイン管理)"]
-    Route53 --> ACM["AWS Certificate Manager (ACM)<br>(無料パブリックSSL/TLS証明書)"]
-    Route53 --> CloudFront["Amazon CloudFront (CDN エッジ)<br>・常時無料 1TB/月, 1000万リクエスト<br>・HTTPS強制 / TLS 1.3<br>・キャッシュ最適化 & 圧縮 (Brotli/Gzip)"]
+    User["ユーザー / プレイヤーブラウザ<br>(PC / タブレット / スマホ)"] -->|HTTPS (Port 443)| CFDomain{"アクセス経路"}
 
-    subgraph Phase1_Current["【Phase 1: 現在】静的ホスティング基盤 (月額 $0)"]
+    CFDomain -->|【初期】完全$0運用| CloudFront["Amazon CloudFront (CDN エッジ)<br>・初期URL: https://dxxxxxxxxxxxx.cloudfront.net<br>・CloudFrontデフォルトSSL/TLS証明書 (完全無料)<br>・常時無料 1TB/月, 1000万リクエスト<br>・HTTPS強制 / TLS 1.3"]
+    CFDomain -.->|【将来拡張】カスタムドメイン| Route53["Amazon Route 53<br>(カスタムドメイン管理)"]
+    Route53 -.-> ACM["AWS Certificate Manager (ACM)<br>(パブリックSSL/TLS証明書)"]
+    Route53 -.-> CloudFront
+
+    subgraph Phase1_Current["【Phase 1: 現在】静的ホスティング基盤 (完全月額 $0)"]
         CloudFront -->|OAC (Origin Access Control)<br>SigV4署名付き限定アクセス| S3Static["Amazon S3: 静的ホスティングバケット<br>・Next.js 15+ SSG成果物 (HTML/JS/CSS)<br>・パブリックアクセス完全ブロック<br>・バケットバージョニング & 暗号化 (SSE-S3)"]
     end
 
-    subgraph Phase2_Future["【Phase 2: 将来拡張】サーバーレス対戦・認証基盤 (常時無料枠内)"]
+    subgraph Phase2_Future["【Phase 2: 将来拡張】サーバーレス対戦・認証・独自ドメイン"]
         CloudFront -.->|Path: /api/*<br>(HTTP API)| APIGW["Amazon API Gateway (HTTP API)<br>・低レイテンシ / 100万リクエスト無料"]
         CloudFront -.->|Path: /ws/*<br>(WebSocket)| WSSGW["Amazon API Gateway (WebSocket API)<br>・双方向リアルタイム対戦同期"]
 
@@ -44,7 +47,7 @@ flowchart TD
         LambdaREST -.-> DynamoDB[("Amazon DynamoDB<br>・常時無料 25GB, 25 WCU/RCU<br>・Rooms, MatchHistories, Users")]
         LambdaWS -.-> DynamoDB
 
-        User -.->|サインアップ / ログイン| Cognito["Amazon Cognito User Pool<br>・常時無料 50,000 MAU<br>・JWT認証 / ゲスト匿名対戦"]
+        User -.->|サインアップ / ログイン| Cognito["Amazon Cognito User Pool<br>・常時無料 50,000 MAU<br>・JWT認証 / 任意ユーザーID登録"]
         Cognito -.-> APIGW
     end
 

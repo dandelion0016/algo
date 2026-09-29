@@ -43,7 +43,7 @@ infrastructure/
 | `HostingBucket` | `AWS::S3::Bucket` | `algo-prod-apne1-static-hosting-<hash>` | パブリックアクセス完全ブロック、SSE-S3暗号化、バージョニング有効、ライフサイクルルール（旧版30日削除） |
 | `HostingBucketPolicy` | `AWS::S3::BucketPolicy` | - | CloudFront OACからの `s3:GetObject` のみ許可 |
 | `CloudFrontOAC` | `AWS::CloudFront::OriginAccessControl` | `algo-prod-oac` | S3オリジン向けSigV4署名制御（OriginAccessControlConfig） |
-| `CloudFrontDistribution` | `AWS::CloudFront::Distribution` | - | OAC連携、HTTPS強制、HTTP/2+HTTP/3、Brotli圧縮、SPA/Next.js用403/404エラーページ（`/index.html` または `/404.html` へ転送） |
+| `CloudFrontDistribution` | `AWS::CloudFront::Distribution` | - | 初期は標準ドメイン利用（`ViewerCertificate: { CloudFrontDefaultCertificate: true }`）、OAC連携、HTTPS強制、HTTP/2+HTTP/3、Brotli圧縮、SPA/Next.js用403/404エラーページ（`/index.html` または `/404.html` へ転送）。将来拡張時にRoute53/ACM用 `Aliases` を追加可能。 |
 | `ResponseHeadersPolicy` | `AWS::CloudFront::ResponseHeadersPolicy` | `algo-prod-security-headers` | HSTS, X-Frame-Options: DENY, X-Content-Type-Options: nosniff, CSP |
 
 ### 2.2 ゼロ課金ガードレイヤー (`zero-cost-guard.yaml`)

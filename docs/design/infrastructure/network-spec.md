@@ -13,18 +13,20 @@ AWS S3への直接アクセスを完全遮断し、CloudFrontエッジを経由�
 sequenceDiagram
     autonumber
     actor Browser as ユーザーブラウザ (Client)
-    participant DNS as Route 53 (DNS)
+    participant DNS as Route 53 (将来拡張)
     participant CF as CloudFront (Edge CDN)
     participant S3 as Amazon S3 (Static Hosting Bucket)
 
-    Browser->>DNS: ドメイン解決 (algo.example.com)
-    DNS-->>Browser: CloudFront エッジIP返却
+    alt 【初期フェーズ】CloudFront標準ドメイン (完全$0運用)
+        Browser->>CF: HTTPS GET https://dxxxxxxxxxxxx.cloudfront.net (Port 443)
+        Note over CF: CloudFrontデフォルトSSL証明書 (*.cloudfront.net)<br>Route 53ホストゾーン費用 ($0.50/月) 不要の完全ゼロコスト
+    else 【将来拡張】Route 53カスタムドメイン
+        Browser->>DNS: ドメイン解決 (algo.example.com)
+        DNS-->>Browser: CloudFront エッジIP返却
+        Browser->>CF: HTTPS GET https://algo.example.com (ACM証明書検証)
+    end
 
-    Browser->>CF: HTTP GET / (Port 80)
-    CF-->>Browser: 301 Moved Permanently (HTTPSへ強制リダイレクト)
-
-    Browser->>CF: HTTPS GET / (TLS 1.3 / Port 443)
-    Note over CF: 1. TLS証明書検証 (ACM)<br>2. キャッシュヒット判定<br>3. レート制限チェック
+    Note over CF: 1. TLS 1.3暗号化検証<br>2. キャッシュヒット判定<br>3. レート制限チェック
 
     alt キャッシュヒット (Cache Hit)
         CF-->>Browser: 200 OK (エッジから高速返却: Brotli圧縮, セキュリティヘッダー付与)
@@ -125,3 +127,12 @@ CloudFront の「マネージド・レスポンスヘッダーポリシー（Sec
   - `Access-Control-Allow-Methods`: `GET, POST, OPTIONS`
   - `Access-Control-Allow-Headers`: `Content-Type, Authorization, X-Requested-With`
   - `Access-Control-Max-Age`: `3600`（プリフライトリクエストの無駄な通信削減）
+
+---
+
+## 6. ドメインおよびSSL/TLS証明書設計方針
+
+| フェーズ | 採用ドキュメント・URL | SSL/TLS証明書 | コスト影響 | 備考 |
+| :--- | :--- | :--- | :--- | :--- |
+| **初期運用（Phase 0〜Phase 1）** | **CloudFront標準ドメイン**<br>`https://<distribution-id>.cloudfront.net` | **CloudFront Default Certificate**<br>（Amazon CloudFront標準証明書 `*.cloudfront.net`） | **完全 $0 (無料)**<br>Route 53 ホストゾーン費用（$0.50/月）およびドメイン取得費が一切発生しない | ゼロコスト運用を徹底。<br>CloudFormation/Terraformで即時プロビジョニング可能。 |
+| **将来拡張（Phase 2以降）** | **独自カスタムドメイン**<br>例: `https://algo.yourdomain.com` | **AWS Certificate Manager (ACM)**<br>（us-east-1 で発行された無料パブリックSSL証明書） | Route 53 ホストゾーン（$0.50/月）＋ ドメイン更新料（年額実費） | プレイヤー認知度向上・ブランディング時に移行。CloudFrontのエイリアス設定でシームレスに切り替え可能。 |
