@@ -8,13 +8,15 @@
 
 1. **動的コンテキスト管理（Token Bloat防止）の徹底**:
    - **Subagent Offloading**: ファイル探索、詳細実装、テスト実行は必ず専門サブエージェント（`.agents/subagents/`）に委任し、メインセッションのコンテキストを常に軽量に保つこと。
-   - **Externalized State ＆ 1 Issue 1 Session**: 状態はすべてファイル（`PROJECT_STATUS.md`、`specs/`、GitHub Issue 等）に永続化し、タスク・Issue完了ごとにセッションをリフレッシュ（`/clear` または新規チャット）すること。エージェントは各セッション開始時に必ず `PROJECT_STATUS.md` を参照して現在のフェーズ・ゲート承認状況・次アクションを把握し、進捗に応じて本ファイルを更新すること。
+   - **Externalized State ＆ 1 Issue 1 Session**: 状態はすべてファイル（`PROJECT_STATUS.md`、`specs/`、GitHub Issue / Projects 等）に永続化し、タスク・Issue完了ごとにセッションをリフレッシュ（`/clear` または新規チャット）すること。
+     - `PROJECT_STATUS.md`: マクロなフェーズ・ゲート承認状況（Phase 0-A, 0-B, 0-C, Phase 1, Gate 1）のみを管理（フェーズ移行時のみ人間ゲートキーパー承認が必要）。
+     - **GitHub Projects**: Phase 1 内の個別Issue進捗（Todo / In Progress / Done）、ブランチ、PR、テスト結果を一元管理（エージェントが承認不要で即時自動同期）。
    - **Progressive Disclosure**: ルールやスキルは常時全文注入せず、必要局面（`model_decision`, `@メンション`）でのみオンデマンドに読み込むこと。
 2. **四段階の自律型開発プロセス（要件・骨格 → コア設計 → 環境整備・疎通 → 自律実装 ＆ 継続的受入・仕上げ）**:
    - **Phase 0-A**: 要件定義書（`specs/requirements.md`）とWalking Skeleton（最小疎通基盤）を一貫自律構築。人間のFIX承認を得る。
    - **Phase 0-B**: 一般的なシステム開発で作るべき設計書群（フロントエンド、バックエンド、DB、セキュリティ、SRE、インフラ）を人間が読みやすい構造（Mermaid図、一覧表、型定義）で自律策定（`docs/design/`）。人間の設計書FIX承認を得る。
    - **Phase 0-C**: 承認済み設計書に基づき、エージェント・AI担当がMCP・権限設定を行い、人間へAWS初期環境の作業依頼を実施。完了後に自律疎通テストを行い、人間の環境整備完了承認を得る。
-   - **Phase 1**: 自律実装 ＆ 継続的受入・仕上げ（Continuous Delivery & Feedback）。設計書群（`docs/design/`）と初期基盤コードを照合し、`spec-gap-auditor` が課題抽出・Issue起票し、トピックブランチで自律実装・自動テスト・UAT自動化アシスト（E2E・画面スナップショット）付きPRを作成（`@autonomous-gap-resolver`）。人間はPRの受入サマリ確認・実機操作・マージ承認を行い、設計乖離はADRで吸収しながら完全なシステムへ仕上げる。全要件充足でプロジェクト完了（Gate 1）。
+   - **Phase 1**: 自律実装 ＆ 継続的受入・仕上げ（Continuous Delivery & Feedback）。設計書群（`docs/design/`）と初期基盤コードを照合し、`spec-gap-auditor` が課題抽出・Issue起票し、トピックブランチで自律実装・自動テスト・UAT自動化アシスト（E2E・画面スナップショット）付きPRを作成（`@autonomous-gap-resolver`）。作業進捗は GitHub Projects（カンバン）に自律同期し、日常タスク更新で承認は求めない。人間はPRの受入サマリ確認・実機操作・マージ承認を行い、設計乖離はADRで吸収しながら完全なシステムへ仕上げる。全要件充足でプロジェクト完了（Gate 1）。
 3. **レビュー観点の明確化と継続的ブラッシュアップ**:
    - レビュアーは `@generate-review-criteria` スキルを活用し、システム固有要件および採用クラウド・製品の公式ベストプラクティスを網羅したレビュー観点シート（`docs/review-checklists/`）を定義すること。
    - 後続工程やテストで不具合が検知された場合、管理者とAI担当が `@refine-review-criteria` スキルを実行し、レビュー観点シートを自律的にブラッシュアップして再発防止すること。
@@ -23,12 +25,12 @@
 5. **要件定義の変更管理（Change Control）の徹底**:
    - 水平タスク開発中の要件変更は開発者が独断で行わず、システムアーキテクトが点検した上でユーザー承認を得てから更新すること。
 6. **人間は「ゲートキーパー（承認者）」に集中する**:
-   - 各フェーズ内のリサーチ・設計・実装・テスト・レビュー・自己修正はエージェントが完全自律で完走すること。
-   - 要件定義FIX、設計書FIX、環境疎通FIX、タスク分解・観点FIX、要件変更確認、最終PR確認の節目でのみ人間へ承認・作業確認を要請すること。
+   - 各フェーズ内のリサーチ・設計・実装・テスト・レビュー・自己修正、および日常のタスク進捗更新（GitHub Projects）はエージェントが完全自律で完走すること。
+   - 要件定義FIX、設計書FIX、環境疎通FIX、Gate 1（プロジェクト完了）のフェーズ節目でのみ人間へ承認を要請すること。日常的なタスク更新・ステータス更新でユーザー承認を求めてはならない。
 7. **多層防御のセキュリティ・ガバナンス**:
    - プロンプトだけに依存せず、呼び出し層、ツール層、リソース層（DB等）でテナント境界・認可を機械的に強制すること。
    - 破壊的操作・重要更新にはHuman-in-the-loop（承認）を必須とすること。
-   - **Turboモード抑止（Lifecycle Hooks）**: Phase移行や重要ブランチ操作は `.agents/hooks.json`（PreToolUse）により機械的にインターセプトされ、Turboモード実行中であっても必ず人間に承認（`force_ask`）を求めるよう保護されていること。
+   - **Turboモード抑止（Lifecycle Hooks）**: Phase移行やGate承認書き換えは `.agents/hooks.json`（PreToolUse）により機械的にインターセプトされ、Turboモード実行中であっても必ず人間に承認（`force_ask`）を求めるよう保護されていること（Phase内の日常タスク更新は自律実行を維持）。
 8. **Issue駆動型ブランチ・Pull Request運用の徹底（GitHub Flow）**:
    - `main` ブランチへの直接コミット・直接プッシュは厳禁とする。
    - GitHub Issue対応時は、必ず最新の `main` から個別のトピックブランチ（例: `feature/issue-<番号>-<概要>`）を新設して作業すること。
@@ -57,7 +59,8 @@
 
 ## 2. 参照ルール・サブエージェント・スキル一覧
 
-- `PROJECT_STATUS.md` : プロジェクト進捗・フェーズステータス・ゲート承認管理（セッション開始時必読）
+- `PROJECT_STATUS.md` : プロジェクト全体マクロフェーズ・ゲート承認管理（セッション開始時必読）
+- [algo - Phase 1 自律実装ボード (GitHub Projects)](https://github.com/users/dandelion0016/projects/1) : Phase 1 内のタスク・Issue進捗一元管理（リアルタイムカンバン）
 - `docs/adr/` : アーキテクチャ決定記録（ADR）ディレクトリ
 - `.agents/hooks.json` : フェーズ移行・破壊的操作・サーキットブレーカー・トークン予算ガード（PreToolUse / PreInvocation）および自動フォーマット＆Lint（PostToolUse）
 - `@.agents/rules/agent-security-governance.md` : 多層防御・認可・運用セキュリティ基準（常時適用）

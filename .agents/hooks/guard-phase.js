@@ -44,29 +44,22 @@ function main() {
 
   // 1. Guard PROJECT_STATUS.md Phase & Gate Changes
   if (toolName === 'replace_file_content' || toolName === 'write_to_file') {
-    const targetFile = args.TargetFile || '';
-    if (targetFile.includes('PROJECT_STATUS.md')) {
+    const targetFile = (args.TargetFile || '').replace(/\\/g, '/');
+    if (targetFile.endsWith('PROJECT_STATUS.md')) {
       const content = args.ReplacementContent || args.CodeContent || '';
-      const instruction = args.Instruction || '';
-      const description = args.Description || '';
-      const combinedText = `${content}\n${instruction}\n${description}`;
 
-      // Detection patterns for Phase transitions & Gate approvals
+      // Detection patterns for Phase transitions & Gate approvals in actual content
       const phaseTransitionPatterns = [
         // Changing current phase
-        /カレントフェーズ.*Phase\s*(0-[ABC]|1|2)/i,
-        // Changing gate approval state
-        /ゲート承認状態.*(APPROVED|WAITING_USER_APPROVAL|BLOCKED)/i,
+        /\|\s*\*\*カレントフェーズ\*\*\s*\|/i,
         // Checking off gate milestones (e.g., - [x] 🛑 Gate ...)
-        /-\s*\[x\]\s*🛑\s*\*\*Gate/i,
-        // Status transitions on Phase headers
-        /Phase\s*(0-[ABC]|1|2)[^:\n]*:\s*.*\[(IN_PROGRESS|COMPLETED|WAITING_USER_APPROVAL)\]/i,
-        // Keywords in instructions
-        /(フェーズ|Phase).*(移行|完了|次フェーズ|進める|進める|approve)/i
+        /-\s*\[x\]\s*🛑.*Gate/i,
+        // Marking gate approval state as APPROVED
+        /ゲート承認状態.*\|\s*.*(APPROVED|承認完了)/i
       ];
 
       for (const pattern of phaseTransitionPatterns) {
-        if (pattern.test(combinedText)) {
+        if (pattern.test(content)) {
           output({
             decision: 'force_ask',
             reason: '【Phase移行・ゲート承認ガード】PROJECT_STATUS.md におけるフェーズ移行またはゲート承認ステータスの変更が検知されました。Turboモードを中断し、ユーザーの明示的な承認を要求します。'

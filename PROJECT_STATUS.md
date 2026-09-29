@@ -2,9 +2,9 @@
 
 <!--
 【Antigravity 運用プロトコル】
-1. セッション開始時: 本ファイル（PROJECT_STATUS.md）を最初に読み取り、現在のフェーズ、作業状況、ゲート承認待ちの有無を把握すること。
-2. 作業完了・進捗時: サブタスクのチェックボックス、成果物リンク、活動ログを随時更新すること。
-3. ゲート到達時: フェーズの停止条件に達したら、ステータスを WAITING_USER_APPROVAL に変更し、ユーザーに承認を要請すること。
+1. セッション開始時: 本ファイル（PROJECT_STATUS.md）で現在のマクロフェーズおよびゲート承認状況を確認し、Phase 1 のタスク進捗は GitHub Projects ボードを参照すること。
+2. Phase 1 内の日常作業: GitHub Issueの着手・実装・テスト・PR作成・マージ確認等の進捗は GitHub Projects（カンバン）に自律同期すること（ユーザー承認不要）。
+3. ゲート到達時: フェーズ全体の完了条件（Gate 1 等）に達した時のみ、ステータスを WAITING_USER_APPROVAL に変更し、ユーザーに承認を要請すること。
 4. フェーズ承認後: ユーザーの承認を得た後、次フェーズへステータスを進行させること。
 -->
 
@@ -57,39 +57,23 @@
 
 ---
 
-## 3. 現在のフェーズ詳細とタスク状況 (Phase 1)
+## 3. 現在のフェーズ概要 (Phase 1)
 
 ### 目的と完了条件 (Definition of Done)
 - **目的**: Phase 0-Bで策定された6領域の詳細設計書群（`docs/design/`）に基づき、Walking Skeletonを完全なWeb対戦システムへと自律的に仕上げる。
 - **完了条件**:
-  1. `spec-gap-auditor` により検出された未実装ギャップ（15件）がIssue単位でトピックブランチにて自律実装・テストされること。
+  1. `spec-gap-auditor` により検出された未実装ギャップ（15件）がIssue単位でトピックブランチにて自律実装・テスト・PR作成されること。
   2. 設計乖離発生時は `docs/adr/` にADRを起票し、人間承認を経て設計書とコードを完全同期すること。
-  3. 各トピックブランチで自動テスト・型チェック・リントが全件パスし、専門チームテストサマリ付きPRが作成されること。
-  4. 人間ゲートキーパーによる受入確認・PRマージが行われ、全要件充足で Gate 1（プロジェクト完了）を達成すること。
+  3. 各トピックブランチで自動テスト・型チェック・リントが全件パスし、専門チームテストサマリ付きPRがマージされること。
+  4. 人間ゲートキーパーによる受入確認・全要件充足で Gate 1（プロジェクト完了）を達成すること。
 
-### 作業チェックリスト
-- [x] `spec-gap-auditor` による設計書ギャップ監査の実施（15件のギャップ抽出完了）
-- [x] 全15件の構造化GitHub Issue起票完了 (#5〜#19)
-- [ ] Issue駆動トピックブランチ自律実装・テスト・PR作成サイクル（`@autonomous-gap-resolver`）
-  - [x] [#5: [Security & Core] Information Hidingの徹底（PublicCard/SecretCard型分離と相手伏せカード数字のnullマスキング）](https://github.com/dandelion0016/algo/issues/5) ([PR #20](https://github.com/dandelion0016/algo/pull/20) マージ完了 ✅)
-  - [x] [#6: [Security] Cookie自動UUIDゲストセッション（algo_user_id）発行と永続化基盤の実装](https://github.com/dandelion0016/algo/issues/6) ([PR #21](https://github.com/dandelion0016/algo/pull/21) マージ完了 ✅)
-  - [x] [#7: [Security] クライアント側監査ログ（Audit Logging）スキーマと機密マスキングの実装](https://github.com/dandelion0016/algo/issues/7) ([PR #22](https://github.com/dandelion0016/algo/pull/22) マージ完了 ✅)
-  - [x] [#8: [Backend & AI] CPU推論AIの的中後継続判定（decideMultiCpuContinue）と連続アタックループの実装](https://github.com/dandelion0016/algo/issues/8) ([PR #23](https://github.com/dandelion0016/algo/pull/23) 作成完了)
-  - [x] [#9: [Testing & Core] algoEngine および cpuAI の Vitest 単体テストスイート拡充](https://github.com/dandelion0016/algo/issues/9) ([PR #24](https://github.com/dandelion0016/algo/pull/24) 作成完了)
-  - [ ] [#10: [Backend & Core] ゲーム状態自己修復関数（reconcileGameState）と整合性検証ガードの実装](https://github.com/dandelion0016/algo/issues/10)
-  - [ ] [#11: [Backend & Core] RFC 7807 準拠クライアントエラー構造化ハンドラーの実装](https://github.com/dandelion0016/algo/issues/11)
-  - [ ] [#12: [Frontend & HITL] 対戦中断・リセット時のHITL確認モーダル（ConfirmModal: SCR-008）の実装](https://github.com/dandelion0016/algo/issues/12)
-  - [ ] [#13: [Frontend & Core] タイマーの一時停止（Pause/Resume）とモーダル連動制御の実装](https://github.com/dandelion0016/algo/issues/13)
-  - [ ] [#14: [Frontend / UI] セットアップ画面（SCR-001）でのユーザーIDバッジ表示と対戦人数プレビューの洗練](https://github.com/dandelion0016/algo/issues/14)
-  - [ ] [#15: [Frontend / UX] 持ち時間タイマー警告演出（10秒未満イエロー・5秒未満レッド点滅）の実装](https://github.com/dandelion0016/algo/issues/15)
-  - [ ] [#16: [Frontend / UX] 勝利・決着画面（SCR-006）の祝祭演出（紙吹雪・戦績サマリ）の実装](https://github.com/dandelion0016/algo/issues/16)
-  - [ ] [#17: [Testing & E2E] UIコンポーネントへの data-testid 属性付与とアクセシビリティ強化](https://github.com/dandelion0016/algo/issues/17)
-  - [ ] [#18: [Testing & UAT] Playwright による対戦主要シナリオ自動E2Eテスト＆画面スナップショットの導入](https://github.com/dandelion0016/algo/issues/18)
-  - [ ] [#19: [SRE & Quality] React ErrorBoundary とクラッシュレポート基盤の導入](https://github.com/dandelion0016/algo/issues/19)
-- [ ] 人間による継続的受入・PRマージ
-- [ ] Gate 1: 全要件充足・最終検収・本番リリース承認
+### 作業・Issue進捗管理方針
+- **タスク・Issue一元管理**: **[algo - Phase 1 自律実装ボード (GitHub Projects)](https://github.com/users/dandelion0016/projects/1)**
+  ※ 個別Issue（#5〜#19）の実装状態、ブランチ、PR、テスト結果は上記 GitHub Projects（カンバン）で一元管理されます（日常的なタスク更新に伴うゲートキーパー承認は不要。人間はブラウザ上でいつでも状況をリアルタイム把握可能）。
+- **フェーズゲート（Gate 1）**: 全15件のIssue解消および受入完了後、本ファイルにて最終リリース・検収承認を要請します。
 
 ### 関連成果物・ドキュメント
+- タスク進捗管理ボード: `https://github.com/users/dandelion0016/projects/1`
 - 要件定義書: `specs/requirements.md`
 - 設計書ディレクトリ: `docs/design/`
 - ADRディレクトリ: `docs/adr/`
@@ -97,13 +81,17 @@
 
 ---
 
-## 4. 人間ゲートキーパーへの確認・承認要請 (Human-in-the-Loop)
+## 4. 人間ゲートキーパー承認境界 (Human-in-the-Loop)
 
-- **現在のステータス**: Phase 1 自律実装 ＆ 継続的受入（Continuous Delivery）進行中
-- **対応済みPR（承認・マージ待ち）**:
-  - [PR #23: feat(ai): CPU推論AIの的中後継続判定（decideMultiCpuContinue）と連続アタックループの実装 (#8)](https://github.com/dandelion0016/algo/pull/23)
-  - [PR #24: test(core): algoEngine および cpuAI の Vitest 単体テストスイート拡充 (#9)](https://github.com/dandelion0016/algo/pull/24)
-- **次アクション**: PR #23 および PR #24 のマージ確認後、次タスク [Issue #10: ゲーム状態自己修復関数（reconcileGameState）と整合性検証ガードの実装](https://github.com/dandelion0016/algo/issues/10) などの自律実装を進めます。
+- **現在のフェーズ**: Phase 1（自律実装 ＆ 継続的受入・仕上げ）稼働中
+- **承認が必要な境界（Gatekeeper Required）**:
+  - **フェーズ移行・プロジェクト完了時**: Gate 1（全要件充足後の最終検収・リリース承認）
+  - **設計乖離・重要方針転換時**: `docs/adr/` 起票時のアーキテクチャ承認
+  - **破壊的Git操作時**: PRマージや強制プッシュ等の重要操作
+- **承認不要な自律運用（Auto-Allowed）**:
+  - Phase 1 内の個別Issueの自律実装、テスト実行、PR作成
+  - GitHub Projects ボードのステータス同期・ラベル更新
+  - サブエージェントの委任・起動・コード生成
 
 ---
 
@@ -136,3 +124,6 @@
 | 2026-09-29 | Phase 1 | 開発担当 (`role:developer`) | Issue #7（クライアント側監査ログスキーマと機密マスキング）の自律実装および単体テスト完了（34テスト合格）。PR #22 を作成。 |
 | 2026-09-30 | Phase 1 | 人間ゲートキーパー | PR #22（Issue #7）を `main` へマージ完了。 |
 | 2026-09-30 | Phase 1 | 開発担当チーム (`role:developer`) | Issue #8（CPU連続アタックループ）および Issue #9（Vitest単体テストスイート拡充: 全87件合格）を並行Git Worktreeにて同時自律実装。PR #23 および PR #24 を作成。 |
+| 2026-09-30 | Phase 1 | 人間ゲートキーパー | PR #23（Issue #8）および PR #24（Issue #9）を `main` へマージ完了。 |
+| 2026-09-30 | Phase 1 | 開発担当 (`role:developer`) | Issue #10（ゲーム状態自己修復関数）および Issue #11（RFC 7807エラーハンドラ）の自律実装および単体テスト完了（全109件合格）。PR #25 および PR #26 を作成。 |
+| 2026-09-30 | Phase 1 | 開発担当チーム (`role:developer`) | Issue #14（セットアップ画面IDバッジ・対戦構成動的プレビュー: 全102件合格）および Issue #19（React ErrorBoundary & クラッシュ監査ログ: 全140件合格）を並行Git Worktreeにて同時自律実装。PR #27 および PR #28 を作成。 |
