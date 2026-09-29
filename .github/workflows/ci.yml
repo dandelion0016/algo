@@ -1,0 +1,48 @@
+name: CI & Quality Gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  validate-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Linter
+        run: npm run lint
+
+      - name: Run TypeScript TypeCheck
+        run: npx tsc --noEmit
+
+      - name: Run Vitest Unit Tests
+        run: npm run test
+
+      - name: Next.js Static Export Build
+        run: npm run build
+
+      - name: FinOps Guard Check (Bundle Size & Cost Guard)
+        run: |
+          OUT_SIZE=$(du -sm out | cut -f1)
+          echo "Total static bundle size: ${OUT_SIZE} MB"
+          if [ "$OUT_SIZE" -gt 50 ]; then
+            echo "Error: Bundle size exceeds 50MB free tier safe limit!"
+            exit 1
+          fi
