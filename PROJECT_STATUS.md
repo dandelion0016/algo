@@ -71,7 +71,7 @@
 - [x] `spec-gap-auditor` による設計書ギャップ監査の実施（15件のギャップ抽出完了）
 - [x] 全15件の構造化GitHub Issue起票完了 (#5〜#19)
 - [ ] Issue駆動トピックブランチ自律実装・テスト・PR作成サイクル（`@autonomous-gap-resolver`）
-  - [ ] [#5: [Security & Core] Information Hidingの徹底（PublicCard/SecretCard型分離と相手伏せカード数字のnullマスキング）](https://github.com/dandelion0016/algo/issues/5)
+  - [x] [#5: [Security & Core] Information Hidingの徹底（PublicCard/SecretCard型分離と相手伏せカード数字のnullマスキング）](https://github.com/dandelion0016/algo/issues/5) ([PR #20](https://github.com/dandelion0016/algo/pull/20) 作成完了)
   - [ ] [#6: [Security] Cookie自動UUIDゲストセッション（algo_user_id）発行と永続化基盤の実装](https://github.com/dandelion0016/algo/issues/6)
   - [ ] [#7: [Security] クライアント側監査ログ（Audit Logging）スキーマと機密マスキングの実装](https://github.com/dandelion0016/algo/issues/7)
   - [ ] [#8: [Backend & AI] CPU推論AIの的中後継続判定（decideMultiCpuContinue）と連続アタックループの実装](https://github.com/dandelion0016/algo/issues/8)
@@ -100,7 +100,8 @@
 ## 4. 人間ゲートキーパーへの確認・承認要請 (Human-in-the-Loop)
 
 - **現在のステータス**: Phase 1 自律実装 ＆ 継続的受入（Continuous Delivery）進行中
-- **次アクション**: 最優先課題 `[Security & Core] Information Hidingの徹底（PublicCard導入と相手伏せカード数字のマスキング）` のGitHub Issueを起票し、トピックブランチ `feature/issue-01-information-hiding` を新設して自律実装を開始します。
+- **対応済みPR**: [PR #20: feat(security): Information Hidingの徹底（PublicCard導入と相手伏せカード数字のマスキング） (#5)](https://github.com/dandelion0016/algo/pull/20)
+- **次アクション**: PR #20 のマージ確認後、次タスク [Issue #6: Cookie自動UUIDゲストセッション（algo_user_id）発行と永続化基盤の実装](https://github.com/dandelion0016/algo/issues/6) のトピックブランチ `feature/issue-6-cookie-session` にて自律実装を進めます。
 
 ---
 
@@ -126,3 +127,4 @@
 | 2026-09-29 | Phase 0-C | 人間ゲートキーパー | Gate 0-C-2 を正式承認。PR #3 を `main` ブランチへマージ完了。 |
 | 2026-09-29 | Phase 1 | 人間ゲートキーパー ＆ 管理者 | Phase 1（自律実装 ＆ 継続的受入・仕上げ）を開始。`spec-gap-auditor` による設計書ギャップ監査を実施し、15件のギャップを検出。最優先課題を特定。 |
 | 2026-09-29 | Phase 1 | 管理者 (`role:manager`) | `spec-gap-auditor` 監査結果に基づき、未実装ギャップ全15件の構造化GitHub Issue（#5〜#19）を起票完了。 |
+| 2026-09-29 | Phase 1 | 開発担当 (`role:developer`) | Issue #5（Information Hidingの徹底）の自律実装および単体テスト完了。PR #20 を作成。 |
