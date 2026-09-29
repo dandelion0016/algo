@@ -13,8 +13,8 @@
 | 項目 | 現在値 |
 | :--- | :--- |
 | **カレントフェーズ** | **Phase 0-C: 開発環境整備 ＆ MCP・権限設計・疎通確認** |
-| **フェーズステータス** | `WAITING_USER_ACTION` (Gate 0-C-1: 人間管理者によるAWS初期環境作業の実施待ち) |
-| **ゲート承認状態** | `WAITING_USER_ACTION` (Gate 0-C-1 作業依頼書提示中) |
+| **フェーズステータス** | `WAITING_USER_APPROVAL` (Gate 0-C-2: 環境整備完了 ＆ Phase 1移行承認待ち) |
+| **ゲート承認状態** | `WAITING_USER_APPROVAL` (Gate 0-C-1 完了、Gate 0-C-2 承認要請中) |
 | **主担当ロール** | エージェント・AI担当 (`role:agentic`) ＋ インフラ担当 (`role:infra/dev`) |
 | **作業ブランチ** | `feature/phase-0c-env-setup` |
 | **リポジトリ** | `https://github.com/dandelion0016/algo` (Private) |
@@ -44,9 +44,9 @@
   - [x] 2. 人間向けAWS初期作業依頼書作成 (`docs/setup/aws-initial-setup-guide.md`)
   - [x] 3. IaCテンプレート（`infrastructure/cloudformation/main.yaml`）および最小権限IAMポリシー（`infrastructure/iam/`）作成
   - [x] 4. CI/CDパイプライン作成（`.github/workflows/ci.yml`, `.github/workflows/deploy.yml`）
-  - 🛑 **Gate 0-C-1**: 人間によるクラウド環境初期作業（AWSアカウント・初期IAMロール等の作成） `[作業依頼提示中 ⏳]`
-  - [ ] 5. 疎通テスト（AWS接続 / S3・CloudFront IaC / デプロイパイプライン）
-  - 🛑 **Gate 0-C-2**: 人間による環境整備完了 ＆ 水平タスク分解（Phase 1）移行承認 `[未到達]`
+  - 🛑 **Gate 0-C-1**: 人間によるクラウド環境初期作業（CloudFormationスタック作成・Secrets登録） `[APPROVED ✅ (2026-09-29)]`
+  - [x] 5. 静的エクスポートビルド検証 ＆ 疎通テストスクリプト（`scripts/verify-aws-setup.js`）完走
+  - 🛑 **Gate 0-C-2**: 人間による環境整備完了 ＆ 自律実装（Phase 1）移行承認 `[承認待ち ⏳]`
 - [ ] **Phase 1: 自律実装 ＆ 継続的受入・仕上げ (Continuous Delivery & Feedback)** `[NOT_STARTED]`
   - [ ] 1. 設計書群（`docs/design/`）とWalking Skeletonのギャップ自律監査（`spec-gap-auditor`）
   - [ ] 2. 構造化Issueの自動起票 ＆ トピックブランチでの自律実装・自動テスト（`@autonomous-gap-resolver`）
@@ -70,14 +70,12 @@
 - [x] Phase 0-C用トピックブランチ `feature/phase-0c-env-setup` の作成
 - [x] 承認済み設計書に基づくMCP設定およびサブエージェント権限設計 (`docs/setup/mcp-and-agent-permissions.md`)
 - [x] AWS初期作業依頼書作成 (`docs/setup/aws-initial-setup-guide.md`)
-  - [x] GitHub Actions OIDC プロバイダー作成手順
-  - [x] デプロイ用最小権限IAMロール作成手順 (`infrastructure/iam/`)
+  - [x] GitHub Actions OIDC プロバイダーおよびデプロイ用IAMロールのCloudFormation一元化
   - [x] AWS Budgets $0.01課金アラート設定手順 (`infrastructure/cloudformation/main.yaml`)
 - [x] CI/CD パイプライン定義作成 (`.github/workflows/ci.yml`, `.github/workflows/deploy.yml`)
 - [x] Next.js 静的エクスポート設定 ＆ ビルド検証 (`out/` 生成確認)
-- [x] 疎通検証スクリプト作成 (`scripts/verify-aws-setup.mjs`)
-- [ ] 人間へのクラウド環境初期作業依頼 (Gate 0-C-1)
-- [ ] 作業完了後の疎通テスト実施
+- [x] 疎通検証スクリプト作成 ＆ 実行確認 (`scripts/verify-aws-setup.js`)
+- [x] 人間へのクラウド環境初期作業依頼 ＆ 実施完了 (Gate 0-C-1)
 - [ ] 人間への環境整備完了・Phase 1移行承認要請 (Gate 0-C-2)
 
 ### 関連成果物・ドキュメント
@@ -93,8 +91,8 @@
 
 ## 4. 人間ゲートキーパーへの確認・承認要請 (Human-in-the-Loop)
 
-- **現在のステータス**: Gate 0-C-1（人間によるAWS初期環境作業）待ち
-- **次アクション**: 人間管理者様による AWS CloudFormation スタック作成、IAMロール作成、GitHub Secrets 登録の実施をお願いします。作業完了後に「作業完了しました」とお知らせください。
+- **現在のステータス**: Gate 0-C-2（環境整備完了 ＆ Phase 1 自律実装移行承認）の承認待ち
+- **次アクション**: PR #3 の内容（AWS IaC、OIDC連携、CI/CDワークフロー）をご確認いただき、問題がなければマージ承認をお願いします。マージ後、Phase 1（設計乖離監査・自律実装・継続的受入）へ移行します。
 
 ---
 
@@ -115,3 +113,5 @@
 | 2026-09-29 | Phase 0-B | 人間ゲートキーパー | Gate 0-B を正式承認。PR #2 を `main` ブランチへマージ完了。 |
 | 2026-09-29 | Phase 0-C | エージェント・AI担当 ＋ インフラ担当 | MCP・権限設計書、IaCテンプレート（CFn main.yaml）、IAMポリシー、CI/CDワークフロー、静的ビルド検証、初期作業依頼書を作成。Gate 0-C-1（人間作業）を要請。 |
 | 2026-09-29 | Phase 0-C | インフラ担当 ＆ 人間ゲートキーパー | デプロイ用IAMロールおよびGitHub OIDCプロバイダをCloudFormationスタック（main.yaml）に一元統合。人間作業を2ステップ（所要3分）へ簡素化。 |
+| 2026-09-29 | Phase 0-C | 人間ゲートキーパー | Gate 0-C-1（CloudFormationスタック作成・Secrets登録作業）完了。 |
+| 2026-09-29 | Phase 0-C | 管理者 (`role:manager`) | 疎通検証完了。PR作成および Gate 0-C-2（環境整備完了 ＆ Phase 1移行承認）を人間へ要請。 |
