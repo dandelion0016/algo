@@ -2,8 +2,8 @@
 
 <!--
 【Antigravity 運用プロトコル】
-1. セッション開始時: 本ファイル（PROJECT_STATUS.md）で現在のマクロフェーズおよびゲート承認状況を確認し、Phase 1 のタスク進捗は TASK_PROGRESS.md を参照すること。
-2. Phase 1 内の日常作業: GitHub Issueの着手・実装・テスト・PR作成・マージ確認等の進捗は TASK_PROGRESS.md に自律記録すること（ユーザー承認不要）。
+1. セッション開始時: 本ファイル（PROJECT_STATUS.md）で現在のマクロフェーズおよびゲート承認状況を確認し、Phase 1 のタスク進捗は GitHub Projects ボードを参照すること。
+2. Phase 1 内の日常作業: GitHub Issueの着手・実装・テスト・PR作成・マージ確認等の進捗は GitHub Projects（カンバン）に自律同期すること（ユーザー承認不要）。
 3. ゲート到達時: フェーズ全体の完了条件（Gate 1 等）に達した時のみ、ステータスを WAITING_USER_APPROVAL に変更し、ユーザーに承認を要請すること。
 4. フェーズ承認後: ユーザーの承認を得た後、次フェーズへステータスを進行させること。
 -->
@@ -68,12 +68,12 @@
   4. 人間ゲートキーパーによる受入確認・全要件充足で Gate 1（プロジェクト完了）を達成すること。
 
 ### 作業・Issue進捗管理方針
-- **Issue・タスク詳細管理**: **[TASK_PROGRESS.md](TASK_PROGRESS.md)** ＆ **[GitHub Projects (algo)](https://github.com/dandelion0016/algo/projects)**
-  ※ 個別Issue（#5〜#19）の実装状態、ブランチ、PR、テスト結果は上記ファイルおよびGitHub Projects/カンバンで自律管理されます（日常的なタスク更新に伴うゲートキーパー承認は不要。人間はGitHub Projectsでいつでも状況をリアルタイム把握可能）。
+- **タスク・Issue一元管理**: **[algo - Phase 1 自律実装ボード (GitHub Projects)](https://github.com/users/dandelion0016/projects/1)**
+  ※ 個別Issue（#5〜#19）の実装状態、ブランチ、PR、テスト結果は上記 GitHub Projects（カンバン）で一元管理されます（日常的なタスク更新に伴うゲートキーパー承認は不要。人間はブラウザ上でいつでも状況をリアルタイム把握可能）。
 - **フェーズゲート（Gate 1）**: 全15件のIssue解消および受入完了後、本ファイルにて最終リリース・検収承認を要請します。
 
 ### 関連成果物・ドキュメント
-- タスク・Issue進捗管理: `TASK_PROGRESS.md`
+- タスク進捗管理ボード: `https://github.com/users/dandelion0016/projects/1`
 - 要件定義書: `specs/requirements.md`
 - 設計書ディレクトリ: `docs/design/`
 - ADRディレクトリ: `docs/adr/`
@@ -90,7 +90,7 @@
   - **破壊的Git操作時**: PRマージや強制プッシュ等の重要操作
 - **承認不要な自律運用（Auto-Allowed）**:
   - Phase 1 内の個別Issueの自律実装、テスト実行、PR作成
-  - `TASK_PROGRESS.md` の作業進捗・状態の更新
+  - GitHub Projects ボードのステータス同期・ラベル更新
   - サブエージェントの委任・起動・コード生成
 
 ---
