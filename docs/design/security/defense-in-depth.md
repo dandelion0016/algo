@@ -68,8 +68,13 @@ CPU対戦モード（フロントエンド単体実行）であっても、グ�
     isOpen: boolean;
     number: number; // 0〜11
   };
+
+  // 互換性維持のための Card 型エイリアス（実体は SecretCard）
+  export type Card = SecretCard;
   ```
-- 相手手札コンポーネントをレンダーする際、`number` プロパティは事前に `null` にマスクされた配列のみを渡します。これにより、React Developer Tools を開いても相手の数字は一切確認できません。
+- **マスキング関数 (`maskCardForPlayer`)**:
+  - `maskCardForPlayer(card: Card, isOwner: boolean): PublicCard` を通し、相手の裏向きカード（`!card.isOpen && !isOwner`）は `number: null` に置換。
+- 相手手札コンポーネントをレンダーする際、`number` プロパティは事前に `null` にマスクされた `PublicCard` 配列のみを渡します。これにより、React Developer Tools や DOM インスペクタを開いても相手の数字は一切確認できません。
 
 ### 3.2 サーバー権威型モデル（Phase 2: オンライン対戦モード）
 オンライン対戦時、真の `SecretCard` 配列は DynamoDB / Lambda のメモリ上にのみ保持され、WebSocket通信時には各受信者のプレイヤーIDに応じて動的にマスキングフィルターを通します：

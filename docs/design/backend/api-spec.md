@@ -44,12 +44,21 @@
 ```typescript
 export type CardColor = 'black' | 'white';
 
-export interface Card {
+export interface SecretCard {
   id: string;        // ユニークID (例: "b-0", "w-11")
   color: CardColor;  // カードの色 ('black' | 'white')
   number: number;    // 数字 (0 〜 11)
   isOpen: boolean;   // 表向き（全開示）かどうか
 }
+
+export interface PublicCard {
+  id: string;        // ユニークID (例: "b-0", "w-11")
+  color: CardColor;  // カードの色 ('black' | 'white')
+  number: number | null; // 数字 (0 〜 11) または 伏せ状態の相手カードは null
+  isOpen: boolean;   // 表向き（全開示）かどうか
+}
+
+export type Card = SecretCard;
 
 export type PlayerCount = 2 | 3 | 4;
 export type Difficulty = 'easy' | 'normal' | 'hard';
@@ -178,14 +187,23 @@ function checkAttack(targetCard: Card, guessedNumber: number): boolean
 ```
 - **仕様**: `targetCard.number === guessedNumber` の真偽値を返却。
 
-### 2.8 手番進行関数: `getNextActivePlayerIndex`
+### 2.8 情報秘匿マスキング関数: `maskCardForPlayer`
+
+```typescript
+function maskCardForPlayer(card: Card, isOwner: boolean): PublicCard
+```
+- **仕様**:
+  - `card.isOpen === true` または `isOwner === true` の場合、元のカード情報をそのまま維持した `PublicCard` を返却。
+  - それ以外（相手の裏向きカード: `!card.isOpen && !isOwner`）の場合、`number` を `null` に置換した `PublicCard` を返却し、クライアントUI層での覗き見チートを機械的に防止。
+
+### 2.9 手番進行関数: `getNextActivePlayerIndex`
 
 ```typescript
 function getNextActivePlayerIndex(currentIndex: number, players: Player[]): number
 ```
 - **仕様**: 時計回りに次のインデックスを走査し、脱落（`isEliminated === true`）していない最も近いプレイヤーのインデックスを返却。
 
-### 2.9 サバイバル・ゲーム終了評価: `isAllOpen` / `evaluateGameState`
+### 2.10 サバイバル・ゲーム終了評価: `isAllOpen` / `evaluateGameState`
 
 ```typescript
 function isAllOpen(cards: Card[]): boolean

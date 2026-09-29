@@ -9,6 +9,7 @@ import {
   isAllOpen,
   checkAttack,
   getNextActivePlayerIndex,
+  maskCardForPlayer,
 } from '../lib/algoEngine';
 import { decideMultiCpuAttack } from '../lib/cpuAI';
 import { CardComponent } from './CardComponent';
@@ -639,7 +640,7 @@ export const GameBoard: React.FC = () => {
                     {opp.cards.map((card, idx) => (
                       <CardComponent
                         key={card.id}
-                        card={card}
+                        card={maskCardForPlayer(card, false)}
                         isOwner={false}
                         size={opponents.length === 1 ? 'md' : 'sm'}
                         label={`#${idx + 1}`}
@@ -700,7 +701,7 @@ export const GameBoard: React.FC = () => {
               <span className="text-xs font-bold text-slate-500">引いたカード</span>
               {gameState.drawnCard ? (
                 <div className="scale-105 transition-transform animate-card-draw">
-                  <CardComponent card={gameState.drawnCard} isOwner={true} size="md" />
+                  <CardComponent card={maskCardForPlayer(gameState.drawnCard, true)} isOwner={true} size="md" />
                 </div>
               ) : (
                 <div className="w-16 h-24 sm:w-20 sm:h-28 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center text-xs text-slate-400 font-semibold bg-slate-50/50">
@@ -826,7 +827,7 @@ export const GameBoard: React.FC = () => {
                 {humanPlayer.cards.map((card, idx) => (
                   <CardComponent
                     key={card.id}
-                    card={card}
+                    card={maskCardForPlayer(card, true)}
                     isOwner={true}
                     size="md"
                     label={`#${idx + 1}`}

@@ -1,4 +1,4 @@
-import { Card, CardColor, Player, PlayerCount } from '../types/game';
+import { Card, CardColor, Player, PlayerCount, PublicCard } from '../types/game';
 
 /**
  * 24枚のアルゴデッキを生成（黒0〜11、白0〜11）
@@ -168,4 +168,26 @@ export function getNextActivePlayerIndex(
     }
   }
   return currentIndex;
+}
+
+/**
+ * プレイヤー視点に応じたカードマスキング関数 (Information Hiding)
+ * - 表向き(isOpen === true) または 自分所有(isOwner === true)の場合は number をそのまま保持
+ * - それ以外（相手の裏向きカード）は number を null に置換して覗き見を防止
+ */
+export function maskCardForPlayer(card: Card, isOwner: boolean): PublicCard {
+  if (card.isOpen || isOwner) {
+    return {
+      id: card.id,
+      color: card.color,
+      number: card.number,
+      isOpen: card.isOpen,
+    };
+  }
+  return {
+    id: card.id,
+    color: card.color,
+    number: null,
+    isOpen: false,
+  };
 }
