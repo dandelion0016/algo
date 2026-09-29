@@ -9,16 +9,16 @@
 
 ```mermaid
 flowchart TD
-    Player["プレイヤー"] --> Choice{"プレイ形態の選択"}
+    Player["プレイヤー"] --> FirstVisit{"初回アクセス / ゲーム開始"}
 
-    Choice -->|手軽に遊ぶ (登録不要)| Guest["1. 匿名ゲストプレイヤー<br>・クライアントUUID発行 (LocalStorage)<br>・CPU対戦 (即時プレイ可能)<br>・合言葉ルーム対戦 (ゲスト参加)"]
-    Choice -->|本格的に遊ぶ (戦績・レート保存)| Auth["2. 認証済みプレイヤー<br>・Amazon Cognito User Pools<br>・メール/パスワード / ソーシャル<br>・JWTトークン (ID/Access/Refresh)"]
+    FirstVisit -->|ユーザーID未保持| AutoGen["1. 自動ランダムユーザーID生成<br>・ランダム文字列発行 (例: usr_8f3a1b9c7e2d)<br>・Cookieに保存 (algo_user_id)<br>・即時CPU対戦 / ルーム対戦開始可能"]
+    FirstVisit -->|Cookie保持済み| LoadCookie["2. 既存ユーザーID読み出し<br>・Cookieより algo_user_id 取得<br>・対戦設定・戦績を継続管理"]
 
-    Guest -.->|後からアカウント登録| Upgrade["アカウント昇格 (Account Upgrade)<br>・ゲスト時の一時対戦戦績を結合"]
-    Upgrade -.-> Auth
+    AutoGen --> Play["ゲームプレイ (CPU対戦 / ルーム参加)"]
+    LoadCookie --> Play
 
-    Auth --> API["Amazon API Gateway / WebSocket<br>・Cognito JWT オーソライザー<br>・戦績保存 & レートマッチング"]
-    Guest --> CPU["フロントエンド単体実行 (Phase 1)<br>・完全クライアント完結 (通信不要)"]
+    Play -.->|本格的に遊ぶ (将来拡張)| Cognito["3. 将来拡張: Amazon Cognito<br>・任意のユーザーID (カスタムID/表示名) 登録<br>・メール/パスワード / ソーシャル認証<br>・CookieのランダムIDから任意ユーザーIDへ戦績引き継ぎ"]
+    Cognito --> CloudSync["戦績・レーティングのクラウド永続化<br>・DynamoDB連携 / 全国ランキング"]
 ```
 
 ---
@@ -49,61 +49,49 @@ flowchart TD
 
 ## 3. 認証方式 ＆ トークン設計
 
-### 3.1 匿名ゲストプレイヤー（UUID管理）
-- **識別子生成**: ブラウザ初回起動時に `crypto.randomUUID()` によりクライアント側で一意なID（例: `guest_7f9c8d1e-...`）を生成。
-- **格納先**: ブラウザの `localStorage`（キー名: `algo_guest_session`）。
-- **プライバシー配慮**: 個人情報は一切取得・保管しない。Cookieバナー等の同意フローも不要。
+### 3.1 初回アクセス時の自動ランダムユーザーID発行 ＆ Cookie管理
+- **識別子生成**: ゲーム初回アクセス時またはゲーム開始時に、一意なランダム文字列を自動生成（例: `usr_` + 16文字の暗号学的ランダム英数字、またはナノID/UUID v4）。
+- **格納先**: ブラウザの **`Cookie`**（クッキー名: `algo_user_id`）。
+- **Cookie属性設計**:
+  - `Path=/`: アプリケーション全体で有効。
+  - `Max-Age=31536000` (1年間有効): 再訪時にも同一ユーザーとして対戦設定・戦績を継続保持。
+  - `SameSite=Lax`: クロスサイトリクエスト時の適切なセキュリティを担保。
+  - `Secure`: 本番環境（HTTPS）でのみ暗号化通信に乗せて送出（ローカル開発時はHTTP許容）。
+  - （将来API拡張時）`HttpOnly` Cookie によるセキュアなサーバーセッション管理へのシームレスな移行が可能。
+- **プライバシー配慮**: 氏名・メールアドレス等の個人特定可能情報（PII）は一切取得・保管せず、純粋なゲーム識別子として運用。
 
-### 3.2 認証済みプレイヤー（Amazon Cognito JWT）
-Phase 2 においてユーザーが登録・ログインした際、Cognito User Pools より3種類のJWTトークンが発行されます：
-
-1. **ID Token (JWT)**:
-   - ユーザー表示名、アバターURL、アカウント作成日時などのプロファイル情報。
-   - クライアント側（UI描画）で使用。
-2. **Access Token (JWT)**:
-   - API Gateway / WebSocket に対するAPI呼び出しの認可に使用。
-   - 有効期限: **60分**（短命設計）。
-   - クレーム例:
-     ```json
-     {
-       "sub": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
-       "cognito:groups": ["players"],
-       "token_use": "access",
-       "scope": "aws.cognito.signin.user.admin algo/game.play",
-       "iss": "https://cognito-idp.ap-northeast-1.amazonaws.com/ap-northeast-1_EXAMPLE",
-       "exp": 1727503600,
-       "client_id": "1example234567890abcdef"
-     }
-     ```
-3. **Refresh Token**:
-   - Access Token の自動再取得に使用。
-   - 有効期限: **30日間**。
-   - 保存場所: Next.js API Routes による `HttpOnly`, `Secure`, `SameSite=Lax` の暗号化Cookie、またはCognito公式SDKによるセキュアストレージ。
+### 3.2 将来拡張: Amazon Cognito による任意ユーザーID登録
+Phase 2 においてユーザーが任意のアカウントを作成する際、Cognito User Pools を導入します：
+- **任意ユーザーIDの指定**: ユーザーは任意のユーザーネーム（例: `algo_master99` や任意の英数字ID）を指定して登録可能。
+- **Cognito JWTトークン**:
+  1. **ID Token (JWT)**: ユーザープロファイル（任意指定のユーザーネーム `cognito:username`、表示名、アバター）。
+  2. **Access Token (JWT)**: 有効期限60分。API Gateway / WebSocket の認可に使用。
+  3. **Refresh Token**: 有効期限30日間。長期セッション維持。
 
 ---
 
-## 4. ゲストから正規アカウントへの昇格（戦績引き継ぎ設計）
+## 4. CookieランダムユーザーIDからCognito任意ユーザーIDへの昇格（戦績引き継ぎ設計）
 
-ゲストプレイヤーが対戦を重ねた後、「この戦績を保存したい」と希望した場合のスムーズなアカウント昇格フローを規定します：
+初期にCookieで自動発行されたランダムユーザーIDから、将来的にCognitoで登録した「任意のユーザーID」へ戦績やルーム設定をシームレスに引き継ぐシーケンスを規定します：
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Player as プレイヤー
-    participant Browser as ブラウザ (LocalStorage)
+    participant Browser as ブラウザ (Cookie: algo_user_id)
     participant Cognito as Amazon Cognito
     participant API as Lambda API
     participant DB as Amazon DynamoDB
 
-    Player->>Browser: 「アカウント登録して戦績保存」クリック
-    Browser->>Cognito: メールアドレス/PWでサインアップ & 認証完了
-    Cognito-->>Browser: JWT Access Token 返却
+    Player->>Browser: 「アカウント登録（任意のユーザーID登録）」
+    Browser->>Cognito: 希望のユーザーID（英数字）・パスワードでサインアップ
+    Cognito-->>Browser: 認証成功 (JWT Access Token & ID Token 発行)
 
-    Browser->>API: POST /api/user/link-guest<br>Headers: Authorization: Bearer <JWT><br>Body: { guestId: "guest_7f9c..." }
-    Note over API: 1. JWT署名検証<br>2. 本人UUIDとCognito subの紐付け<br>3. 過去ローカル戦績の一括マイグレーション
+    Browser->>API: POST /api/user/link-account<br>Headers: Authorization: Bearer <JWT><br>Cookie: algo_user_id=usr_8f3a1b...
+    Note over API: 1. JWT署名検証 (Cognito任意ユーザーID取得)<br>2. CookieのランダムユーザーIDを取得<br>3. 過去の対戦履歴・戦績レコードのPK/GSIを移行・紐付け
 
-    API->>DB: DynamoDB BatchWriteItem (ゲスト戦績をユーザーIDへ更新)
+    API->>DB: DynamoDB UpdateItem / BatchWriteItem<br>(CookieのランダムIDデータをCognito任意ユーザーIDへマージ)
     DB-->>API: 完了
-    API-->>Browser: 200 OK (紐付け成功)
-    Browser->>Browser: LocalStorageのゲストセッション消去
+    API-->>Browser: 200 OK (引き継ぎ完了)<br>Set-Cookie: algo_user_id=<cognito_sub>; Path=/
+    Browser->>Browser: 任意ユーザーIDとしてログイン状態へ移行（戦績完全維持）
 ```

@@ -39,6 +39,10 @@
 
 ### 1.4 属性詳細およびサンプルデータ
 
+> [!NOTE] ユーザーID管理方針
+> ゲーム開始時（または初回アクセス時）に、クライアント／ミドルウェアで一意のランダム文字列（例: `usr_coda8491`）が自動生成され、ブラウザのCookie（`algo_user_id`）に保存されます。
+> 各テーブル・エンティティの `userId` にはこのCookie値が共通して使用されます。将来的にAmazon Cognitoを導入した際は、ユーザーが任意指定した「希望のユーザーネーム（任意ID）」をCognito User Poolsに登録し、既存のCookieユーザーIDレコードとシームレスに紐付け・昇格を行います。
+
 #### ① User Profile (`PK: USER#<userId>`, `SK: PROFILE`)
 ```json
 {

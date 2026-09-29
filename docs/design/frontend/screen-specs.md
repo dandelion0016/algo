@@ -32,6 +32,7 @@
 
 ```text
 +------------------------------------------------------------------------+
+| [User Badge: 👤 usr_8f3a1b (Cookie保存中)]      [🔑 ログイン/登録(将来)]|
 |                                                                        |
 |    +--------------------------------------------------------------+    |
 |    | [Hero Banner Image: アルゴ Web対戦]                           |    |
@@ -124,8 +125,13 @@
 ## 3. 各コンポーネント詳細仕様
 
 ### 3.1 `GameBoard.tsx`
-- **役割**: ゲーム盤面の統合コンテナ、状態（`GameState`）の集中管理、ターン進行・タイマー・CPU実行キューのハンドリング。
+- **役割**: ゲーム盤面の統合コンテナ、状態（`GameState`）の集中管理、ターン進行・タイマー・CPU実行キューのハンドリング、およびCookieによるユーザーID永続化。
+- **ユーザーID管理（Cookie連携）**:
+  - 初回ロード時: ブラウザの `document.cookie` から `algo_user_id` を走査。
+  - 未存在時: `usr_` + 16文字のランダム文字列（例: `usr_` + `crypto.randomUUID().replace(/-/g, '').slice(0, 16)`）を生成し、Cookieに書き込み（`Path=/; Max-Age=31536000; SameSite=Lax`）。
+  - 人間プレイヤーの `id` にこの `algo_user_id` を割り当て、対戦ログや設定の紐付けに利用。
 - **主要State / Props**:
+  - `userId`: Cookieから読み取ったユーザーID（`string`）
   - `gameState`: `playerCount`, `difficulty`, `timeLimit`, `remainingTime`, `deck`, `players`, `activePlayerIndex`, `drawnCard`, `phase`, `selectedTarget`, `logs`, `winner`
   - `isRuleModalOpen`: ルールモーダル開閉フラグ
   - `cpuStatusMessage`: CPU思考状態テキスト
