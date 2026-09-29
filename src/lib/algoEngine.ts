@@ -63,9 +63,9 @@ export function insertCardInOrder(hand: Card[], newCard: Card): Card[] {
 
 /**
  * 人数に応じた初期手札枚数を取得（アルゴ公式ルール）
- * 2人: 4枚
- * 3人: 3枚
- * 4人: 2枚
+ * 2人: 4枚（山札 16枚）
+ * 3人: 3枚（山札 15枚）
+ * 4人: 3枚（山札 12枚）
  */
 export function getInitialCardCount(playerCount: PlayerCount): number {
   switch (playerCount) {
@@ -74,7 +74,7 @@ export function getInitialCardCount(playerCount: PlayerCount): number {
     case 3:
       return 3;
     case 4:
-      return 2;
+      return 3;
     default:
       return 4;
   }

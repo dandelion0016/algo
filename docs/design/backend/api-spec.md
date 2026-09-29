@@ -161,7 +161,7 @@ function getInitialCardCount(playerCount: PlayerCount): number
 - **公式ルール準拠**:
   - 2人対戦: 各 **4枚**（山札 16枚）
   - 3人対戦: 各 **3枚**（山札 15枚）
-  - 4人対戦: 各 **2枚**（山札 16枚）
+  - 4人対戦: 各 **3枚**（山札 12枚）
 
 ### 2.6 ゲーム初期セットアップ: `setupGamePlayers`
 

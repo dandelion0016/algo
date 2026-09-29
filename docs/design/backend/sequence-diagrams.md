@@ -35,7 +35,7 @@ sequenceDiagram
     Board->>Engine: setupGamePlayers(rawDeck, playerCount)
     activate Engine
     Engine->>Engine: shuffleDeck() [Fisher-Yates]
-    Engine->>Engine: getInitialCardCount(playerCount) [2人:4枚, 3人:3枚, 4人:2枚]
+    Engine->>Engine: getInitialCardCount(playerCount) [2人:4枚, 3人:3枚, 4人:3枚]
     Engine->>Engine: プレイヤー手札配布 ＆ sortCards()
     Engine->>Engine: CPU手札配布 ＆ sortCards()
     Engine-->>Board: { players, remainingDeck } 返却
