@@ -1,65 +1,97 @@
-# セキュリティ 認証・認可設計書 (Inbound / Outbound Auth)
+# セキュリティ 認証・認可設計書 (Auth Spec)
 
-## 1. 認証・認可アーキテクチャ概要
-本システムでは、外部からのエージェント/API呼び出しを安全に制御する **Inbound Auth** と、エージェントが外部SaaSや社内リソースにアクセスする際の安全な認証情報管理を行う **Outbound Auth** を分離して設計します。
+本設計書は、「アルゴ（algo）Web対戦システム」におけるプレイヤーの認証（Authentication）および認可（Authorization）のアーキテクチャを定義します。
+手軽に遊べる**「完全匿名のゲストプレイ」**から、戦績保存・レーティング対戦が可能な**「Amazon Cognito によるアカウント認証」**まで、シームレスかつセキュアに両立するモデルを策定します。
+
+---
+
+## 1. 認証アーキテクチャ概要
 
 ```mermaid
-flowchart LR
-    subgraph Inbound Auth
-        Client["ユーザー / クライアント"] -->|Bearer JWT| Gateway["API Gateway / App"]
-        Gateway -->|署名検証 / IdP照会| IdP["IDプロバイダ (Cognito / Auth0)"]
-    end
+flowchart TD
+    Player["プレイヤー"] --> FirstVisit{"初回アクセス / ゲーム開始"}
 
-    subgraph Internal Authorization
-        Gateway -->|Role & Tenant Context| AppEngine["Application Service"]
-        AppEngine -->|RBAC / PBAC Check| Policy["認可エンジン"]
-    end
+    FirstVisit -->|ユーザーID未保持| AutoGen["1. 自動ランダムユーザーID生成<br>・ランダム文字列発行 (例: usr_8f3a1b9c7e2d)<br>・Cookieに保存 (algo_user_id)<br>・即時CPU対戦 / ルーム対戦開始可能"]
+    FirstVisit -->|Cookie保持済み| LoadCookie["2. 既存ユーザーID読み出し<br>・Cookieより algo_user_id 取得<br>・対戦設定・戦績を継続管理"]
 
-    subgraph Outbound Auth
-        AppEngine -->|ユーザー委任トークン要求| Vault["Token Vault / Secrets Manager"]
-        Vault -->|最小権限トークン発行| ExtAPI["外部SaaS / クラウドAPI"]
-    end
+    AutoGen --> Play["ゲームプレイ (CPU対戦 / ルーム参加)"]
+    LoadCookie --> Play
+
+    Play -.->|本格的に遊ぶ (将来拡張)| Cognito["3. 将来拡張: Amazon Cognito<br>・任意のユーザーID (カスタムID/表示名) 登録<br>・メール/パスワード / ソーシャル認証<br>・CookieのランダムIDから任意ユーザーIDへ戦績引き継ぎ"]
+    Cognito --> CloudSync["戦績・レーティングのクラウド永続化<br>・DynamoDB連携 / 全国ランキング"]
 ```
 
 ---
 
-## 2. Inbound Auth（受信認証・認可）
+## 2. プレイヤーロール ＆ 認可マトリクス (RBAC)
 
-### 2.1 トークンライフサイクル
-- **Access Token**: JWT形式（RS256署名）、有効期限 15分（短命設計）。
-- **Refresh Token**: 暗号化Cookie（`HttpOnly`, `Secure`, `SameSite=Strict`）、有効期限 7日間。
-- **ペイロードクレーム**:
-  ```json
-  {
-    "sub": "usr_01H1234567890",
-    "iss": "https://auth.example.com",
-    "aud": "https://api.example.com",
-    "tenant_id": "tenant_acme",
-    "roles": ["user"],
-    "permissions": ["resource:read", "resource:write"],
-    "exp": 1727500000,
-    "iat": 1727499100
-  }
-  ```
+システムにおけるロールを以下の4種類に分類し、操作権限を厳格に制御します：
 
-### 2.2 ロール・権限マトリクス (RBAC)
+1. **ゲスト (`guest`)**: アカウント未登録の匿名プレイヤー。UUID（一時ID）で識別。
+2. **登録ユーザー (`user`)**: Amazon Cognito で認証済みの正規プレイヤー。戦績・レートをクラウドに永続化。
+3. **ルームホスト (`room_host`)**: オンライン対戦ルームを作成したプレイヤー（ゲスト/登録ユーザー問わず当該ルーム内でのみ有効）。
+4. **システム管理者 (`admin`)**: 不正ユーザーBANや全体メンテナンスアナウンス権限を持つ管理者。
 
-| 操作 / リソース | 未認証 (`guest`) | 一般ユーザー (`user`) | 承認権限者 (`approver`) | システム管理者 (`admin`) |
+| 操作 / リソース | ゲスト (`guest`) | 登録ユーザー (`user`) | ルームホスト (`room_host`) | システム管理者 (`admin`) |
 | :--- | :---: | :---: | :---: | :---: |
-| 認証トークン発行 | ○ | ○ | ○ | ○ |
-| 自テナントリソース閲覧 | × | ○ | ○ | ○ |
-| 自テナントリソース作成・編集 | × | ○ | ○ | ○ |
-| リソース物理削除（HITL要求） | × | × | × | ○ (HITL承認後) |
-| HITL承認キューの承認/却下 | × | × | ○ | ○ |
-| 監査ログ検索・エクスポート | × | × | × | ○ |
-| 他テナントの全データアクセス | × | × | × | × (完全禁止) |
+| **CPU対戦プレイ (全難易度)** | ○ | ○ | ○ | ○ |
+| **ルール閲覧 / 設定変更** | ○ | ○ | ○ | ○ |
+| **オンラインルーム作成 (Phase 2)** | ○ | ○ | ○ | ○ |
+| **オンラインルーム参加 (Phase 2)** | ○ | ○ | ○ | ○ |
+| **ルーム設定変更 / キック権限** | × | × | ○ (自ルームのみ) | ○ (全ルーム強制) |
+| **対戦履歴のクラウド永続化** | × (ブラウザ内のみ) | ○ (DynamoDB保存) | ○ | ○ |
+| **全国レーティングランキング参加** | × | ○ | ○ | ○ |
+| **アカウント登録への戦績移行** | ○ | - | - | - |
+| **不正プレイヤーのBAN / 停止** | × | × | × | ○ |
+| **AWS Budgets / SRE監視閲覧** | × | × | × | ○ |
 
 ---
 
-## 3. Outbound Auth（送信認証・権限委任）
-- **静的管理キーの排除**:
-  - エージェントが外部APIにアクセスする際、全権管理者キー（Master API Key）を恒久的に共有することを厳禁とする。
-- **Token Vault / Secrets Manager の活用**:
-  - 外部APIへのアクセスは、Token Vault または AWS Secrets Manager 経由でオンデマンドに取得し、メモリ内にのみ一時展開する。
-- **ユーザー委任スコープ**:
-  - 操作を実行しているユーザー本人の権限スコープを超えた外部リクエストを禁止する（On-Behalf-Of トークン交換）。
+## 3. 認証方式 ＆ トークン設計
+
+### 3.1 初回アクセス時の自動ランダムユーザーID発行 ＆ Cookie管理
+- **識別子生成**: ゲーム初回アクセス時またはゲーム開始時に、一意なランダム文字列を自動生成（例: `usr_` + 16文字の暗号学的ランダム英数字、またはナノID/UUID v4）。
+- **格納先**: ブラウザの **`Cookie`**（クッキー名: `algo_user_id`）。
+- **Cookie属性設計**:
+  - `Path=/`: アプリケーション全体で有効。
+  - `Max-Age=31536000` (1年間有効): 再訪時にも同一ユーザーとして対戦設定・戦績を継続保持。
+  - `SameSite=Lax`: クロスサイトリクエスト時の適切なセキュリティを担保。
+  - `Secure`: 本番環境（HTTPS）でのみ暗号化通信に乗せて送出（ローカル開発時はHTTP許容）。
+  - （将来API拡張時）`HttpOnly` Cookie によるセキュアなサーバーセッション管理へのシームレスな移行が可能。
+- **プライバシー配慮**: 氏名・メールアドレス等の個人特定可能情報（PII）は一切取得・保管せず、純粋なゲーム識別子として運用。
+
+### 3.2 将来拡張: Amazon Cognito による任意ユーザーID登録
+Phase 2 においてユーザーが任意のアカウントを作成する際、Cognito User Pools を導入します：
+- **任意ユーザーIDの指定**: ユーザーは任意のユーザーネーム（例: `algo_master99` や任意の英数字ID）を指定して登録可能。
+- **Cognito JWTトークン**:
+  1. **ID Token (JWT)**: ユーザープロファイル（任意指定のユーザーネーム `cognito:username`、表示名、アバター）。
+  2. **Access Token (JWT)**: 有効期限60分。API Gateway / WebSocket の認可に使用。
+  3. **Refresh Token**: 有効期限30日間。長期セッション維持。
+
+---
+
+## 4. CookieランダムユーザーIDからCognito任意ユーザーIDへの昇格（戦績引き継ぎ設計）
+
+初期にCookieで自動発行されたランダムユーザーIDから、将来的にCognitoで登録した「任意のユーザーID」へ戦績やルーム設定をシームレスに引き継ぐシーケンスを規定します：
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Player as プレイヤー
+    participant Browser as ブラウザ (Cookie: algo_user_id)
+    participant Cognito as Amazon Cognito
+    participant API as Lambda API
+    participant DB as Amazon DynamoDB
+
+    Player->>Browser: 「アカウント登録（任意のユーザーID登録）」
+    Browser->>Cognito: 希望のユーザーID（英数字）・パスワードでサインアップ
+    Cognito-->>Browser: 認証成功 (JWT Access Token & ID Token 発行)
+
+    Browser->>API: POST /api/user/link-account<br>Headers: Authorization: Bearer <JWT><br>Cookie: algo_user_id=usr_8f3a1b...
+    Note over API: 1. JWT署名検証 (Cognito任意ユーザーID取得)<br>2. CookieのランダムユーザーIDを取得<br>3. 過去の対戦履歴・戦績レコードのPK/GSIを移行・紐付け
+
+    API->>DB: DynamoDB UpdateItem / BatchWriteItem<br>(CookieのランダムIDデータをCognito任意ユーザーIDへマージ)
+    DB-->>API: 完了
+    API-->>Browser: 200 OK (引き継ぎ完了)<br>Set-Cookie: algo_user_id=<cognito_sub>; Path=/
+    Browser->>Browser: 任意ユーザーIDとしてログイン状態へ移行（戦績完全維持）
+```

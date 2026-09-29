@@ -1,43 +1,83 @@
-# SRE バックアップ・DR ＆ 定常運用設計書
+# SRE バックアップ・DR ＆ 定常運用設計書 (Backup & DR Spec)
 
-## 1. 災害復旧 (DR) 目標値 ＆ バックアップ方針
-システムの事業継続性（BCP）を確保するため、以下のリカバリ目標を定義します：
+本設計書は、「アルゴ（algo）Web対戦システム」におけるデータ保護、ディザスタリカバリ（DR: Disaster Recovery）、および定常保守運用を定義します。
+静的Webホスティングおよびサーバーレス構成の特性を活かし、**「S3バージョニングによる誤削除保護」「Git＋IaCによるワンコマンド即時インフラ再構築」** を実現します。
+
+---
+
+## 1. 災害復旧 (DR) 目標値 ＆ 設計方針
 
 | 項目 | 目標値 | 達成手段 |
-| :--- | :--- | :--- |
-| **目標復旧時点 (RPO)** | **5分以内** | Amazon Aurora / RDS の継続的自動バックアップ ＋ Point-in-Time Recovery (PITR) |
-| **目標復旧時間 (RTO)** | **60分以内** | IaC (Terraform) によるマルチAZ自動プロビジョニング、別リージョンレプリカ |
+| :--- | :---: | :--- |
+| **目標復旧時点 (RPO)** | **0分** | Gitリポジトリに全ソースコード・設定が完全同期。S3バケットバージョニングにより直前アセットを完全保持。 |
+| **目標復旧時間 (RTO)** | **15分以内** | CloudFormation / Terraform による全スタックのワンコマンド再構築。GitHub Actions による即時ビルド・同期。 |
 
 ---
 
-## 2. バックアップ方式 ＆ スケジュール
+## 2. データ保護 ＆ バックアップ方式
 
-| バックアップ対象 | 方式 | 頻度 | 保持期間 | 保管場所 |
-| :--- | :--- | :---: | :---: | :--- |
-| **データベース (RDS)** | 継続的トランザクションログ (PITR) | リアルタイム | 35日間 | AWS内部自動管理 |
-| **データベース (スナップショット)**| フルバックアップ (AWS Backup) | 毎日 03:00 JST | 90日間 | Amazon S3 (暗号化・別リージョン複製) |
-| **S3 ストレージ (添付データ等)** | バージョニング ＋ S3 レプリケーション | リアルタイム | 180日間 | 別リージョン (Secondary Region) S3 |
-| **システム監査ログ** | WORM Object Lock (改ざん不可) | リアルタイム | 3年間 | S3 Glacier Flexible Retrieval |
+### 2.1 S3静的ホスティングバケットの保護
+1. **オブジェクトバージョニング (Versioning)**:
+   - S3バケットでバージョニングを有効化。誤ってオブジェクトを上書き・削除（Delete Marker）した場合でも、過去の正常なバージョンから即時復元可能。
+2. **ライフサイクルルールによる容量制御**:
+   - 無料枠（5GB）を圧迫しないよう、非現行世代（Noncurrent Versions）は **30日経過後** に自動消滅させる。
+3. **MFA Delete（本番環境推奨）**:
+   - バケット自体の削除や特定バージョンの完全削除にはMFA（多要素認証）を要求し、人的ミスやクレデンシャル漏洩時の全損を物理的に防ぐ。
 
----
-
-## 3. リストア検証手順 (月次定期訓練)
-バックアップはリストア可能でなければ無効とみなし、毎月以下の手順で復旧テストを自動/手動で実施します：
-1. 検証用VPCに直近のスナップショットからリストアDBインスタンスを作成。
-2. 疎通テストスイートを実行し、データの整合性、RLSポリシーの有効性を検証。
-3. リストア所要時間（RTO）を計測し、SLA違反がないか記録。
-4. 検証完了後、リストアした検証用DBを即時破棄。
+### 2.2 将来拡張時（Phase 2: DynamoDB データ保護）
+- **Point-in-Time Recovery (PITR)**:
+  - 対戦履歴・ユーザープロファイルテーブルでPITRを有効化（秒単位で過去35日間の任意時点へ復元可能）。
+- **TTLによる自動パージ**:
+  - オンライン対戦ルーム（一時的セッションデータ）にはTTL属性を設定し、24時間後に無料枠消費なく自動クリーンアップ。
 
 ---
 
-## 4. 定常セキュリティ運用（シークレット・脆弱性管理）
+## 3. インフラ完全再構築手順（DR Runbook）
 
-### 4.1 シークレット自動ローテーション
-- **対象**: DBマスターパスワード、サードパーティAPIキー
-- **方式**: AWS Secrets Manager の自動ローテーション（Lambdaトリガー）を適用。
-- **ローテーション周期**: 90日毎（DBパスワード）、180日毎（APIキー）。
+万一リージョン障害やAWSアカウント内リソースの全損事故が発生した場合の完全再構築手順です：
 
-### 4.2 脆弱性定期スキャン
-- **コンテナイメージ**: Amazon ECR 基本スキャン / Enhanced Scanning (Clair/Trivy) により、プッシュ時に自動検知。
-- **依存ライブラリ**: GitHub Dependabot / Snyk により、毎週月曜日に脆弱性レポートを自動生成・PR起票。
-- **重大度 `CRITICAL` / `HIGH`**: 発見から48時間以内に修正パッチを本番反映。
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin as 運用管理者
+    participant Git as GitHub (Source of Truth)
+    participant CFN as AWS CloudFormation
+    participant S3 as Amazon S3 (New Bucket)
+    participant CF as Amazon CloudFront (New Dist)
+    participant DNS as Route 53
+
+    Admin->>Git: ソースコード & IaCテンプレート取得
+    Admin->>CFN: aws cloudformation deploy (別リージョンまたは新規作成)
+    CFN-->>S3: 新規ホスティングバケット構築
+    CFN-->>CF: 新規ディストリビューション構築
+    Admin->>Git: GitHub Actions ワークフロー手動実行
+    Git-->>S3: Next.js静的成果物をS3へ同期
+    Admin->>DNS: ドメインのエイリアス先を新規CloudFrontへ切り替え
+```
+
+### 再構築コマンド例
+```bash
+# 1. CloudFormationでインフラ基盤を新規プロビジョニング
+aws cloudformation deploy \
+  --template-file infrastructure/cloudformation/root.yaml \
+  --stack-name algo-prod-stack \
+  --parameter-overrides Environment=prod \
+  --capabilities CAPABILITY_IAM
+
+# 2. 静的エクスポート成果物を生成・S3へデプロイ
+npm ci
+npm run build
+aws s3 sync out/ s3://algo-prod-apne1-static-hosting-<new-account-id> --delete
+
+# 3. 疎通確認
+curl -I https://<new-distribution-domain>.cloudfront.net
+```
+
+---
+
+## 4. 定常セキュリティ運用（脆弱性・依存関係管理）
+
+1. **GitHub Dependabot**:
+   - 毎週月曜日にNext.js, React, Tailwind CSS, Vitest等の依存ライブラリのセキュリティパッチを自動検知し、PRを起票。
+2. **秘密情報のコミット監視**:
+   - GitHub Secret Scanning および pre-commit hook により、AWSキーや個人情報がコードベースに混入することを未然に阻止。
