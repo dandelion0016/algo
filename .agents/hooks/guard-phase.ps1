@@ -1,4 +1,4 @@
-﻿# Phase Transition Guard Hook (PowerShell)
+# Phase Transition Guard Hook (PowerShell)
 param()
 
 $rawInput = [Console]::In.ReadToEnd()
@@ -25,15 +25,13 @@ $args = $toolCall.args
 
 # 1. Guard PROJECT_STATUS.md Phase & Gate Changes
 if ($toolName -eq "replace_file_content" -or $toolName -eq "write_to_file") {
-    $targetFile = if ($args.TargetFile) { $args.TargetFile } else { "" }
-    if ($targetFile -like "*PROJECT_STATUS.md*") {
+    $targetFile = if ($args.TargetFile) { $args.TargetFile.Replace('\', '/') } else { "" }
+    if ($targetFile -like "*/PROJECT_STATUS.md" -or $targetFile -eq "PROJECT_STATUS.md") {
         $content = if ($args.ReplacementContent) { $args.ReplacementContent } elseif ($args.CodeContent) { $args.CodeContent } else { "" }
-        $instruction = if ($args.Instruction) { $args.Instruction } else { "" }
-        $combinedText = "$content`n$instruction"
 
-        $isPhaseChange = ($combinedText -match "Phase\s*(0-[ABC]|1|2)") -or `
-                         ($combinedText -match "(APPROVED|WAITING_USER_APPROVAL|BLOCKED)") -or `
-                         ($combinedText -match "Gate")
+        $isPhaseChange = ($content -match '\|\s*\*\*カレントフェーズ\*\*\s*\|') -or `
+                         ($content -match '-\s*\[x\]\s*🛑.*Gate') -or `
+                         ($content -match 'ゲート承認状態.*\|\s*.*(APPROVED|承認完了)')
 
         if ($isPhaseChange) {
             $reason = "[Phase Transition Guard] Detected Phase or Gate status change in PROJECT_STATUS.md. Halting Turbo mode to require explicit human approval."
