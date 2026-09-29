@@ -43,6 +43,15 @@ describe('algoEngine multi-player', () => {
     expect(remainingDeck).toHaveLength(16); // 24 - 8 = 16
   });
 
+  it('assigns custom humanPlayerId to human player in setupGamePlayers', () => {
+    const deck = createDeck();
+    const customId = 'usr_test1234';
+    const { players } = setupGamePlayers(deck, 2, customId);
+
+    expect(players[0].id).toBe(customId);
+    expect(players[0].isHuman).toBe(true);
+  });
+
   it('skips eliminated players when getting next active player', () => {
     const deck = createDeck();
     const { players } = setupGamePlayers(deck, 3);

@@ -94,7 +94,8 @@ const CPU_PROFILES = [
  */
 export function setupGamePlayers(
   deck: Card[],
-  playerCount: PlayerCount
+  playerCount: PlayerCount,
+  humanPlayerId: string = 'player'
 ): {
   players: Player[];
   remainingDeck: Card[];
@@ -109,7 +110,7 @@ export function setupGamePlayers(
   const playerRawCards = shuffled.slice(cursor, cursor + cardCount);
   cursor += cardCount;
   players.push({
-    id: 'player',
+    id: humanPlayerId,
     name: 'あなた',
     isHuman: true,
     cards: sortCards(playerRawCards),

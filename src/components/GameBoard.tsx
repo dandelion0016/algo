@@ -17,6 +17,7 @@ import { AttackModal } from './AttackModal';
 import { GameLog } from './GameLog';
 import { RuleGuideModal } from './RuleGuideModal';
 import { SetupModal } from './SetupModal';
+import { useUserSession } from '../hooks/useUserSession';
 import {
   Layers,
   Sparkles,
@@ -32,6 +33,8 @@ import {
 } from 'lucide-react';
 
 export const GameBoard: React.FC = () => {
+  const { userId } = useUserSession();
+
   const [gameState, setGameState] = useState<GameState>({
     playerCount: 2,
     difficulty: 'normal',
@@ -58,7 +61,8 @@ export const GameBoard: React.FC = () => {
       limit: TimeLimit = gameState.timeLimit
     ) => {
       const rawDeck = createDeck();
-      const { players, remainingDeck } = setupGamePlayers(rawDeck, count);
+      const currentUserId = userId || 'player';
+      const { players, remainingDeck } = setupGamePlayers(rawDeck, count, currentUserId);
 
       setGameState({
         playerCount: count,
@@ -76,8 +80,24 @@ export const GameBoard: React.FC = () => {
       });
       setCpuStatusMessage('');
     },
-    [gameState.playerCount, gameState.difficulty, gameState.timeLimit]
+    [gameState.playerCount, gameState.difficulty, gameState.timeLimit, userId]
   );
+
+  // マウント後に userId が確定した際、既存の人間プレイヤーの id を更新
+  useEffect(() => {
+    if (userId) {
+      setGameState((prev) => {
+        const humanPlayer = prev.players.find((p) => p.isHuman);
+        if (humanPlayer && humanPlayer.id !== userId) {
+          return {
+            ...prev,
+            players: prev.players.map((p) => (p.isHuman ? { ...p, id: userId } : p)),
+          };
+        }
+        return prev;
+      });
+    }
+  }, [userId]);
 
   // プレイヤーが山札からドロー
   const handlePlayerDraw = () => {
@@ -130,10 +150,13 @@ export const GameBoard: React.FC = () => {
     const targetCard = targetPlayer.cards[cardIndex];
     const isHit = checkAttack(targetCard, guessedNumber);
 
+    const humanPlayer = gameState.players.find((p) => p.isHuman);
+    const currentUserId = userId || humanPlayer?.id || 'player';
+
     const log: AttackLog = {
       id: `log-${Date.now()}`,
-      attackerId: 'player',
-      attackerName: 'あなた',
+      attackerId: currentUserId,
+      attackerName: humanPlayer?.name || 'あなた',
       targetPlayerId: targetPlayer.id,
       targetPlayerName: targetPlayer.name,
       targetCardIndex: cardIndex,
@@ -179,7 +202,7 @@ export const GameBoard: React.FC = () => {
         phase: 'PLAYER_DECIDE_NEXT',
       }));
     } else {
-      const playerIdx = gameState.players.findIndex((p) => p.id === 'player');
+      const playerIdx = gameState.players.findIndex((p) => p.isHuman);
       const updatedPlayers = [...gameState.players];
       if (gameState.drawnCard) {
         const openedDrawn: Card = { ...gameState.drawnCard, isOpen: true };
@@ -216,7 +239,7 @@ export const GameBoard: React.FC = () => {
 
   // プレイヤーが「ステイ（手番終了）」を選択
   const handlePlayerStay = () => {
-    const playerIdx = gameState.players.findIndex((p) => p.id === 'player');
+    const playerIdx = gameState.players.findIndex((p) => p.isHuman);
     const updatedPlayers = [...gameState.players];
     if (gameState.drawnCard) {
       const closedDrawn: Card = { ...gameState.drawnCard, isOpen: false };
@@ -255,7 +278,7 @@ export const GameBoard: React.FC = () => {
         if (prev.remainingTime <= 1) {
           // 時間切れ処理
           clearInterval(interval);
-          const playerIdx = prev.players.findIndex((p) => p.id === 'player');
+          const playerIdx = prev.players.findIndex((p) => p.isHuman);
           const updatedPlayers = [...prev.players];
 
           // まだドローしていなければ山札から引いてオープンペナルティ
@@ -266,7 +289,7 @@ export const GameBoard: React.FC = () => {
             newDeck = newDeck.slice(1);
           }
 
-          if (penaltyCard) {
+          if (penaltyCard && playerIdx >= 0) {
             updatedPlayers[playerIdx] = {
               ...updatedPlayers[playerIdx],
               cards: insertCardInOrder(updatedPlayers[playerIdx].cards, {
@@ -277,9 +300,10 @@ export const GameBoard: React.FC = () => {
           }
 
           const nextIdx = getNextActivePlayerIndex(0, updatedPlayers);
+          const currentHumanId = userId || (playerIdx >= 0 ? prev.players[playerIdx].id : 'player');
           const timeOutLog: AttackLog = {
             id: `log-${Date.now()}`,
-            attackerId: 'player',
+            attackerId: currentHumanId,
             attackerName: 'あなた',
             targetPlayerId: '',
             targetPlayerName: '',
@@ -312,7 +336,7 @@ export const GameBoard: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [gameState.phase, gameState.timeLimit]);
+  }, [gameState.phase, gameState.timeLimit, userId]);
 
   // CPU手番の自律処理
   useEffect(() => {
