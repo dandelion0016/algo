@@ -7,8 +7,12 @@
 ## 1. 基本運用原則
 
 1. **動的コンテキスト管理（Token Bloat防止）の徹底**:
-   - **Subagent Offloading**: ファイル探索、詳細実装、テスト実行は必ず専門サブエージェント（`.agents/subagents/`）に委任し、メインセッションのコンテキストを常に軽量に保つこと。
-   - **Externalized State ＆ 1 Issue 1 Session**: 状態はすべてファイル（`PROJECT_STATUS.md`、`specs/`、GitHub Issue / Projects 等）に永続化し、タスク・Issue完了ごとにセッションをリフレッシュ（`/clear` または新規チャット）すること。
+   - **Subagent-per-Issue（1 Issue 1 Subagent原則）によるコンテキスト完全分離**:
+     - メインエージェントはオーケストレーター（統括管理者）として動作し、個別のIssue対応（コード探索、詳細実装、テスト実行、自己修正）はすべて1つのIssueごとに専門サブエージェント（`.agents/subagents/`）へ丸ごと委任すること。
+     - サブエージェント側で作業ブランチ上の実装とテストを完結させ、メインコンテキストには「PRリンクおよびテスト結果サマリ」のみを報告させることで、メインエージェントのコンテキスト汚染を完全に防止する。
+     - これにより、メインエージェントはセッションリフレッシュ（/clear）を行わずとも、同一セッション内で複数のIssueを連続的・自律的に次々と推進できる。
+   - **Externalized State ＆ GitHub Projects一元管理**:
+     - 状態はすべて外部ファイル（`PROJECT_STATUS.md`、`specs/`）および GitHub Issue / Projects に永続化。
      - `PROJECT_STATUS.md`: マクロなフェーズ・ゲート承認状況（Phase 0-A, 0-B, 0-C, Phase 1, Gate 1）のみを管理（フェーズ移行時のみ人間ゲートキーパー承認が必要）。
      - **GitHub Projects**: 全フェーズ（Phase 0-A〜Phase 1）の個別Issue進捗（Todo / In Progress / Done）、ブランチ、PR、テスト結果を一元管理（エージェントが承認不要で即時自動同期）。
    - **Progressive Disclosure**: ルールやスキルは常時全文注入せず、必要局面（`model_decision`, `@メンション`）でのみオンデマンドに読み込むこと。
