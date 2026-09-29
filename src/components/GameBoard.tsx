@@ -17,6 +17,7 @@ import { AttackModal } from './AttackModal';
 import { GameLog } from './GameLog';
 import { RuleGuideModal } from './RuleGuideModal';
 import { SetupModal } from './SetupModal';
+import { ConfirmModal } from './ConfirmModal';
 import { useUserSession } from '../hooks/useUserSession';
 import {
   Layers,
@@ -53,6 +54,21 @@ export const GameBoard: React.FC = () => {
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
   const [cpuStatusMessage, setCpuStatusMessage] = useState<string>('');
 
+  // HITL確認モーダル状態 (SCR-008)
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    actionType: 'RESTART' | 'SETUP' | 'CUSTOM';
+    title?: string;
+    message?: string;
+    confirmLabel?: string;
+    cancelLabel?: string;
+    isDestructive?: boolean;
+    onConfirmCallback?: () => void;
+  }>({
+    isOpen: false,
+    actionType: 'RESTART',
+  });
+
   // 新規ゲーム初期化
   const initializeGame = useCallback(
     (
@@ -82,6 +98,61 @@ export const GameBoard: React.FC = () => {
     },
     [gameState.playerCount, gameState.difficulty, gameState.timeLimit, userId]
   );
+
+  // ゲームが進行中（未決着かつセットアップ以外）かどうかの判定
+  const isGameInProgress =
+    gameState.phase !== 'SETUP' &&
+    gameState.phase !== 'GAME_OVER' &&
+    gameState.winner === null;
+
+  // 再戦リクエスト（HITLガード）
+  const handleRequestRestart = useCallback(() => {
+    if (!isGameInProgress) {
+      initializeGame();
+      return;
+    }
+
+    setConfirmModal({
+      isOpen: true,
+      actionType: 'RESTART',
+      isDestructive: true,
+      onConfirmCallback: () => {
+        initializeGame();
+      },
+    });
+  }, [isGameInProgress, initializeGame]);
+
+  // 設定画面戻りリクエスト（HITLガード）
+  const handleRequestSetup = useCallback(() => {
+    if (!isGameInProgress) {
+      setGameState((prev) => ({ ...prev, phase: 'SETUP' }));
+      return;
+    }
+
+    setConfirmModal({
+      isOpen: true,
+      actionType: 'SETUP',
+      isDestructive: false,
+      onConfirmCallback: () => {
+        setGameState((prev) => ({ ...prev, phase: 'SETUP' }));
+      },
+    });
+  }, [isGameInProgress]);
+
+  // 確認モーダルキャンセル
+  const handleCloseConfirmModal = useCallback(() => {
+    setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+  }, []);
+
+  // 確認モーダル承認実行
+  const handleConfirmModalAction = useCallback(() => {
+    setConfirmModal((prev) => {
+      if (prev.onConfirmCallback) {
+        prev.onConfirmCallback();
+      }
+      return { ...prev, isOpen: false };
+    });
+  }, []);
 
   // マウント後に userId が確定した際、既存の人間プレイヤーの id を更新
   useEffect(() => {
@@ -268,7 +339,9 @@ export const GameBoard: React.FC = () => {
       gameState.timeLimit === 0 ||
       gameState.phase === 'SETUP' ||
       gameState.phase === 'GAME_OVER' ||
-      gameState.phase === 'CPU_ACTING'
+      gameState.phase === 'CPU_ACTING' ||
+      confirmModal.isOpen ||
+      isRuleModalOpen
     ) {
       return;
     }
@@ -336,7 +409,7 @@ export const GameBoard: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [gameState.phase, gameState.timeLimit, userId]);
+  }, [gameState.phase, gameState.timeLimit, userId, confirmModal.isOpen, isRuleModalOpen]);
 
   // CPU手番の自律処理（連続アタックループ対応）
   useEffect(() => {
@@ -728,7 +801,7 @@ export const GameBoard: React.FC = () => {
             </button>
 
             <button
-              onClick={() => initializeGame()}
+              onClick={handleRequestRestart}
               className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all shadow-2xs"
             >
               <RotateCcw className="w-3.5 h-3.5 text-slate-600" />
@@ -736,7 +809,7 @@ export const GameBoard: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setGameState((prev) => ({ ...prev, phase: 'SETUP' }))}
+              onClick={handleRequestSetup}
               className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-2xs"
             >
               <Settings2 className="w-3.5 h-3.5 text-algo-yellow" />
@@ -1032,6 +1105,26 @@ export const GameBoard: React.FC = () => {
       )}
 
       <RuleGuideModal isOpen={isRuleModalOpen} onClose={() => setIsRuleModalOpen(false)} />
+
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        actionType={confirmModal.actionType}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmLabel={confirmModal.confirmLabel}
+        cancelLabel={confirmModal.cancelLabel}
+        isDestructive={confirmModal.isDestructive}
+        gameStatus={{
+          playerCount: gameState.playerCount,
+          difficulty: gameState.difficulty,
+          remainingHiddenCards: humanPlayer
+            ? humanPlayer.cards.filter((c) => !c.isOpen).length
+            : 0,
+          logCount: gameState.logs.length,
+        }}
+        onConfirm={handleConfirmModalAction}
+        onCancel={handleCloseConfirmModal}
+      />
     </div>
   );
 };
