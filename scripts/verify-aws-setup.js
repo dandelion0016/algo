@@ -5,9 +5,9 @@
  * Validates the existence and configuration of CloudFormation, S3, CloudFront, and IAM setup.
  */
 
-import { execSync } from 'child_process';
-import fs from 'fs';
-import path from 'path';
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 function run(cmd) {
   try {
