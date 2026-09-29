@@ -10,13 +10,13 @@
    - **Subagent Offloading**: ファイル探索、詳細実装、テスト実行は必ず専門サブエージェント（`.agents/subagents/`）に委任し、メインセッションのコンテキストを常に軽量に保つこと。
    - **Externalized State ＆ 1 Issue 1 Session**: 状態はすべてファイル（`PROJECT_STATUS.md`、`specs/`、GitHub Issue / Projects 等）に永続化し、タスク・Issue完了ごとにセッションをリフレッシュ（`/clear` または新規チャット）すること。
      - `PROJECT_STATUS.md`: マクロなフェーズ・ゲート承認状況（Phase 0-A, 0-B, 0-C, Phase 1, Gate 1）のみを管理（フェーズ移行時のみ人間ゲートキーパー承認が必要）。
-     - **GitHub Projects**: Phase 1 内の個別Issue進捗（Todo / In Progress / Done）、ブランチ、PR、テスト結果を一元管理（エージェントが承認不要で即時自動同期）。
+     - **GitHub Projects**: 全フェーズ（Phase 0-A〜Phase 1）の個別Issue進捗（Todo / In Progress / Done）、ブランチ、PR、テスト結果を一元管理（エージェントが承認不要で即時自動同期）。
    - **Progressive Disclosure**: ルールやスキルは常時全文注入せず、必要局面（`model_decision`, `@メンション`）でのみオンデマンドに読み込むこと。
 2. **四段階の自律型開発プロセス（要件・骨格 → コア設計 → 環境整備・疎通 → 自律実装 ＆ 継続的受入・仕上げ）**:
    - **Phase 0-A**: 要件定義書（`specs/requirements.md`）とWalking Skeleton（最小疎通基盤）を一貫自律構築。人間のFIX承認を得る。
    - **Phase 0-B**: 一般的なシステム開発で作るべき設計書群（フロントエンド、バックエンド、DB、セキュリティ、SRE、インフラ）を人間が読みやすい構造（Mermaid図、一覧表、型定義）で自律策定（`docs/design/`）。人間の設計書FIX承認を得る。
    - **Phase 0-C**: 承認済み設計書に基づき、エージェント・AI担当がMCP・権限設定を行い、人間へAWS初期環境の作業依頼を実施。完了後に自律疎通テストを行い、人間の環境整備完了承認を得る。
-   - **Phase 1**: 自律実装 ＆ 継続的受入・仕上げ（Continuous Delivery & Feedback）。設計書群（`docs/design/`）と初期基盤コードを照合し、`spec-gap-auditor` が課題抽出・Issue起票し、トピックブランチで自律実装・自動テスト・UAT自動化アシスト（E2E・画面スナップショット）付きPRを作成（`@autonomous-gap-resolver`）。作業進捗は GitHub Projects（カンバン）に自律同期し、日常タスク更新で承認は求めない。人間はPRの受入サマリ確認・実機操作・マージ承認を行い、設計乖離はADRで吸収しながら完全なシステムへ仕上げる。全要件充足でプロジェクト完了（Gate 1）。
+   - **Phase 1**: 自律実装 ＆ 継続的受入・仕上げ（Continuous Delivery & Feedback）。設計書群（`docs/design/`）と初期基盤コードを照合し、`spec-gap-auditor` が課題抽出・Issue起票し、トピックブランチで自律実装・自動テスト・UAT自動化アシスト（E2E・画面スナップショット）付きPRを作成（`@autonomous-gap-resolver`）。全フェーズの作業進捗は GitHub Projects（カンバン）に自律同期し、日常タスク更新で承認は求めない。人間はPRの受入サマリ確認・実機操作・マージ承認を行い、設計乖離はADRで吸収しながら完全なシステムへ仕上げる。全要件充足でプロジェクト完了（Gate 1）。
 3. **レビュー観点の明確化と継続的ブラッシュアップ**:
    - レビュアーは `@generate-review-criteria` スキルを活用し、システム固有要件および採用クラウド・製品の公式ベストプラクティスを網羅したレビュー観点シート（`docs/review-checklists/`）を定義すること。
    - 後続工程やテストで不具合が検知された場合、管理者とAI担当が `@refine-review-criteria` スキルを実行し、レビュー観点シートを自律的にブラッシュアップして再発防止すること。
@@ -60,7 +60,7 @@
 ## 2. 参照ルール・サブエージェント・スキル一覧
 
 - `PROJECT_STATUS.md` : プロジェクト全体マクロフェーズ・ゲート承認管理（セッション開始時必読）
-- [algo - Phase 1 自律実装ボード (GitHub Projects)](https://github.com/users/dandelion0016/projects/1) : Phase 1 内のタスク・Issue進捗一元管理（リアルタイムカンバン）
+- [algo - 自律開発カンバンボード (GitHub Projects)](https://github.com/users/dandelion0016/projects/1) : 全フェーズ（Phase 0-A〜Phase 1）のタスク・Issue進捗一元管理（リアルタイムカンバン）
 - `docs/adr/` : アーキテクチャ決定記録（ADR）ディレクトリ
 - `.agents/hooks.json` : フェーズ移行・破壊的操作・サーキットブレーカー・トークン予算ガード（PreToolUse / PreInvocation）および自動フォーマット＆Lint（PostToolUse）
 - `@.agents/rules/agent-security-governance.md` : 多層防御・認可・運用セキュリティ基準（常時適用）
