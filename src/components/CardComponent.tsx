@@ -1,10 +1,10 @@
 'use client';
 
 import React from 'react';
-import { Card } from '../types/game';
+import { Card, PublicCard } from '../types/game';
 
 interface CardComponentProps {
-  card: Card;
+  card: PublicCard | Card;
   isOwner: boolean; // 自分（人間）のカードかどうか（自分なら伏せでも数字が見える）
   isSelected?: boolean;
   isSelectable?: boolean;
@@ -51,8 +51,9 @@ export const CardComponent: React.FC<CardComponentProps> = ({
   }
 
   // 表示判定
-  const showNumber = card.isOpen || isOwner;
-  const isSecretToOpponent = !card.isOpen && isOwner;
+  // Information Hiding: card.number が null の場合は一切数字を表示せず「?」を描画
+  const showNumber = card.number !== null && (card.isOpen || isOwner);
+  const isSecretToOpponent = card.number !== null && !card.isOpen && isOwner;
 
   return (
     <div className="flex flex-col items-center gap-1 select-none">

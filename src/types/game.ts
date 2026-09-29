@@ -1,11 +1,32 @@
 export type CardColor = 'black' | 'white';
 
-export interface Card {
+/**
+ * 内部保持用カード型 (SecretCard)
+ * 所有者またはゲームマスター・判定エンジンのみが保持する真のカード情報
+ */
+export interface SecretCard {
   id: string;        // 例: "b-3", "w-7"
   color: CardColor;
   number: number;    // 0..11
   isOpen: boolean;   // 表向きかどうか
 }
+
+/**
+ * 公開・描画用カード型 (PublicCard)
+ * 他プレイヤーに開示可能な情報のみを含む。
+ * isOpen === false かつ相手カードの場合は number は null にマスキングされる。
+ */
+export interface PublicCard {
+  id: string;        // 例: "b-3", "w-7"
+  color: CardColor;
+  number: number | null; // 0..11 または 伏せ状態の相手カードは null
+  isOpen: boolean;   // 表向きかどうか
+}
+
+/**
+ * 互換性維持のための Card 型エイリアス（実体は SecretCard）
+ */
+export type Card = SecretCard;
 
 export type PlayerCount = 2 | 3 | 4;
 export type Difficulty = 'easy' | 'normal' | 'hard';

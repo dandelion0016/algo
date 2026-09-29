@@ -8,8 +8,9 @@ import {
   isAllOpen,
   checkAttack,
   getNextActivePlayerIndex,
+  maskCardForPlayer,
 } from '../algoEngine';
-import { Card } from '../../types/game';
+import { Card, PublicCard, SecretCard } from '../../types/game';
 import { decideMultiCpuAttack, getPossibleNumbersForTarget } from '../cpuAI';
 
 describe('algoEngine multi-player', () => {
@@ -56,6 +57,47 @@ describe('algoEngine multi-player', () => {
     const w3: Card = { id: 'w-3', color: 'white', number: 3, isOpen: false };
     expect(compareCards(b3, w3)).toBeLessThan(0);
     expect(compareCards(w3, b3)).toBeGreaterThan(0);
+  });
+
+  describe('maskCardForPlayer (Information Hiding)', () => {
+    const secretCard: SecretCard = {
+      id: 'b-7',
+      color: 'black',
+      number: 7,
+      isOpen: false,
+    };
+
+    it('masks number to null for opponent hidden card', () => {
+      const masked: PublicCard = maskCardForPlayer(secretCard, false);
+      expect(masked.number).toBeNull();
+      expect(masked.id).toBe('b-7');
+      expect(masked.color).toBe('black');
+      expect(masked.isOpen).toBe(false);
+    });
+
+    it('preserves number for own hidden card', () => {
+      const ownCard: PublicCard = maskCardForPlayer(secretCard, true);
+      expect(ownCard.number).toBe(7);
+      expect(ownCard.id).toBe('b-7');
+      expect(ownCard.color).toBe('black');
+      expect(ownCard.isOpen).toBe(false);
+    });
+
+    it('preserves number for opponent open card', () => {
+      const openCard: SecretCard = { ...secretCard, isOpen: true };
+      const masked: PublicCard = maskCardForPlayer(openCard, false);
+      expect(masked.number).toBe(7);
+      expect(masked.id).toBe('b-7');
+      expect(masked.color).toBe('black');
+      expect(masked.isOpen).toBe(true);
+    });
+
+    it('preserves number for own open card', () => {
+      const openCard: SecretCard = { ...secretCard, isOpen: true };
+      const masked: PublicCard = maskCardForPlayer(openCard, true);
+      expect(masked.number).toBe(7);
+      expect(masked.isOpen).toBe(true);
+    });
   });
 });
 
