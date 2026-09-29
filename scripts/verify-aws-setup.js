@@ -65,6 +65,10 @@ if (awsCallerIdentity) {
     const stackStatus = run('aws cloudformation describe-stacks --stack-name algo-prod-stack --query "Stacks[0].StackStatus" --output text --region ap-northeast-1');
     if (stackStatus) {
       console.log(`  ✅ [CFN STACK] algo-prod-stack Status: ${stackStatus}`);
+      const deployRole = run('aws cloudformation describe-stacks --stack-name algo-prod-stack --query "Stacks[0].Outputs[?OutputKey==\'DeployRoleArn\'].OutputValue" --output text --region ap-northeast-1');
+      if (deployRole && deployRole !== 'None') {
+        console.log(`  ✅ [IAM ROLE] Deploy Role Arn: ${deployRole}`);
+      }
     } else {
       console.log('  ℹ️ [CFN STACK] algo-prod-stack not yet created or not accessible.');
     }

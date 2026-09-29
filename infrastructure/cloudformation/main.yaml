@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Algo Web Battle System - Production Infrastructure (S3 + CloudFront OAC + Security Headers + Zero Cost Guard)'
+Description: 'Algo Web Battle System - Production Infrastructure (S3 + CloudFront OAC + Security Headers + Zero Cost Guard + GitHub OIDC Deploy IAM Role)'
 
 Parameters:
   ProjectName:
@@ -18,6 +18,27 @@ Parameters:
   AlertEmail:
     Type: String
     Description: 'Email address to receive AWS Budgets $0.01 zero-cost alerts'
+
+  GitHubOrg:
+    Type: String
+    Default: 'dandelion0016'
+    Description: 'GitHub organization or username owner of the repository'
+
+  GitHubRepo:
+    Type: String
+    Default: 'algo'
+    Description: 'GitHub repository name'
+
+  CreateOIDCProvider:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: 'Whether to create GitHub OIDC Provider (set to false if token.actions.githubusercontent.com already exists in this account)'
+
+Conditions:
+  ShouldCreateOIDCProvider: !Equals [!Ref CreateOIDCProvider, 'true']
 
 Resources:
   # =========================================================================
@@ -116,7 +137,7 @@ Resources:
         Comment: !Sub '${ProjectName} static web hosting distribution (${Environment})'
         DefaultRootObject: 'index.html'
         HttpVersion: 'http2and3'
-        PriceClass: 'PriceClass_100' # 北米・欧州・日本を含む最安クラス
+        PriceClass: 'PriceClass_100' # 最安クラス（日本・北米・欧州エッジ）
         Origins:
           - Id: S3Origin
             DomainName: !GetAtt HostingBucket.RegionalDomainName
@@ -214,6 +235,70 @@ Resources:
             - SubscriptionType: EMAIL
               Address: !Ref AlertEmail
 
+  # =========================================================================
+  # 4. GitHub Actions OIDC Provider & Deployment IAM Role (Keyless CI/CD)
+  # =========================================================================
+  GitHubOIDCProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: ShouldCreateOIDCProvider
+    Properties:
+      Url: 'https://token.actions.githubusercontent.com'
+      ClientIdList:
+        - 'sts.amazonaws.com'
+      ThumbprintList:
+        - '6938fd4d98bab03faadb97b34396831e3780aea1'
+        - '1c58a3a8518e8759bf075b76b750d4f8d264fcd3'
+
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-github-deploy-role'
+      Description: !Sub 'Deployment role for GitHub Actions CI/CD (${GitHubOrg}/${GitHubRepo})'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowGitHubActionsOIDCAssumeRole
+            Effect: Allow
+            Principal:
+              Federated: !Sub 'arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+            Action: 'sts:AssumeRoleWithWebIdentity'
+            Condition:
+              StringEquals:
+                'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com'
+              StringLike:
+                'token.actions.githubusercontent.com:sub': !Sub 'repo:${GitHubOrg}/${GitHubRepo}:*'
+      Policies:
+        - PolicyName: !Sub '${ProjectName}-s3-cloudfront-deploy-policy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: S3StaticBucketSyncList
+                Effect: Allow
+                Action:
+                  - 's3:ListBucket'
+                  - 's3:GetBucketLocation'
+                Resource: !GetAtt HostingBucket.Arn
+              - Sid: S3StaticBucketObjectOperations
+                Effect: Allow
+                Action:
+                  - 's3:PutObject'
+                  - 's3:GetObject'
+                  - 's3:DeleteObject'
+                Resource: !Sub '${HostingBucket.Arn}/*'
+              - Sid: CloudFrontInvalidateCache
+                Effect: Allow
+                Action:
+                  - 'cloudfront:CreateInvalidation'
+                  - 'cloudfront:GetInvalidation'
+                Resource: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: 'cloudformation'
+
 Outputs:
   HostingBucketName:
     Description: 'Name of the S3 static hosting bucket'
@@ -232,6 +317,12 @@ Outputs:
     Value: !GetAtt CloudFrontDistribution.DomainName
     Export:
       Name: !Sub '${AWS::StackName}-DomainName'
+
+  DeployRoleArn:
+    Description: 'IAM Role ARN for GitHub Actions OIDC deployment'
+    Value: !GetAtt DeployRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-DeployRoleArn'
 
   ZeroCostAlertTopicArn:
     Description: 'SNS Topic ARN for Budgets Zero Cost Guard'
