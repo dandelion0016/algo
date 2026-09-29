@@ -10,8 +10,8 @@ import {
   getNextActivePlayerIndex,
   maskCardForPlayer,
 } from '../algoEngine';
-import { Card, PublicCard, SecretCard } from '../../types/game';
-import { decideMultiCpuAttack, getPossibleNumbersForTarget } from '../cpuAI';
+import { Card, PublicCard, SecretCard, Player } from '../../types/game';
+import { decideMultiCpuAttack, decideMultiCpuContinue, getPossibleNumbersForTarget } from '../cpuAI';
 
 describe('algoEngine multi-player', () => {
   it('handles 2, 3, 4 player initial card counts correctly according to official algo rules', () => {
@@ -120,5 +120,58 @@ describe('cpuAI multi-player', () => {
     expect(decision.targetPlayerId).not.toBe(players[1].id); // cannot target itself
     expect(decision.guessedNumber).toBeGreaterThanOrEqual(0);
     expect(decision.guessedNumber).toBeLessThanOrEqual(11);
+  });
+
+  describe('decideMultiCpuContinue (Hit Continuation Decision)', () => {
+    it('returns false when all opponents are eliminated', () => {
+      const deck = createDeck();
+      const { players } = setupGamePlayers(deck, 2);
+      players[0].isEliminated = true;
+
+      const shouldContinue = decideMultiCpuContinue(players[1], null, players, 'hard');
+      expect(shouldContinue).toBe(false);
+    });
+
+    it('returns false when opponent has no hidden cards left', () => {
+      const deck = createDeck();
+      const { players } = setupGamePlayers(deck, 2);
+      players[0].cards.forEach((c) => {
+        c.isOpen = true;
+      });
+
+      const shouldContinue = decideMultiCpuContinue(players[1], null, players, 'hard');
+      expect(shouldContinue).toBe(false);
+    });
+
+    it('returns true when a guaranteed card (1 candidate) exists in normal/hard', () => {
+      // プレイヤー0の手札を [b-0 (open), b-1 (hidden), b-2 (open)] に設定
+      // b-1 の候補は 1 のみ（確定マス）
+      const opponent: Player = {
+        id: 'usr_p0',
+        name: 'Player 0',
+        isHuman: true,
+        isEliminated: false,
+        avatarColor: '',
+        cards: [
+          { id: 'b-0', color: 'black', number: 0, isOpen: true },
+          { id: 'b-1', color: 'black', number: 1, isOpen: false },
+          { id: 'b-2', color: 'black', number: 2, isOpen: true },
+        ],
+      };
+      const cpu: Player = {
+        id: 'cpu_1',
+        name: 'CPU 1',
+        isHuman: false,
+        isEliminated: false,
+        avatarColor: '',
+        cards: [{ id: 'w-10', color: 'white', number: 10, isOpen: false }],
+      };
+
+      const shouldContinueHard = decideMultiCpuContinue(cpu, null, [opponent, cpu], 'hard');
+      expect(shouldContinueHard).toBe(true);
+
+      const shouldContinueNormal = decideMultiCpuContinue(cpu, null, [opponent, cpu], 'normal');
+      expect(shouldContinueNormal).toBe(true);
+    });
   });
 });
