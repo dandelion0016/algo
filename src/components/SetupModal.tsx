@@ -3,8 +3,9 @@
 import React from 'react';
 import { PlayerCount, Difficulty, TimeLimit } from '../types/game';
 import { Users, Brain, Timer, BookOpen, ArrowRight, Sparkles } from 'lucide-react';
+import { useUserSession } from '../hooks/useUserSession';
 
-interface SetupModalProps {
+export interface SetupModalProps {
   playerCount: PlayerCount;
   difficulty: Difficulty;
   timeLimit: TimeLimit;
@@ -13,6 +14,58 @@ interface SetupModalProps {
   onSelectTimeLimit: (limit: TimeLimit) => void;
   onStartGame: () => void;
   onOpenRules: () => void;
+  userId?: string;
+}
+
+export interface RosterPlayer {
+  id: string;
+  name: string;
+  isHuman: boolean;
+  avatarIcon: string;
+  colorGradient: string;
+  handCount: number;
+}
+
+const CPU_ROSTER_DEFS = [
+  { name: 'CPU アル', color: 'from-blue-400 to-indigo-500' },
+  { name: 'CPU ゴオ', color: 'from-amber-300 to-yellow-500' },
+  { name: 'CPU ルウ', color: 'from-emerald-400 to-teal-600' },
+];
+
+/**
+ * 人数選択に応じた対戦相手構成と山札残り枚数を計算
+ * 2人: 各4枚 (計8枚) -> 山札 16枚
+ * 3人: 各3枚 (計9枚) -> 山札 15枚
+ * 4人: 各3枚 (計12枚) -> 山札 12枚
+ */
+export function getPlayerRoster(count: PlayerCount): {
+  players: RosterPlayer[];
+  deckCount: number;
+} {
+  const handCount = count === 2 ? 4 : 3;
+  const totalCards = 24;
+  const deckCount = totalCards - count * handCount;
+
+  const players: RosterPlayer[] = [
+    {
+      id: 'human',
+      name: 'あなた',
+      isHuman: true,
+      avatarIcon: '👤',
+      colorGradient: 'from-sky-400 to-blue-600',
+      handCount,
+    },
+    ...CPU_ROSTER_DEFS.slice(0, count - 1).map((cpu, idx) => ({
+      id: `cpu-${idx + 1}`,
+      name: cpu.name,
+      isHuman: false,
+      avatarIcon: '🤖',
+      colorGradient: cpu.color,
+      handCount,
+    })),
+  ];
+
+  return { players, deckCount };
 }
 
 export const SetupModal: React.FC<SetupModalProps> = ({
@@ -24,7 +77,12 @@ export const SetupModal: React.FC<SetupModalProps> = ({
   onSelectTimeLimit,
   onStartGame,
   onOpenRules,
+  userId: propUserId,
 }) => {
+  const session = useUserSession();
+  const displayUserId = propUserId || session.userId || 'usr_xxxxxxxx';
+  const { players: rosterPlayers, deckCount } = getPlayerRoster(playerCount);
+
   return (
     <div className="max-w-2xl mx-auto bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
       {/* Hero Banner Header (New realistic algo banner) */}
@@ -40,10 +98,22 @@ export const SetupModal: React.FC<SetupModalProps> = ({
               <img src="/app-icon.jpg" alt="algo icon" className="w-full h-full object-cover" />
             </div>
             <div>
-              <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                algo <span className="text-xs px-2.5 py-0.5 rounded-full bg-algo-blue text-white font-bold">Web対戦</span>
-              </h2>
-              <p className="text-xs text-slate-600 font-medium">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                  algo <span className="text-xs px-2.5 py-0.5 rounded-full bg-algo-blue text-white font-bold">Web対戦</span>
+                </h2>
+              </div>
+              {/* ユーザーIDバッジ */}
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <div
+                  data-testid="user-id-badge"
+                  className="bg-sky-50 border border-sky-200 text-sky-800 text-xs font-mono px-2.5 py-1 rounded-full inline-flex items-center gap-1.5 shadow-2xs"
+                >
+                  <span className="text-xs">👤</span>
+                  <span>{`ゲストID: ${displayUserId}`}</span>
+                </div>
+              </div>
+              <p className="mt-1 text-xs text-slate-600 font-medium">
                 白と黒の数字を推理する、東大数学科・ピーターフランクル氏考案の頭脳派ゲーム
               </p>
             </div>
@@ -65,7 +135,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({
                 ? '初期手札 各4枚 (タイマン)'
                 : playerCount === 3
                 ? '初期手札 各3枚 (三つ巴)'
-                : '初期手札 各2枚 (4人乱戦)'}
+                : '初期手札 各3枚 (4人乱戦)'}
             </span>
           </div>
 
@@ -92,6 +162,56 @@ export const SetupModal: React.FC<SetupModalProps> = ({
                 </button>
               );
             })}
+          </div>
+
+          {/* 動的対戦相手プレビュー領域 */}
+          <div
+            data-testid="player-roster-preview"
+            className="bg-slate-50/90 border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 space-y-2.5"
+          >
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-algo-blue" />
+                <span>対戦相手構成</span>
+              </span>
+              <span
+                data-testid="deck-count-badge"
+                className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200/80 font-bold text-[11px] inline-flex items-center gap-1"
+              >
+                <span>🎴 残り山札:</span>
+                <span className="font-mono">{`${deckCount}枚`}</span>
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap">
+              {rosterPlayers.map((player, idx) => (
+                <React.Fragment key={player.id}>
+                  {idx > 0 && (
+                    <span className="text-xs font-black text-slate-400 italic shrink-0 px-0.5">
+                      vs
+                    </span>
+                  )}
+                  <div
+                    data-testid={`roster-player-${player.id}`}
+                    className="flex-1 min-w-[110px] bg-white border border-slate-200 rounded-xl p-2 sm:p-2.5 flex items-center gap-2 shadow-2xs transition-all"
+                  >
+                    <div
+                      className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br ${player.colorGradient} flex items-center justify-center text-white text-xs sm:text-sm shadow-xs shrink-0`}
+                    >
+                      {player.avatarIcon}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-slate-800 truncate">
+                        {`${player.name}（手札${player.handCount}枚）`}
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-medium">
+                        {player.isHuman ? 'プレイヤー' : 'AI対戦相手'}
+                      </div>
+                    </div>
+                  </div>
+                </React.Fragment>
+              ))}
+            </div>
           </div>
         </div>
 
