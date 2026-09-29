@@ -137,7 +137,7 @@ Resources:
         Comment: !Sub '${ProjectName} static web hosting distribution (${Environment})'
         DefaultRootObject: 'index.html'
         HttpVersion: 'http2and3'
-        PriceClass: 'PriceClass_100' # 最安クラス（日本・北米・欧州エッジ）
+        PriceClass: 'PriceClass_100' # Lowest cost price class (US, Europe, Japan edges)
         Origins:
           - Id: S3Origin
             DomainName: !GetAtt HostingBucket.RegionalDomainName

@@ -28,7 +28,7 @@
 ```bash
 aws cloudformation create-stack \
   --stack-name algo-prod-stack \
-  --template-body file://infrastructure/cloudformation/main.yaml \
+  --template-body fileb://infrastructure/cloudformation/main.yaml \
   --parameters ParameterKey=AlertEmail,ParameterValue="your-email@example.com" \
   --capabilities CAPABILITY_NAMED_IAM \
   --region ap-northeast-1
