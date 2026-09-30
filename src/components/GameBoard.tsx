@@ -52,6 +52,7 @@ export const GameBoard: React.FC = () => {
   });
 
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
+  const [isManualPaused, setIsManualPaused] = useState(false);
   const [cpuStatusMessage, setCpuStatusMessage] = useState<string>('');
 
   // HITL確認モーダル状態 (SCR-008)
@@ -95,6 +96,7 @@ export const GameBoard: React.FC = () => {
         winner: null,
       });
       setCpuStatusMessage('');
+      setIsManualPaused(false);
     },
     [gameState.playerCount, gameState.difficulty, gameState.timeLimit, userId]
   );
@@ -104,6 +106,20 @@ export const GameBoard: React.FC = () => {
     gameState.phase !== 'SETUP' &&
     gameState.phase !== 'GAME_OVER' &&
     gameState.winner === null;
+
+  // タイマー一時停止（Pause）判定: ルールモーダル、HITL確認モーダル、または手動ポーズ時
+  const isTimerPaused = Boolean(
+    (isRuleModalOpen || confirmModal.isOpen || isManualPaused) &&
+      isGameInProgress &&
+      gameState.phase !== 'CPU_ACTING'
+  );
+
+  // 新しい手番開始時に手動ポーズ状態を初期化
+  useEffect(() => {
+    if (gameState.phase === 'PLAYER_TURN_START') {
+      setIsManualPaused(false);
+    }
+  }, [gameState.phase, gameState.activePlayerIndex]);
 
   // 再戦リクエスト（HITLガード）
   const handleRequestRestart = useCallback(() => {
@@ -286,6 +302,7 @@ export const GameBoard: React.FC = () => {
       const nextActiveIdx = getNextActivePlayerIndex(0, updatedPlayers);
       const isNextCpu = !updatedPlayers[nextActiveIdx].isHuman;
 
+      setIsManualPaused(false);
       setGameState((prev) => ({
         ...prev,
         players: updatedPlayers,
@@ -310,6 +327,7 @@ export const GameBoard: React.FC = () => {
 
   // プレイヤーが「ステイ（手番終了）」を選択
   const handlePlayerStay = () => {
+    setIsManualPaused(false);
     const playerIdx = gameState.players.findIndex((p) => p.isHuman);
     const updatedPlayers = [...gameState.players];
     if (gameState.drawnCard) {
@@ -340,16 +358,17 @@ export const GameBoard: React.FC = () => {
       gameState.phase === 'SETUP' ||
       gameState.phase === 'GAME_OVER' ||
       gameState.phase === 'CPU_ACTING' ||
-      confirmModal.isOpen ||
-      isRuleModalOpen
+      isTimerPaused
     ) {
       return;
     }
 
     const interval = setInterval(() => {
       setGameState((prev) => {
-        if (prev.remainingTime <= 1) {
-          // 時間切れ処理
+        const nextRemainingTime = prev.remainingTime - 1;
+
+        if (nextRemainingTime <= 0) {
+          // 時間切れ（0秒到達）強制オープンペナルティ処理
           clearInterval(interval);
           const playerIdx = prev.players.findIndex((p) => p.isHuman);
           const updatedPlayers = [...prev.players];
@@ -363,16 +382,19 @@ export const GameBoard: React.FC = () => {
           }
 
           if (penaltyCard && playerIdx >= 0) {
+            const newCards = insertCardInOrder(updatedPlayers[playerIdx].cards, {
+              ...penaltyCard,
+              isOpen: true,
+            });
+            const isEliminated = isAllOpen(newCards);
             updatedPlayers[playerIdx] = {
               ...updatedPlayers[playerIdx],
-              cards: insertCardInOrder(updatedPlayers[playerIdx].cards, {
-                ...penaltyCard,
-                isOpen: true,
-              }),
+              cards: newCards,
+              isEliminated,
             };
           }
 
-          const nextIdx = getNextActivePlayerIndex(0, updatedPlayers);
+          const activePlayers = updatedPlayers.filter((p) => !p.isEliminated);
           const currentHumanId = userId || (playerIdx >= 0 ? prev.players[playerIdx].id : 'player');
           const timeOutLog: AttackLog = {
             id: `log-${Date.now()}`,
@@ -388,6 +410,22 @@ export const GameBoard: React.FC = () => {
             message: '時間切れ！引いたカードがオープンペナルティとなり手番終了。',
           };
 
+          if (activePlayers.length === 1) {
+            return {
+              ...prev,
+              deck: newDeck,
+              players: updatedPlayers,
+              drawnCard: null,
+              selectedTarget: null,
+              remainingTime: prev.timeLimit,
+              activePlayerIndex: 0,
+              logs: [timeOutLog, ...prev.logs],
+              winner: activePlayers[0],
+              phase: 'GAME_OVER',
+            };
+          }
+
+          const nextIdx = getNextActivePlayerIndex(0, updatedPlayers);
           return {
             ...prev,
             deck: newDeck,
@@ -403,13 +441,13 @@ export const GameBoard: React.FC = () => {
 
         return {
           ...prev,
-          remainingTime: prev.remainingTime - 1,
+          remainingTime: nextRemainingTime,
         };
       });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [gameState.phase, gameState.timeLimit, userId, confirmModal.isOpen, isRuleModalOpen]);
+  }, [gameState.phase, gameState.timeLimit, userId, isTimerPaused]);
 
   // CPU手番の自律処理（連続アタックループ対応）
   useEffect(() => {
@@ -780,16 +818,39 @@ export const GameBoard: React.FC = () => {
           <div className="flex items-center gap-2">
             {/* カウントダウンタイマー表示 */}
             {gameState.timeLimit > 0 && activePlayer?.isHuman && (
-              <div
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-black text-xs transition-all ${
-                  gameState.remainingTime <= 5
-                    ? 'bg-rose-50 border-rose-300 text-rose-600 animate-pulse ring-2 ring-rose-200'
-                    : 'bg-algo-blue-light/60 border-algo-blue/30 text-algo-navy'
+              <button
+                type="button"
+                data-testid="timer-display"
+                onClick={() => setIsManualPaused((prev) => !prev)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-black text-xs transition-all cursor-pointer select-none ${
+                  isTimerPaused
+                    ? 'bg-amber-50 border-amber-300 text-amber-700 ring-2 ring-amber-200 animate-pulse hover:bg-amber-100'
+                    : gameState.remainingTime <= 5
+                    ? 'bg-rose-50 border-rose-300 text-rose-600 animate-pulse ring-2 ring-rose-200 hover:bg-rose-100'
+                    : 'bg-algo-blue-light/60 border-algo-blue/30 text-algo-navy hover:bg-algo-blue-light/80'
                 }`}
+                title={isTimerPaused ? 'クリックでタイマー再開 (Resume)' : 'クリックでタイマー一時停止 (Pause)'}
+                aria-label={
+                  isTimerPaused
+                    ? 'タイマー一時停止中 (クリックで再開)'
+                    : `残り ${gameState.remainingTime} 秒 (クリックで一時停止)`
+                }
               >
-                <Clock className={`w-3.5 h-3.5 ${gameState.remainingTime <= 5 ? 'text-rose-500' : 'text-algo-blue'}`} />
-                <span>残り {gameState.remainingTime} 秒</span>
-              </div>
+                {isTimerPaused ? (
+                  <>
+                    <span className="text-xs" aria-hidden="true">⏸️</span>
+                    <span className="tracking-wider">PAUSED</span>
+                    <span className="text-[11px] text-amber-600 font-bold">({gameState.remainingTime}秒)</span>
+                  </>
+                ) : (
+                  <>
+                    <Clock
+                      className={`w-3.5 h-3.5 ${gameState.remainingTime <= 5 ? 'text-rose-500' : 'text-algo-blue'}`}
+                    />
+                    <span>残り {gameState.remainingTime} 秒</span>
+                  </>
+                )}
+              </button>
             )}
 
             <button
