@@ -1144,5 +1144,123 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(html).toContain('data-testid="btn-header-tutorial"');
       expect(html).toContain('data-testid="btn-open-rules"');
     });
+
+    it('Issue #42: ヘッダーに「🔰 アシスト ON/OFF」切り替えボタンが存在する', () => {
+      const html = renderToString(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_TURN_START',
+            players: [
+              {
+                id: 'p1',
+                name: 'あなた',
+                isHuman: true,
+                avatarColor: '',
+                isEliminated: false,
+                cards: [],
+              },
+              {
+                id: 'cpu-1',
+                name: 'CPU 1',
+                isHuman: false,
+                avatarColor: '',
+                isEliminated: false,
+                cards: [],
+              },
+            ],
+            activePlayerIndex: 0,
+          }}
+        />
+      );
+
+      expect(html).toContain('data-testid="btn-toggle-assist"');
+      expect(html).toContain('aria-label="初心者アシスト表示: ON"');
+    });
+
+    it('Issue #42: 初心者アシストON時、相手の伏せカードに候補範囲バッジが表示される', () => {
+      const html = renderToString(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_SELECT_TARGET',
+            players: [
+              {
+                id: 'p1',
+                name: 'あなた',
+                isHuman: true,
+                avatarColor: '',
+                isEliminated: false,
+                cards: [
+                  { id: 'b-0', color: 'black', number: 0, isOpen: false },
+                  { id: 'w-1', color: 'white', number: 1, isOpen: false },
+                ],
+              },
+              {
+                id: 'cpu-1',
+                name: 'CPU 1',
+                isHuman: false,
+                avatarColor: '',
+                isEliminated: false,
+                cards: [
+                  { id: 'b-5', color: 'black', number: 5, isOpen: true },
+                  { id: 'b-?', color: 'black', number: 8, isOpen: false },
+                  { id: 'w-10', color: 'white', number: 10, isOpen: true },
+                ],
+              },
+            ],
+            activePlayerIndex: 0,
+          }}
+        />
+      );
+
+      // 相手の伏せカード (b-?) に候補範囲バッジが表示されること
+      expect(html).toContain('data-testid="candidate-range-badge"');
+      expect(html).toContain('候補: 6〜10');
+    });
+
+    it('Issue #42: AttackModal が開かれた時、候補範囲ヒントが表示され候補外ボタンが識別される', () => {
+      const html = renderToString(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_GUESS_NUMBER',
+            players: [
+              {
+                id: 'p1',
+                name: 'あなた',
+                isHuman: true,
+                avatarColor: '',
+                isEliminated: false,
+                cards: [{ id: 'b-0', color: 'black', number: 0, isOpen: false }],
+              },
+              {
+                id: 'cpu-1',
+                name: 'CPU 1',
+                isHuman: false,
+                avatarColor: '',
+                isEliminated: false,
+                cards: [
+                  { id: 'b-3', color: 'black', number: 3, isOpen: true },
+                  { id: 'b-target', color: 'black', number: 6, isOpen: false },
+                  { id: 'b-8', color: 'black', number: 8, isOpen: true },
+                ],
+              },
+            ],
+            activePlayerIndex: 0,
+            selectedTarget: {
+              playerId: 'cpu-1',
+              cardIndex: 1,
+            },
+          }}
+        />
+      );
+
+      // AttackModal が表示され、候補ヒント (4〜7) が含まれる
+      expect(html).toContain('data-testid="attack-modal"');
+      expect(html).toContain('data-testid="attack-assist-hint"');
+      expect(html).toContain('4〜7');
+
+      // 候補外の数字 (例: 0 や 9) に data-candidate-out="true" が付与される
+      expect(html).toMatch(/data-testid="btn-guess-num-0"[^>]*data-candidate-out="true"/);
+      expect(html).toMatch(/data-testid="btn-guess-num-9"[^>]*data-candidate-out="true"/);
+    });
   });
 });

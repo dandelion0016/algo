@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { CardColor } from '../types/game';
+import { formatCandidateRange } from '../lib/candidateAssist';
 import { Sparkles, X, Target } from 'lucide-react';
 
 interface AttackModalProps {
@@ -11,6 +12,8 @@ interface AttackModalProps {
   onConfirmGuess: (guessedNumber: number) => void;
   onCancel: () => void;
   disabledNumbers?: number[]; // 既にオープンまたは自分の手札にある数字
+  possibleNumbers?: number[]; // 推理候補数字リスト (Issue #42)
+  assistEnabled?: boolean;    // 初心者アシスト有効フラグ (Issue #42)
 }
 
 export const AttackModal: React.FC<AttackModalProps> = ({
@@ -20,6 +23,8 @@ export const AttackModal: React.FC<AttackModalProps> = ({
   onConfirmGuess,
   onCancel,
   disabledNumbers = [],
+  possibleNumbers,
+  assistEnabled = true,
 }) => {
   const [selectedNum, setSelectedNum] = useState<number | null>(null);
 
@@ -113,6 +118,25 @@ export const AttackModal: React.FC<AttackModalProps> = ({
               {isBlack ? '黒カード' : '白カード'}
             </span>
           </div>
+
+          {/* 初心者アシスト表示 (Issue #42) */}
+          {assistEnabled && possibleNumbers && (
+            <div
+              data-testid="attack-assist-hint"
+              className="mt-2.5 py-1.5 px-3 rounded-xl bg-amber-50/90 border border-amber-200 text-amber-900 text-xs font-bold flex items-center justify-between shadow-2xs"
+            >
+              <span className="flex items-center gap-1.5">
+                <span aria-hidden="true">🔰</span>
+                <span>推理候補範囲:</span>
+              </span>
+              <span className="font-black text-sm text-algo-navy">
+                {formatCandidateRange(possibleNumbers)}
+                <span className="text-[10px] text-amber-700 ml-1.5 font-bold">
+                  ({possibleNumbers.length}通り)
+                </span>
+              </span>
+            </div>
+          )}
         </div>
 
         {/* 0〜11 の数字選択ボタン */}
@@ -120,27 +144,34 @@ export const AttackModal: React.FC<AttackModalProps> = ({
           {Array.from({ length: 12 }, (_, i) => i).map((num) => {
             const isKnown = disabledNumbers.includes(num);
             const isSelected = selectedNum === num;
+            const isPossible = !possibleNumbers || possibleNumbers.includes(num);
+            const isImpossible = Boolean(assistEnabled && possibleNumbers && !isPossible);
 
             return (
               <button
                 key={num}
                 type="button"
                 data-testid={`btn-guess-num-${num}`}
+                data-candidate-out={isImpossible ? 'true' : undefined}
                 aria-label={`数字 ${num}${isKnown ? ' (確認済)' : ''}`}
                 aria-pressed={isSelected}
                 onClick={() => setSelectedNum(num)}
                 className={`py-3 rounded-2xl font-black text-lg transition-all flex flex-col items-center justify-center border-2 ${
                   isSelected
                     ? 'bg-algo-yellow text-slate-950 border-algo-yellow-dark ring-4 ring-algo-yellow/40 scale-105 shadow-md'
+                    : isImpossible
+                    ? 'bg-slate-100/50 text-slate-400 border-dashed border-slate-300 opacity-60 hover:opacity-90 hover:border-slate-400'
                     : isKnown
                     ? 'bg-slate-100/70 text-slate-400 border-slate-200 hover:border-slate-300'
                     : 'bg-white text-slate-800 border-slate-200 hover:border-algo-blue hover:bg-algo-blue-light/30'
                 }`}
               >
-                <span>{num}</span>
-                {isKnown && (
+                <span className={isImpossible ? 'line-through decoration-slate-400/80' : ''}>{num}</span>
+                {isImpossible ? (
+                  <span className="text-[8px] text-rose-500 font-bold">候補外</span>
+                ) : isKnown ? (
                   <span className="text-[8px] text-slate-400 font-bold">確認済</span>
-                )}
+                ) : null}
               </button>
             );
           })}
@@ -177,7 +208,11 @@ export const AttackModal: React.FC<AttackModalProps> = ({
                 : 'bg-slate-200 text-slate-400 cursor-not-allowed'
             }`}
           >
-            {selectedNum !== null ? `[ ${selectedNum} ] でアタック！` : '数字を選んでください'}
+            {selectedNum !== null
+              ? assistEnabled && possibleNumbers && !possibleNumbers.includes(selectedNum)
+                ? `[ ${selectedNum} ] でアタック！ (⚠️候補外)`
+                : `[ ${selectedNum} ] でアタック！`
+              : '数字を選んでください'}
           </button>
         </div>
       </div>

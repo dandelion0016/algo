@@ -11,6 +11,7 @@ interface CardComponentProps {
   onClick?: () => void;
   size?: 'xs' | 'sm' | 'md' | 'lg';
   label?: string;
+  candidateHint?: string; // 候補数字範囲ヒント (Issue #42)
   isEliminated?: boolean;
   testId?: string;
 }
@@ -23,6 +24,7 @@ export const CardComponent: React.FC<CardComponentProps> = ({
   onClick,
   size = 'md',
   label,
+  candidateHint,
   isEliminated = false,
   testId,
 }) => {
@@ -146,6 +148,21 @@ export const CardComponent: React.FC<CardComponentProps> = ({
           </div>
         )}
       </div>
+
+      {/* 推理候補範囲バッジ (Issue #42) */}
+      {candidateHint && !showNumber && (
+        <div
+          data-testid="candidate-range-badge"
+          className={`px-1.5 py-0.5 rounded-full font-bold tracking-tight border shadow-2xs whitespace-nowrap text-center ${
+            size === 'xs'
+              ? 'text-[7px] sm:text-[8px] bg-amber-50 text-amber-800 border-amber-300'
+              : 'text-[9px] sm:text-[10px] bg-amber-50 text-amber-800 border-amber-300'
+          }`}
+          title={`候補数字: ${candidateHint}`}
+        >
+          {candidateHint.startsWith('候補:') ? candidateHint : `候補: ${candidateHint}`}
+        </div>
+      )}
     </div>
   );
 };
