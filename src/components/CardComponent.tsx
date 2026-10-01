@@ -9,6 +9,7 @@ interface CardComponentProps {
   isOwner: boolean; // 自分（人間）のカードかどうか（自分なら伏せでも数字が見える）
   isSelected?: boolean;
   isSelectable?: boolean;
+  isHintTarget?: boolean; // AIヒント推薦対象カード（Issue #44）
   onClick?: () => void;
   size?: 'xs' | 'sm' | 'md' | 'lg';
   label?: string;
@@ -23,6 +24,7 @@ export const CardComponent: React.FC<CardComponentProps> = ({
   isOwner,
   isSelected = false,
   isSelectable = false,
+  isHintTarget = false,
   onClick,
   size = 'md',
   label,
@@ -52,8 +54,12 @@ export const CardComponent: React.FC<CardComponentProps> = ({
   let stateClasses = 'border-2 transition-all duration-200';
   if (isEliminated) {
     stateClasses += ' opacity-40 grayscale';
+  } else if (isSelected && isHintTarget) {
+    stateClasses = 'border-4 border-algo-blue ring-4 ring-amber-400 shadow-xl scale-105 z-10 animate-pulse';
   } else if (isSelected) {
     stateClasses = 'border-4 border-algo-blue ring-4 ring-algo-blue/40 shadow-xl scale-105 z-10';
+  } else if (isHintTarget) {
+    stateClasses = 'border-4 border-amber-400 ring-4 ring-amber-300/80 shadow-lg shadow-amber-300/50 scale-105 z-10 animate-pulse';
   } else if (isSelectable) {
     stateClasses += ' cursor-pointer hover:border-algo-blue hover:scale-105 hover:shadow-lg animate-attack-pulse';
   }
@@ -71,11 +77,12 @@ export const CardComponent: React.FC<CardComponentProps> = ({
       {label && <span className="text-[10px] sm:text-xs text-slate-500 font-semibold">{label}</span>}
       <div
         data-testid={cardTestId}
+        data-hint-target={isHintTarget ? 'true' : undefined}
         role={isClickable ? 'button' : undefined}
         tabIndex={isClickable ? 0 : undefined}
         aria-label={`${isBlack ? '黒' : '白'}カード ${label || ''}${
           showNumber ? ` (数字: ${card.number})` : ' (伏せカード)'
-        }${card.isOpen ? ' [オープン]' : ''}`}
+        }${card.isOpen ? ' [オープン]' : ''}${isHintTarget ? ' [AIヒント推奨]' : ''}`}
         aria-pressed={isSelected ? true : undefined}
         onClick={isClickable ? onClick : undefined}
         onKeyDown={
@@ -90,6 +97,21 @@ export const CardComponent: React.FC<CardComponentProps> = ({
         }
         className={`relative flex flex-col items-center justify-center ${sizeClasses} ${colorClasses} ${stateClasses}`}
       >
+        {/* ヒント対象バッジ */}
+        {isHintTarget && (
+          <div
+            data-testid="hint-target-badge"
+            className={`absolute z-20 flex items-center justify-center rounded-full bg-amber-400 text-slate-950 font-black shadow-md border border-amber-300 animate-bounce ${
+              size === 'xs'
+                ? '-top-2 -right-1 text-[7px] px-1 py-0.2'
+                : '-top-2.5 -right-2 text-[9px] px-1.5 py-0.5'
+            }`}
+          >
+            <span>💡</span>
+            <span className="hidden sm:inline">ヒント</span>
+          </div>
+        )}
+
         {/* 左上の色識別丸インジケータ */}
         <div
           className={`absolute rounded-full border ${

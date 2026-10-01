@@ -68,4 +68,30 @@ describe('CardComponent (Issue #43: failed-guesses-badge)', () => {
 
     expect(html).not.toContain('data-testid="failed-guesses-badge"');
   });
+
+  it('isHintTarget が true の場合、data-hint-target="true" と hint-target-badge が描画される', () => {
+    const html = renderToString(
+      <CardComponent
+        card={hiddenCard}
+        isOwner={false}
+        isHintTarget={true}
+      />
+    );
+
+    expect(html).toContain('data-hint-target="true"');
+    expect(html).toContain('data-testid="hint-target-badge"');
+  });
+
+  it('isHintTarget が false または未指定の場合、data-hint-target は付与されない', () => {
+    const html = renderToString(
+      <CardComponent
+        card={hiddenCard}
+        isOwner={false}
+        isHintTarget={false}
+      />
+    );
+
+    expect(html).not.toContain('data-hint-target="true"');
+    expect(html).not.toContain('data-testid="hint-target-badge"');
+  });
 });
