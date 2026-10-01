@@ -10,7 +10,12 @@ interface GameLogProps {
 
 export const GameLog: React.FC<GameLogProps> = ({ logs }) => {
   return (
-    <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col h-full max-h-72 lg:max-h-120">
+    <div
+      data-testid="game-log-list"
+      role="region"
+      aria-label="対戦ログ"
+      className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col h-full max-h-72 lg:max-h-120"
+    >
       <div className="flex items-center gap-2 pb-3 mb-3 border-b border-slate-100">
         <div className="w-7 h-7 rounded-xl bg-algo-blue/15 text-algo-blue flex items-center justify-center">
           <ScrollText className="w-4 h-4 text-algo-blue" />
@@ -19,7 +24,7 @@ export const GameLog: React.FC<GameLogProps> = ({ logs }) => {
         <span className="text-xs font-bold text-slate-400 ml-auto">{logs.length} 件</span>
       </div>
 
-      <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 text-xs">
+      <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 text-xs" tabIndex={0} aria-live="polite">
         {logs.length === 0 ? (
           <div className="text-center py-10 text-slate-400 space-y-1">
             <p className="font-bold">まだアタック履歴はありません</p>

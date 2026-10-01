@@ -592,5 +592,179 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
         expect(html).toContain('戦績サマリを表示');
       });
     });
+
+    describe('Issue #17: UIコンポーネントへの data-testid 属性付与とアクセシビリティ検証', () => {
+      const mockA11yPlayers = [
+        {
+          id: 'test_user_1',
+          name: 'あなた',
+          isHuman: true,
+          cards: [
+            { id: 'b-0', color: 'black' as const, number: 0, isOpen: false },
+            { id: 'w-4', color: 'white' as const, number: 4, isOpen: false },
+          ],
+          isEliminated: false,
+          avatarColor: 'from-blue-500 to-indigo-600',
+        },
+        {
+          id: 'cpu-1',
+          name: 'CPU 1',
+          isHuman: false,
+          cards: [
+            { id: 'b-2', color: 'black' as const, number: 2, isOpen: false },
+            { id: 'w-6', color: 'white' as const, number: 6, isOpen: false },
+          ],
+          isEliminated: false,
+          avatarColor: 'from-amber-500 to-orange-600',
+        },
+      ];
+
+      it('ヘッダーボタンに data-testid 属性（ルール・再戦・設定）が付与されている', () => {
+        const html = renderToString(
+          <GameBoard
+            initialState={{
+              phase: 'PLAYER_TURN_START',
+              timeLimit: 30,
+              remainingTime: 30,
+              players: mockA11yPlayers,
+              activePlayerIndex: 0,
+            }}
+          />
+        );
+
+        expect(html).toContain('data-testid="btn-open-rules"');
+        expect(html).toContain('data-testid="btn-restart-game"');
+        expect(html).toContain('data-testid="btn-open-settings"');
+      });
+
+      it('ドローボタン（山札デッキ）に data-testid="btn-draw-card" とキーボード用 a11y 属性が付与されている', () => {
+        const html = renderToString(
+          <GameBoard
+            initialState={{
+              phase: 'PLAYER_TURN_START',
+              timeLimit: 30,
+              remainingTime: 30,
+              players: mockA11yPlayers,
+              activePlayerIndex: 0,
+              deck: [
+                { id: 'b-7', color: 'black' as const, number: 7, isOpen: false },
+                { id: 'w-9', color: 'white' as const, number: 9, isOpen: false },
+              ],
+            }}
+          />
+        );
+
+        expect(html).toContain('data-testid="btn-draw-card"');
+        expect(html).toContain('role="button"');
+        expect(html).toContain('tabindex="0"');
+        expect(html).toContain('aria-label="山札 (残り2枚) - クリックしてドロー"');
+      });
+
+      it('プレイヤーおよび相手の手札エリアに data-testid="player-hand-${id}" が付与されている', () => {
+        const html = renderToString(
+          <GameBoard
+            initialState={{
+              phase: 'PLAYER_TURN_START',
+              timeLimit: 30,
+              remainingTime: 30,
+              players: mockA11yPlayers,
+              activePlayerIndex: 0,
+            }}
+          />
+        );
+
+        expect(html).toContain('data-testid="player-hand-test_user_1"');
+        expect(html).toContain('data-testid="player-hand-cpu-1"');
+      });
+
+      it('相手カードに data-testid="opponent-card-0" および "card-element" が付与されている', () => {
+        const html = renderToString(
+          <GameBoard
+            initialState={{
+              phase: 'PLAYER_SELECT_TARGET',
+              timeLimit: 30,
+              remainingTime: 30,
+              players: mockA11yPlayers,
+              activePlayerIndex: 0,
+            }}
+          />
+        );
+
+        expect(html).toContain('data-testid="opponent-card-0"');
+        expect(html).toContain('data-testid="opponent-card-1"');
+        expect(html).toContain('data-testid="card-element"');
+        // 相手カード選択可能時は button ロールと tabIndex が付与される
+        expect(html).toContain('role="button"');
+        expect(html).toContain('tabindex="0"');
+      });
+
+      it('対戦ログエリアに data-testid="game-log-list" および a11y 属性が付与されている', () => {
+        const html = renderToString(
+          <GameBoard
+            initialState={{
+              phase: 'PLAYER_TURN_START',
+              timeLimit: 30,
+              remainingTime: 30,
+              players: mockA11yPlayers,
+              activePlayerIndex: 0,
+              logs: [
+                {
+                  id: 'log-1',
+                  attackerId: 'test_user_1',
+                  attackerName: 'あなた',
+                  targetPlayerId: 'cpu-1',
+                  targetPlayerName: 'CPU 1',
+                  targetCardIndex: 0,
+                  targetColor: 'black',
+                  guessedNumber: 2,
+                  isHit: true,
+                  timestamp: Date.now(),
+                  message: 'あなた が CPU 1 の左から 1 番目 [黒] を [2] と推理して【的中】！',
+                },
+              ],
+            }}
+          />
+        );
+
+        expect(html).toContain('data-testid="game-log-list"');
+        expect(html).toContain('role="region"');
+        expect(html).toContain('aria-label="対戦ログ"');
+        expect(html).toContain('aria-live="polite"');
+      });
+
+      it('ステータスバナーに data-testid="status-message" が付与されている', () => {
+        const html = renderToString(
+          <GameBoard
+            initialState={{
+              phase: 'PLAYER_TURN_START',
+              timeLimit: 30,
+              remainingTime: 30,
+              players: mockA11yPlayers,
+              activePlayerIndex: 0,
+            }}
+          />
+        );
+
+        expect(html).toContain('data-testid="status-message"');
+        expect(html).toContain('あなたのターン');
+      });
+
+      it('PLAYER_DECIDE_NEXT フェーズ時に「続けてアタック」と「ステイ」ボタンに data-testid が付与されている', () => {
+        const html = renderToString(
+          <GameBoard
+            initialState={{
+              phase: 'PLAYER_DECIDE_NEXT',
+              timeLimit: 30,
+              remainingTime: 30,
+              players: mockA11yPlayers,
+              activePlayerIndex: 0,
+            }}
+          />
+        );
+
+        expect(html).toContain('data-testid="btn-continue-attack"');
+        expect(html).toContain('data-testid="btn-stay"');
+      });
+    });
   });
 });

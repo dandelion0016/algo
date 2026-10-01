@@ -965,6 +965,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             )}
 
             <button
+              data-testid="btn-open-rules"
               onClick={() => setIsRuleModalOpen(true)}
               className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all shadow-2xs"
             >
@@ -973,6 +974,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             </button>
 
             <button
+              data-testid="btn-restart-game"
               onClick={handleRequestRestart}
               className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all shadow-2xs"
             >
@@ -981,6 +983,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             </button>
 
             <button
+              data-testid="btn-open-settings"
               onClick={handleRequestSetup}
               className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-2xs"
             >
@@ -1029,6 +1032,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               return (
                 <div
                   key={opp.id}
+                  data-testid={`player-hand-${opp.id}`}
                   className={`bg-white rounded-3xl p-4 border transition-all relative ${
                     opp.isEliminated
                       ? 'border-slate-200 bg-slate-50/60 opacity-60'
@@ -1071,6 +1075,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                         isOwner={false}
                         size={opponents.length === 1 ? 'md' : 'sm'}
                         label={`#${idx + 1}`}
+                        testId={`opponent-card-${idx}`}
                         isEliminated={opp.isEliminated}
                         isSelectable={
                           activePlayer?.isHuman &&
@@ -1105,6 +1110,22 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             {/* Deck Pile */}
             <div className="flex flex-col items-center gap-1.5">
               <div
+                data-testid="btn-draw-card"
+                role={gameState.phase === 'PLAYER_TURN_START' ? 'button' : undefined}
+                tabIndex={gameState.phase === 'PLAYER_TURN_START' ? 0 : undefined}
+                aria-label={`山札 (残り${gameState.deck.length}枚)${
+                  gameState.phase === 'PLAYER_TURN_START' ? ' - クリックしてドロー' : ''
+                }`}
+                onKeyDown={
+                  gameState.phase === 'PLAYER_TURN_START'
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handlePlayerDraw();
+                        }
+                      }
+                    : undefined
+                }
                 onClick={gameState.phase === 'PLAYER_TURN_START' ? handlePlayerDraw : undefined}
                 className={`relative w-20 h-28 sm:w-24 sm:h-32 rounded-2xl border-2 flex flex-col items-center justify-center select-none transition-all ${
                   gameState.phase === 'PLAYER_TURN_START'
@@ -1124,7 +1145,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             </div>
 
             {/* Drawn Card display */}
-            <div className="flex flex-col items-center gap-1.5">
+            <div data-testid="drawn-card-area" className="flex flex-col items-center gap-1.5">
               <span className="text-xs font-bold text-slate-500">引いたカード</span>
               {gameState.drawnCard ? (
                 <div className="scale-105 transition-transform animate-card-draw">
@@ -1138,7 +1159,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             </div>
 
             {/* Turn Guidance */}
-            <div className="flex-1 max-w-md text-center md:text-left space-y-2">
+            <div data-testid="status-message" className="flex-1 max-w-md text-center md:text-left space-y-2">
               {gameState.phase === 'PLAYER_TURN_START' && (
                 <div className="p-3.5 bg-algo-blue-light/50 border border-algo-blue/20 rounded-2xl space-y-1">
                   <div className="flex items-center justify-between">
@@ -1181,12 +1202,16 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                   </p>
                   <div className="flex gap-2">
                     <button
+                      type="button"
+                      data-testid="btn-continue-attack"
                       onClick={handlePlayerContinue}
                       className="flex-1 py-2 rounded-xl bg-gradient-to-r from-algo-blue to-algo-blue-dark text-white font-black text-xs hover:brightness-105 shadow-sm transition-all"
                     >
                       続けてアタック
                     </button>
                     <button
+                      type="button"
+                      data-testid="btn-stay"
                       onClick={handlePlayerStay}
                       className="flex-1 py-2 rounded-xl bg-white border border-slate-300 text-slate-800 font-bold text-xs hover:bg-slate-50 transition-all shadow-2xs"
                     >
@@ -1239,7 +1264,10 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
           {/* Player Hand Area */}
           {humanPlayer && (
-            <section className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm relative overflow-hidden">
+            <section
+              data-testid={`player-hand-${humanPlayer.id}`}
+              className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm relative overflow-hidden"
+            >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-xl bg-algo-blue text-white flex items-center justify-center font-bold text-xs shadow-2xs">
