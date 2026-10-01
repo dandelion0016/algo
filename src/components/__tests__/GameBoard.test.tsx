@@ -1458,4 +1458,138 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(html).toMatch(/data-testid="btn-guess-num-7"[^>]*data-failed-guess="true"/);
     });
   });
+
+  describe('初心者向けAIヒント機能 (Issue #44: AIヒント推薦・モーダル・ターゲットハイライト)', () => {
+    const basePlayers: Player[] = [
+      {
+        id: 'player-1',
+        name: 'あなた',
+        isHuman: true,
+        avatarColor: 'from-blue-500 to-indigo-600',
+        isEliminated: false,
+        cards: [
+          { id: 'b-0', color: 'black', number: 0, isOpen: false },
+          { id: 'w-4', color: 'white', number: 4, isOpen: false },
+        ],
+      },
+      {
+        id: 'cpu-1',
+        name: 'CPU 1',
+        isHuman: false,
+        avatarColor: 'from-red-500 to-rose-600',
+        isEliminated: false,
+        cards: [
+          { id: 'b-2', color: 'black', number: 2, isOpen: false },
+          { id: 'w-8', color: 'white', number: 8, isOpen: false },
+        ],
+      },
+    ];
+
+    it('プレイヤーの手番中（PLAYER_SELECT_TARGET）にヒントボタンが有効状態でレンダリングされる', () => {
+      const html = renderToString(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_SELECT_TARGET',
+            activePlayerIndex: 0,
+            players: basePlayers,
+          }}
+          initialHintCount={3}
+        />
+      );
+
+      expect(html).toContain('data-testid="btn-get-hint"');
+      expect(html).toContain('💡 ヒント（残り3回）');
+      expect(html).not.toMatch(/data-testid="btn-get-hint"[^>]*disabled/);
+    });
+
+    it('ヒント回数が0回の場合、ヒントボタンは disabled 属性が付与される', () => {
+      const html = renderToString(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_SELECT_TARGET',
+            activePlayerIndex: 0,
+            players: basePlayers,
+          }}
+          initialHintCount={0}
+        />
+      );
+
+      expect(html).toContain('data-testid="btn-get-hint"');
+      expect(html).toContain('💡 ヒント（残り0回）');
+      expect(html).toMatch(/data-testid="btn-get-hint"[^>]*disabled/);
+    });
+
+    it('CPUの手番中（CPU_ACTING）はヒントボタンが無効化（disabled）される', () => {
+      const html = renderToString(
+        <GameBoard
+          initialState={{
+            phase: 'CPU_ACTING',
+            activePlayerIndex: 1,
+            players: basePlayers,
+          }}
+          initialHintCount={2}
+        />
+      );
+
+      expect(html).toContain('data-testid="btn-get-hint"');
+      expect(html).toContain('💡 ヒント（残り2回）');
+      expect(html).toMatch(/data-testid="btn-get-hint"[^>]*disabled/);
+    });
+
+    it('activeHint が存在する場合、該当する相手カードに data-hint-target="true" とバッジが付与される', () => {
+      const mockHint = {
+        targetPlayerId: 'cpu-1',
+        targetPlayerName: 'CPU 1',
+        targetCardIndex: 0,
+        color: 'black' as const,
+        possibleNumbers: [2],
+        isDefinite: true,
+        adviceText: 'CPU 1の左から1枚目の黒カードは [2] に確定しています！',
+      };
+
+      const html = renderToString(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_SELECT_TARGET',
+            activePlayerIndex: 0,
+            players: basePlayers,
+          }}
+          initialActiveHint={mockHint}
+        />
+      );
+
+      expect(html).toContain('data-hint-target="true"');
+      expect(html).toContain('data-testid="hint-target-badge"');
+    });
+
+    it('initialIsHintModalOpen が true の場合、HintModal が開いてアドバイス文が表示される', () => {
+      const mockHint = {
+        targetPlayerId: 'cpu-1',
+        targetPlayerName: 'CPU 1',
+        targetCardIndex: 1,
+        color: 'white' as const,
+        possibleNumbers: [7, 8],
+        isDefinite: false,
+        adviceText: 'CPU 1の右端の白カードは [7, 8] の2択に絞り込まれています！',
+      };
+
+      const html = renderToString(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_SELECT_TARGET',
+            activePlayerIndex: 0,
+            players: basePlayers,
+          }}
+          initialActiveHint={mockHint}
+          initialIsHintModalOpen={true}
+          initialHintCount={2}
+        />
+      );
+
+      expect(html).toContain('data-testid="modal-hint"');
+      expect(html).toContain('CPU 1の右端の白カードは [7, 8] の2択に絞り込まれています！');
+      expect(html).toContain('data-testid="btn-hint-select-target"');
+      expect(html).toContain('このカードを選択する');
+    });
+  });
 });

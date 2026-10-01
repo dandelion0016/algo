@@ -23,6 +23,8 @@ import { ResultModal } from './ResultModal';
 import { TutorialPromptModal } from './TutorialPromptModal';
 import { TutorialModal } from './TutorialModal';
 import { CpuAttackModal, CpuAttackResultData } from './CpuAttackModal';
+import { HintModal } from './HintModal';
+import { getBestHint, HintResult } from '../lib/hintAdvisor';
 import { useUserSession } from '../hooks/useUserSession';
 import {
   Layers,
@@ -39,6 +41,7 @@ import {
   Flame,
   ScrollText,
   X,
+  Lightbulb,
 } from 'lucide-react';
 
 /**
@@ -139,11 +142,17 @@ export const getKnownNumbersForColor = (
 export interface GameBoardProps {
   initialState?: Partial<GameState>;
   initialTimeUpBanner?: string | null;
+  initialHintCount?: number;
+  initialActiveHint?: HintResult | null;
+  initialIsHintModalOpen?: boolean;
 }
 
 export const GameBoard: React.FC<GameBoardProps> = ({
   initialState,
   initialTimeUpBanner = null,
+  initialHintCount = 3,
+  initialActiveHint = null,
+  initialIsHintModalOpen = false,
 }) => {
   const { userId } = useUserSession();
 
@@ -239,6 +248,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     actionType: 'RESTART',
   });
 
+  // 初心者向けAIヒント機能 (Issue #44)
+  const [hintCount, setHintCount] = useState<number>(initialHintCount);
+  const [activeHint, setActiveHint] = useState<HintResult | null>(initialActiveHint);
+  const [isHintModalOpen, setIsHintModalOpen] = useState<boolean>(initialIsHintModalOpen);
+
   // 新規ゲーム初期化
   const initializeGame = useCallback(
     (
@@ -276,6 +290,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       setIsManualPaused(false);
       setTimeUpBanner(null);
       setIsResultModalOpen(true);
+      setHintCount(3);
+      setActiveHint(null);
+      setIsHintModalOpen(false);
     },
     [gameState.playerCount, gameState.difficulty, gameState.timeLimit, userId]
   );
@@ -381,6 +398,15 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       });
     }
   }, [userId]);
+
+  // AIヒント機能の実行ハンドラ (Issue #44)
+  const handleRequestHint = useCallback(() => {
+    if (hintCount <= 0) return;
+    const hint = getBestHint(gameState.players, gameState.drawnCard, gameState.logs);
+    setActiveHint(hint);
+    setHintCount((prev) => Math.max(0, prev - 1));
+    setIsHintModalOpen(true);
+  }, [hintCount, gameState.players, gameState.drawnCard, gameState.logs]);
 
   // プレイヤーが山札からドロー
   const handlePlayerDraw = () => {
@@ -499,6 +525,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       const isNextCpu = !updatedPlayers[nextActiveIdx].isHuman;
 
       setIsManualPaused(false);
+      setActiveHint(null);
       setGameState((prev) => ({
         ...prev,
         players: updatedPlayers,
@@ -524,6 +551,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   // プレイヤーが「ステイ（手番終了）」を選択
   const handlePlayerStay = () => {
     setIsManualPaused(false);
+    setActiveHint(null);
     const playerIdx = gameState.players.findIndex((p) => p.isHuman);
     const updatedPlayers = [...gameState.players];
     if (gameState.drawnCard) {
@@ -1090,6 +1118,13 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const activePlayer = gameState.players[gameState.activePlayerIndex];
   const opponents = gameState.players.filter((p) => !p.isHuman);
 
+  const isHumanTurn = Boolean(
+    activePlayer?.isHuman &&
+      gameState.phase !== 'GAME_OVER' &&
+      gameState.phase !== 'CPU_ACTING'
+  );
+  const isHintDisabled = !isHumanTurn || hintCount <= 0;
+
   return (
     <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 py-1.5 sm:py-3 lg:py-4 h-[100dvh] max-h-[100dvh] lg:h-auto lg:max-h-none flex flex-col justify-between overflow-hidden lg:overflow-visible lg:space-y-4">
       {/* Top Header */}
@@ -1188,6 +1223,30 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 </div>
               </div>
             )}
+
+            {/* AIヒントボタン (Issue #44) */}
+            <button
+              type="button"
+              data-testid="btn-get-hint"
+              onClick={handleRequestHint}
+              disabled={isHintDisabled}
+              aria-label={`AIヒント: 残り${hintCount}回`}
+              className={`flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border text-[11px] sm:text-xs font-bold transition-all shadow-2xs ${
+                isHintDisabled
+                  ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-60'
+                  : 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 ring-1 ring-amber-200 cursor-pointer shadow-xs active:scale-95'
+              }`}
+              title={
+                hintCount <= 0
+                  ? 'ヒントは使い切りました（残り0回）'
+                  : !isHumanTurn
+                  ? 'あなたのターン中に使用できます'
+                  : `AIヒントを使用（残り${hintCount}回）`
+              }
+            >
+              <Lightbulb className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${!isHintDisabled ? 'text-amber-600' : 'text-slate-400'}`} />
+              <span>{`💡 ヒント（残り${hintCount}回）`}</span>
+            </button>
 
             <button
               type="button"
@@ -1352,6 +1411,13 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                           : undefined;
 
                       const failedNumbers = getFailedNumbersForCard(gameState.logs, opp.id, idx);
+                      const isHintTarget = Boolean(
+                        activeHint &&
+                        activeHint.targetPlayerId === opp.id &&
+                        activeHint.targetCardIndex === idx &&
+                        !card.isOpen &&
+                        !opp.isEliminated
+                      );
 
                       return (
                         <CardComponent
@@ -1364,6 +1430,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                           candidateHint={candidateHint}
                           failedGuesses={failedNumbers}
                           isEliminated={opp.isEliminated}
+                          isHintTarget={isHintTarget}
                           isSelectable={
                             activePlayer?.isHuman &&
                             gameState.phase === 'PLAYER_SELECT_TARGET' &&
@@ -1725,6 +1792,18 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         onPlayAgain={() => initializeGame()}
         onReturnSetup={() => setGameState((prev) => ({ ...prev, phase: 'SETUP' }))}
         onClose={() => setIsResultModalOpen(false)}
+      />
+
+      {/* AIヒントアドバイザーモーダル (Issue #44) */}
+      <HintModal
+        isOpen={isHintModalOpen}
+        onClose={() => setIsHintModalOpen(false)}
+        hint={activeHint}
+        remainingHints={hintCount}
+        canSelectTarget={activePlayer?.isHuman && gameState.phase === 'PLAYER_SELECT_TARGET'}
+        onSelectTarget={(targetPlayerId, cardIndex) => {
+          handleSelectTargetCard(targetPlayerId, cardIndex);
+        }}
       />
     </div>
   );
