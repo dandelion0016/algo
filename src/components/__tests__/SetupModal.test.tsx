@@ -186,6 +186,26 @@ describe('SetupModal Component', () => {
       expect(html).toContain('30秒');
       expect(html).toContain('15秒');
       expect(html).toContain('無制限');
+      // 初心者向けバッジ「おすすめ（初心者向け）」と「標準テンポ」の表示確認
+      expect(html).toContain('おすすめ（初心者向け）');
+      expect(html).toContain('標準テンポ');
+    });
+
+    it('onOpenTutorialが渡された場合、チュートリアルボタン（btn-setup-tutorial）が表示される', () => {
+      const onOpenTutorial = vi.fn();
+      const html = renderToString(
+        <SetupModal {...defaultProps} onOpenTutorial={onOpenTutorial} />
+      );
+      expect(html).toContain('data-testid="btn-setup-tutorial"');
+      expect(html).toContain('チュートリアル');
+    });
+
+    it('難易度初級（easy）および持ち時間無制限（0）が正しく選択スタイルで描画される', () => {
+      const html = renderToString(
+        <SetupModal {...defaultProps} difficulty="easy" timeLimit={0} />
+      );
+      expect(html).toContain('初級：気楽に推理');
+      expect(html).toContain('無制限（じっくり思考）');
     });
   });
 });

@@ -2,6 +2,10 @@ import { test, expect } from '@playwright/test';
 
 test.describe('アルゴ（algo）Web対戦システム E2E シナリオ検証', () => {
   test.beforeEach(async ({ page }) => {
+    // チュートリアルプロンプトモーダルをスキップ済みに設定
+    await page.addInitScript(() => {
+      window.localStorage.setItem('algo_tutorial_skip_prompt', 'true');
+    });
     // ページへ移動し、ロード完了を待機
     await page.goto('/');
     await expect(page.locator('[data-testid="user-id-badge"]')).toBeVisible();
@@ -45,7 +49,6 @@ test.describe('アルゴ（algo）Web対戦システム E2E シナリオ検証',
     await page.click('[data-testid="btn-start-game"]');
 
     // 盤面コンポーネントの表示待機
-    await expect(page.locator('[data-testid="timer-display"]')).toBeVisible();
     await expect(page.locator('[data-testid="btn-draw-card"]')).toBeVisible();
 
     // プレイヤー手札の確認 (2人対戦時は4枚)
@@ -117,7 +120,8 @@ test.describe('アルゴ（algo）Web対戦システム E2E シナリオ検証',
     await page.click('[data-testid="btn-close-rules"]');
     await expect(ruleModal).not.toBeVisible();
 
-    // 2. 対戦を開始する
+    // 2. 対戦を開始する (持ち時間15秒を設定)
+    await page.click('[data-testid="btn-select-time-limit-15"]');
     await page.click('[data-testid="btn-start-game"]');
     await expect(page.locator('[data-testid="timer-display"]')).toBeVisible();
 
@@ -154,12 +158,12 @@ test.describe('アルゴ（algo）Web対戦システム E2E シナリオ検証',
     // デスクトップ表示 (1280x800)
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.click('[data-testid="btn-start-game"]');
-    await expect(page.locator('[data-testid="timer-display"]')).toBeVisible();
+    await expect(page.locator('[data-testid="btn-draw-card"]')).toBeVisible();
     await page.screenshot({ path: 'e2e/screenshots/14-responsive-pc.png' });
 
     // モバイル表示 (375x667)
     await page.setViewportSize({ width: 375, height: 667 });
-    await expect(page.locator('[data-testid="timer-display"]')).toBeVisible();
+    await expect(page.locator('[data-testid="btn-draw-card"]')).toBeVisible();
     await page.screenshot({ path: 'e2e/screenshots/16-responsive-mobile.png' });
   });
 });

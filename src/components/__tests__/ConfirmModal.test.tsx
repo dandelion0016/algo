@@ -165,15 +165,15 @@ describe('ConfirmModal Component (SCR-008: HITL確認モーダル)', () => {
 
       // ルートオーバーレイのクリックでonCancelが発火
       expect(element).not.toBeNull();
-      if (!element) return;
-      const el = element as React.ReactElement<any>;
+      if (!element || !React.isValidElement(element)) return;
 
-      expect(el.props.onClick).toBe(onCancel);
-      el.props.onClick();
+      const elementProps = element.props as any;
+      expect(elementProps.onClick).toBe(onCancel);
+      elementProps.onClick();
       expect(onCancel).toHaveBeenCalledTimes(1);
 
       // モーダル本体のstopPropagation確認
-      const modalBox = el.props.children as React.ReactElement<any>;
+      const modalBox = elementProps.children as any;
       const stopPropagationMock = vi.fn();
       modalBox.props.onClick({ stopPropagation: stopPropagationMock });
       expect(stopPropagationMock).toHaveBeenCalledTimes(1);
