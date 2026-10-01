@@ -9,7 +9,7 @@ interface CardComponentProps {
   isSelected?: boolean;
   isSelectable?: boolean;
   onClick?: () => void;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   label?: string;
   isEliminated?: boolean;
   testId?: string;
@@ -30,6 +30,7 @@ export const CardComponent: React.FC<CardComponentProps> = ({
 
   // サイズクラス
   const sizeClasses = {
+    xs: 'w-8 h-12 sm:w-9 sm:h-14 text-xs font-bold rounded-md',
     sm: 'w-10 h-16 sm:w-12 sm:h-20 text-sm sm:text-base font-bold rounded-lg',
     md: 'w-14 h-22 sm:w-16 sm:h-26 md:w-20 md:h-30 text-lg sm:text-xl md:text-2xl font-black rounded-xl',
     lg: 'w-18 h-28 sm:w-24 sm:h-36 text-2xl sm:text-3xl font-black rounded-2xl',
@@ -86,7 +87,9 @@ export const CardComponent: React.FC<CardComponentProps> = ({
       >
         {/* 左上の色識別丸インジケータ */}
         <div
-          className={`absolute top-1.5 left-1.5 w-2 h-2 rounded-full border ${
+          className={`absolute rounded-full border ${
+            size === 'xs' ? 'top-1 left-1 w-1.5 h-1.5' : 'top-1.5 left-1.5 w-2 h-2'
+          } ${
             isBlack
               ? 'bg-zinc-700 border-zinc-500'
               : 'bg-white border-slate-300'
@@ -95,7 +98,9 @@ export const CardComponent: React.FC<CardComponentProps> = ({
 
         {/* 右上の小さな装飾 */}
         <div
-          className={`absolute top-1.5 right-1.5 text-[8px] font-bold opacity-60 ${
+          className={`absolute font-bold opacity-60 ${
+            size === 'xs' ? 'top-0.5 right-1 text-[7px]' : 'top-1.5 right-1.5 text-[8px]'
+          } ${
             isBlack ? 'text-zinc-400' : 'text-slate-400'
           }`}
         >
@@ -108,13 +113,21 @@ export const CardComponent: React.FC<CardComponentProps> = ({
             <div className="flex flex-col items-center justify-center">
               <span className="tracking-tight">{card.number}</span>
               {isSecretToOpponent && (
-                <span className="text-[8px] sm:text-[9px] px-1 py-0.2 rounded bg-amber-400/20 text-amber-600 font-medium tracking-tight">
+                <span
+                  className={`${
+                    size === 'xs' ? 'text-[7px] px-0.5' : 'text-[8px] sm:text-[9px] px-1'
+                  } py-0.2 rounded bg-amber-400/20 text-amber-600 font-medium tracking-tight`}
+                >
                   伏せ中
                 </span>
               )}
             </div>
           ) : (
-            <span className="text-slate-400 font-serif text-xl sm:text-2xl font-normal opacity-70">
+            <span
+              className={`text-slate-400 font-serif ${
+                size === 'xs' ? 'text-sm font-semibold' : 'text-xl sm:text-2xl font-normal'
+              } opacity-70`}
+            >
               ?
             </span>
           )}
@@ -122,7 +135,13 @@ export const CardComponent: React.FC<CardComponentProps> = ({
 
         {/* 表向きのオープンバッジ */}
         {card.isOpen && (
-          <div className="absolute bottom-1 right-1 text-[8px] px-1 bg-emerald-500/15 text-emerald-600 rounded font-bold border border-emerald-500/20">
+          <div
+            className={`absolute font-bold border ${
+              size === 'xs'
+                ? 'bottom-0.5 right-0.5 text-[6px] px-0.5 border-emerald-500/10'
+                : 'bottom-1 right-1 text-[8px] px-1 border-emerald-500/20'
+            } bg-emerald-500/15 text-emerald-600 rounded`}
+          >
             OPEN
           </div>
         )}
