@@ -166,4 +166,26 @@ test.describe('アルゴ（algo）Web対戦システム E2E シナリオ検証',
     await expect(page.locator('[data-testid="btn-draw-card"]')).toBeVisible();
     await page.screenshot({ path: 'e2e/screenshots/16-responsive-mobile.png' });
   });
+
+  test('シナリオ 6 (RESPONSIVE-MOBILE-SETUP): モバイル(375x667)でのSetup画面1画面完結・スクロール不要レイアウト検証 (Issue #49)', async ({ page }) => {
+    // モバイルビューポート (iPhone SE: 375x667) に設定
+    await page.setViewportSize({ width: 375, height: 667 });
+
+    // セットアップ画面の主要要素がすべて表示されていることを確認
+    await expect(page.locator('[data-testid="user-id-badge"]')).toBeVisible();
+    await expect(page.locator('[data-testid="btn-select-player-count-2"]')).toBeVisible();
+    await expect(page.locator('[data-testid="btn-select-time-limit-30"]')).toBeVisible();
+    await expect(page.locator('[data-testid="btn-select-difficulty-normal"]')).toBeVisible();
+    await expect(page.locator('[data-testid="btn-setup-rules"]')).toBeVisible();
+    await expect(page.locator('[data-testid="btn-start-game"]')).toBeVisible();
+
+    // 縦スクロールが発生していないことを検証 (scrollHeight <= clientHeight)
+    const isScrollable = await page.evaluate(() => {
+      return document.documentElement.scrollHeight > window.innerHeight;
+    });
+    expect(isScrollable).toBe(false);
+
+    // モバイルセットアップ画面のスクリーンショットを保存
+    await page.screenshot({ path: 'e2e/screenshots/17-mobile-setup-fit.png' });
+  });
 });
