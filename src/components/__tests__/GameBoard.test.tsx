@@ -1101,4 +1101,48 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(html).toContain('data-testid="player-hand-player-1"');
     });
   });
+
+  describe('初心者向け初期値およびチュートリアル機能 (Issue #41)', () => {
+    it('初期フェーズ SETUP でチュートリアルボタン（btn-setup-tutorial）が表示される', () => {
+      const html = renderToString(<GameBoard />);
+      expect(html).toContain('data-testid="btn-setup-tutorial"');
+      expect(html).toContain('チュートリアル');
+      // デフォルトで「初級：気楽に推理」および「無制限（じっくり思考）」が表示されること
+      expect(html).toContain('初級：気楽に推理');
+      expect(html).toContain('無制限（じっくり思考）');
+      expect(html).toContain('おすすめ（初心者向け）');
+    });
+
+    it('対戦盤面ヘッダーにチュートリアルボタン（btn-header-tutorial）が表示される', () => {
+      const html = renderToString(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_TURN_START',
+            players: [
+              {
+                id: 'p1',
+                name: 'あなた',
+                isHuman: true,
+                avatarColor: 'from-blue-500 to-indigo-600',
+                isEliminated: false,
+                cards: [],
+              },
+              {
+                id: 'cpu-1',
+                name: 'CPU アル',
+                isHuman: false,
+                avatarColor: 'from-amber-400 to-yellow-600',
+                isEliminated: false,
+                cards: [],
+              },
+            ],
+            activePlayerIndex: 0,
+          }}
+        />
+      );
+
+      expect(html).toContain('data-testid="btn-header-tutorial"');
+      expect(html).toContain('data-testid="btn-open-rules"');
+    });
+  });
 });
