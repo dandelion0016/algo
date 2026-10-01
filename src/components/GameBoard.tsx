@@ -18,6 +18,7 @@ import { GameLog } from './GameLog';
 import { RuleGuideModal } from './RuleGuideModal';
 import { SetupModal } from './SetupModal';
 import { ConfirmModal } from './ConfirmModal';
+import { ResultModal } from './ResultModal';
 import { useUserSession } from '../hooks/useUserSession';
 import {
   Layers,
@@ -111,6 +112,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   }));
 
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
+  const [isResultModalOpen, setIsResultModalOpen] = useState(true);
   const [isManualPaused, setIsManualPaused] = useState(false);
   const [cpuStatusMessage, setCpuStatusMessage] = useState<string>('');
   const [timeUpBanner, setTimeUpBanner] = useState<string | null>(initialTimeUpBanner);
@@ -158,9 +160,17 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       setCpuStatusMessage('');
       setIsManualPaused(false);
       setTimeUpBanner(null);
+      setIsResultModalOpen(true);
     },
     [gameState.playerCount, gameState.difficulty, gameState.timeLimit, userId]
   );
+
+  // GAME_OVER 遷移時に決着モーダルを自動オープン
+  useEffect(() => {
+    if (gameState.phase === 'GAME_OVER') {
+      setIsResultModalOpen(true);
+    }
+  }, [gameState.phase]);
 
   // タイムアップ警告バナーの自動消去タイマー（6秒後に消去）
   useEffect(() => {
@@ -1197,7 +1207,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               )}
 
               {gameState.phase === 'GAME_OVER' && (
-                <div className="p-4 bg-gradient-to-br from-algo-yellow/40 to-algo-blue/20 border border-amber-300 rounded-2xl space-y-2 text-center shadow-md">
+                <div className="p-4 bg-gradient-to-br from-algo-yellow/40 to-algo-blue/20 border border-amber-300 rounded-2xl space-y-2.5 text-center shadow-md">
                   <div className="w-10 h-10 mx-auto rounded-full bg-amber-400 text-slate-950 flex items-center justify-center shadow-md">
                     <Trophy className="w-6 h-6" />
                   </div>
@@ -1206,12 +1216,22 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                       ? '🎉 おめでとうございます！あなたの完全勝利！'
                       : `💀 ${gameState.winner?.name} の勝利！`}
                   </h4>
-                  <button
-                    onClick={() => initializeGame()}
-                    className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black text-xs shadow-md transition-all"
-                  >
-                    もう一度対戦する
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsResultModalOpen(true)}
+                      className="flex-1 py-2.5 px-3 rounded-xl bg-algo-blue hover:bg-algo-blue-dark text-white font-black text-xs shadow-sm transition-all"
+                    >
+                      🏆 戦績サマリを表示
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => initializeGame()}
+                      className="flex-1 py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black text-xs shadow-sm transition-all"
+                    >
+                      もう一度対戦する
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -1311,6 +1331,21 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         }}
         onConfirm={handleConfirmModalAction}
         onCancel={handleCloseConfirmModal}
+      />
+
+      {/* SCR-006: 決着リザルト＆祝祭演出モーダル */}
+      <ResultModal
+        isOpen={gameState.phase === 'GAME_OVER' && isResultModalOpen}
+        winner={gameState.winner}
+        humanPlayer={humanPlayer || null}
+        players={gameState.players}
+        logs={gameState.logs}
+        playerCount={gameState.playerCount}
+        difficulty={gameState.difficulty}
+        timeLimit={gameState.timeLimit}
+        onPlayAgain={() => initializeGame()}
+        onReturnSetup={() => setGameState((prev) => ({ ...prev, phase: 'SETUP' }))}
+        onClose={() => setIsResultModalOpen(false)}
       />
     </div>
   );
