@@ -182,4 +182,61 @@ describe('AttackModal Component (SCR-004 & Issue #17: data-testid and a11y)', ()
       expect(onConfirmGuess).not.toHaveBeenCalled();
     });
   });
+
+  describe('Issue #42: 初心者向け推理候補アシスト表示', () => {
+    it('possibleNumbers と assistEnabled が有効な時、候補範囲ヒントが表示される', () => {
+      const html = renderToString(
+        <AttackModal
+          targetPlayerName="相手"
+          targetIndex={1}
+          targetColor="black"
+          onConfirmGuess={vi.fn()}
+          onCancel={vi.fn()}
+          possibleNumbers={[3, 4, 5, 6]}
+          assistEnabled={true}
+        />
+      );
+
+      expect(html).toContain('data-testid="attack-assist-hint"');
+      expect(html).toContain('3〜6');
+      expect(html).toMatch(/4<!-- -->通り|\(4通り\)/);
+    });
+
+    it('候補に含まれない数字ボタンに data-candidate-out="true" および「候補外」が表示される', () => {
+      const html = renderToString(
+        <AttackModal
+          targetPlayerName="相手"
+          targetIndex={1}
+          targetColor="black"
+          onConfirmGuess={vi.fn()}
+          onCancel={vi.fn()}
+          possibleNumbers={[3, 4, 5, 6]}
+          assistEnabled={true}
+        />
+      );
+
+      expect(html).toContain('data-testid="btn-guess-num-3"');
+      expect(html).toMatch(/data-testid="btn-guess-num-0"[^>]*data-candidate-out="true"/);
+      expect(html).toMatch(/data-testid="btn-guess-num-8"[^>]*data-candidate-out="true"/);
+      expect(html).toContain('候補外');
+    });
+
+    it('assistEnabled={false} の時は候補範囲ヒントや候補外表示が無効化される', () => {
+      const html = renderToString(
+        <AttackModal
+          targetPlayerName="相手"
+          targetIndex={1}
+          targetColor="black"
+          onConfirmGuess={vi.fn()}
+          onCancel={vi.fn()}
+          possibleNumbers={[3, 4, 5, 6]}
+          assistEnabled={false}
+        />
+      );
+
+      expect(html).not.toContain('data-testid="attack-assist-hint"');
+      expect(html).not.toContain('data-candidate-out="true"');
+      expect(html).not.toContain('候補外');
+    });
+  });
 });

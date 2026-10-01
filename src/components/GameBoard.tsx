@@ -11,6 +11,7 @@ import {
   getNextActivePlayerIndex,
   maskCardForPlayer,
 } from '../lib/algoEngine';
+import { getPossibleNumbersForCard, formatCandidateRange } from '../lib/candidateAssist';
 import { decideMultiCpuAttack, decideMultiCpuContinue } from '../lib/cpuAI';
 import { CardComponent } from './CardComponent';
 import { AttackModal } from './AttackModal';
@@ -170,6 +171,25 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const [cpuStatusMessage, setCpuStatusMessage] = useState<string>('');
   const [timeUpBanner, setTimeUpBanner] = useState<string | null>(initialTimeUpBanner);
   const [isMobileLogOpen, setIsMobileLogOpen] = useState(false);
+  // 初心者向け推理候補アシストの有効状態（Issue #42: デフォルト true）
+  const [isAssistEnabled, setIsAssistEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('algo_assist_enabled');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleAssist = useCallback(() => {
+    setIsAssistEnabled((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('algo_assist_enabled', String(next));
+      } catch {}
+      return next;
+    });
+  }, []);
 
   // CPUアタック結果確認モーダル用状態と非同期リゾルバ
   const [cpuAttackResult, setCpuAttackResult] = useState<CpuAttackResultData | null>(null);
@@ -1170,6 +1190,23 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             )}
 
             <button
+              type="button"
+              data-testid="btn-toggle-assist"
+              onClick={toggleAssist}
+              aria-label={`初心者アシスト表示: ${isAssistEnabled ? 'ON' : 'OFF'}`}
+              aria-pressed={isAssistEnabled}
+              className={`flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border text-[11px] sm:text-xs font-bold transition-all shadow-2xs ${
+                isAssistEnabled
+                  ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 ring-1 ring-emerald-200'
+                  : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'
+              }`}
+              title={isAssistEnabled ? '初心者アシストON（クリックでOFF）' : '初心者アシストOFF（クリックでON）'}
+            >
+              <span className="text-xs" aria-hidden="true">🔰</span>
+              <span>アシスト {isAssistEnabled ? 'ON' : 'OFF'}</span>
+            </button>
+
+            <button
               data-testid="btn-header-tutorial"
               onClick={() => setIsTutorialOpen(true)}
               className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-algo-blue/30 bg-algo-blue-light/30 hover:bg-algo-blue-light/60 text-algo-navy text-[11px] sm:text-xs font-bold transition-all shadow-2xs"
@@ -1299,28 +1336,45 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                   </div>
 
                   <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-2 py-0.5 sm:py-1 min-h-14 sm:min-h-20 lg:min-h-24">
-                    {opp.cards.map((card, idx) => (
-                      <CardComponent
-                        key={card.id}
-                        card={maskCardForPlayer(card, false)}
-                        isOwner={false}
-                        size={opponents.length === 1 ? 'sm' : 'xs'}
-                        label={`#${idx + 1}`}
-                        testId={`opponent-card-${idx}`}
-                        isEliminated={opp.isEliminated}
-                        isSelectable={
-                          activePlayer?.isHuman &&
-                          gameState.phase === 'PLAYER_SELECT_TARGET' &&
-                          !opp.isEliminated &&
-                          !card.isOpen
-                        }
-                        isSelected={
-                          gameState.selectedTarget?.playerId === opp.id &&
-                          gameState.selectedTarget?.cardIndex === idx
-                        }
-                        onClick={() => handleSelectTargetCard(opp.id, idx)}
-                      />
-                    ))}
+                    {opp.cards.map((card, idx) => {
+                      const candidateHint =
+                        isAssistEnabled && !card.isOpen && !opp.isEliminated
+                          ? formatCandidateRange(
+                              getPossibleNumbersForCard({
+                                targetIndex: idx,
+                                targetHand: opp.cards,
+                                allPlayers: gameState.players,
+                                drawnCard: gameState.drawnCard,
+                                logs: gameState.logs,
+                                targetPlayerId: opp.id,
+                              })
+                            )
+                          : undefined;
+
+                      return (
+                        <CardComponent
+                          key={card.id}
+                          card={maskCardForPlayer(card, false)}
+                          isOwner={false}
+                          size={opponents.length === 1 ? 'sm' : 'xs'}
+                          label={`#${idx + 1}`}
+                          testId={`opponent-card-${idx}`}
+                          candidateHint={candidateHint}
+                          isEliminated={opp.isEliminated}
+                          isSelectable={
+                            activePlayer?.isHuman &&
+                            gameState.phase === 'PLAYER_SELECT_TARGET' &&
+                            !opp.isEliminated &&
+                            !card.isOpen
+                          }
+                          isSelected={
+                            gameState.selectedTarget?.playerId === opp.id &&
+                            gameState.selectedTarget?.cardIndex === idx
+                          }
+                          onClick={() => handleSelectTargetCard(opp.id, idx)}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -1596,6 +1650,19 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             }))
           }
           disabledNumbers={targetKnownNumbers}
+          possibleNumbers={
+            selectedTargetPlayer
+              ? getPossibleNumbersForCard({
+                  targetIndex: gameState.selectedTarget.cardIndex,
+                  targetHand: selectedTargetPlayer.cards,
+                  allPlayers: gameState.players,
+                  drawnCard: gameState.drawnCard,
+                  logs: gameState.logs,
+                  targetPlayerId: selectedTargetPlayer.id,
+                })
+              : undefined
+          }
+          assistEnabled={isAssistEnabled}
         />
       )}
 
