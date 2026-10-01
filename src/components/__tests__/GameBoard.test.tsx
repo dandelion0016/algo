@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { renderToString } from 'react-dom/server';
-import { GameBoard } from '../GameBoard';
+import {
+  GameBoard,
+  getTimerColorClass,
+  getProgressBarColorClass,
+  calculateProgressPercentage,
+  TIME_UP_MESSAGE,
+} from '../GameBoard';
 import * as useUserSessionModule from '../../hooks/useUserSession';
 import { createDeck, setupGamePlayers, insertCardInOrder, isAllOpen, getNextActivePlayerIndex } from '../../lib/algoEngine';
 import { Card, GameState, AttackLog } from '../../types/game';
@@ -306,6 +312,229 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(badgeClass).toContain('text-rose-600');
       expect(badgeClass).toContain('animate-pulse');
       expect(badgeClass).toContain('ring-rose-200');
+    });
+  });
+
+  describe('持ち時間タイマー警告演出 & プログレスバー & タイムアップ通知 (Issue #15)', () => {
+    describe('タイマー警告ボタンスタイル (getTimerColorClass)', () => {
+      it('残り10秒以上（30秒、20秒、10秒）は通常スカイブルー表示となりパルス点滅しない', () => {
+        [30, 20, 10].forEach((sec) => {
+          const className = getTimerColorClass(sec, false);
+          expect(className).toContain('bg-algo-blue-light/60');
+          expect(className).toContain('border-algo-blue/30');
+          expect(className).toContain('text-algo-navy');
+          expect(className).not.toContain('animate-pulse');
+          expect(className).not.toContain('bg-amber-50');
+          expect(className).not.toContain('bg-rose-50');
+        });
+      });
+
+      it('残り10秒未満（9秒〜6秒）はイエロー/アンバー警告表示となりパルス点滅しない', () => {
+        [9, 8, 7, 6].forEach((sec) => {
+          const className = getTimerColorClass(sec, false);
+          expect(className).toContain('bg-amber-50');
+          expect(className).toContain('border-amber-300');
+          expect(className).toContain('text-amber-700');
+          expect(className).not.toContain('animate-pulse');
+          expect(className).not.toContain('bg-rose-50');
+          expect(className).not.toContain('bg-algo-blue-light/60');
+        });
+      });
+
+      it('残り5秒未満（5秒〜1秒）はローズレッド危険表示かつanimate-pulseおよびring-2 ring-rose-200で点滅する', () => {
+        [5, 4, 3, 2, 1].forEach((sec) => {
+          const className = getTimerColorClass(sec, false);
+          expect(className).toContain('bg-rose-50');
+          expect(className).toContain('border-rose-300');
+          expect(className).toContain('text-rose-600');
+          expect(className).toContain('animate-pulse');
+          expect(className).toContain('ring-2 ring-rose-200');
+          expect(className).not.toContain('bg-amber-50');
+          expect(className).not.toContain('bg-algo-blue-light/60');
+        });
+      });
+
+      it('タイマー一時停止中（isTimerPaused = true）はアンバー点滅表示（PAUSEDスタイル）となる', () => {
+        const className = getTimerColorClass(15, true);
+        expect(className).toContain('bg-amber-50');
+        expect(className).toContain('border-amber-300');
+        expect(className).toContain('text-amber-700');
+        expect(className).toContain('ring-2 ring-amber-200');
+        expect(className).toContain('animate-pulse');
+      });
+    });
+
+    describe('タイマープログレスバーカラー (getProgressBarColorClass)', () => {
+      it('残り10秒以上は bg-algo-blue となる', () => {
+        expect(getProgressBarColorClass(30, false)).toBe('bg-algo-blue');
+        expect(getProgressBarColorClass(15, false)).toBe('bg-algo-blue');
+        expect(getProgressBarColorClass(10, false)).toBe('bg-algo-blue');
+      });
+
+      it('残り10秒未満（9秒〜6秒）は bg-amber-400 となる', () => {
+        expect(getProgressBarColorClass(9, false)).toBe('bg-amber-400');
+        expect(getProgressBarColorClass(6, false)).toBe('bg-amber-400');
+      });
+
+      it('残り5秒未満（5秒〜1秒）は bg-rose-500 となる', () => {
+        expect(getProgressBarColorClass(5, false)).toBe('bg-rose-500');
+        expect(getProgressBarColorClass(1, false)).toBe('bg-rose-500');
+      });
+
+      it('タイマー一時停止中（isTimerPaused = true）は bg-amber-400 となる', () => {
+        expect(getProgressBarColorClass(25, true)).toBe('bg-amber-400');
+        expect(getProgressBarColorClass(4, true)).toBe('bg-amber-400');
+      });
+    });
+
+    describe('プログレスバー割合計算 (calculateProgressPercentage)', () => {
+      it('30秒持ち時間時の残り時間割合（%）が正しく計算される', () => {
+        expect(calculateProgressPercentage(30, 30)).toBe(100);
+        expect(calculateProgressPercentage(15, 30)).toBe(50);
+        expect(calculateProgressPercentage(6, 30)).toBe(20);
+        expect(calculateProgressPercentage(0, 30)).toBe(0);
+      });
+
+      it('15秒持ち時間時の残り時間割合（%）が正しく計算される', () => {
+        expect(calculateProgressPercentage(15, 15)).toBe(100);
+        expect(calculateProgressPercentage(7.5, 15)).toBe(50);
+        expect(calculateProgressPercentage(0, 15)).toBe(0);
+      });
+
+      it('境界値（負の秒数や超過秒数、無制限0秒）が安全にハンドリングされる', () => {
+        expect(calculateProgressPercentage(-5, 30)).toBe(0);
+        expect(calculateProgressPercentage(35, 30)).toBe(100);
+        expect(calculateProgressPercentage(0, 0)).toBe(100);
+      });
+    });
+
+    describe('GameBoard コンポーネントの対戦中レンダリング検証', () => {
+      const mockPlayers = [
+        {
+          id: 'test_user_1',
+          name: 'あなた',
+          isHuman: true,
+          cards: [
+            { id: 'b-1', color: 'black' as const, number: 1, isOpen: false },
+            { id: 'w-2', color: 'white' as const, number: 2, isOpen: false },
+          ],
+          isEliminated: false,
+          avatarColor: 'from-blue-500 to-indigo-600',
+        },
+        {
+          id: 'cpu-1',
+          name: 'CPU 1',
+          isHuman: false,
+          cards: [
+            { id: 'b-5', color: 'black' as const, number: 5, isOpen: false },
+            { id: 'w-8', color: 'white' as const, number: 8, isOpen: false },
+          ],
+          isEliminated: false,
+          avatarColor: 'from-amber-500 to-orange-600',
+        },
+      ];
+
+      it('残り20秒（10秒以上）の盤面で、通常スカイブルータイマーおよびプログレスバー（青）がレンダリングされる', () => {
+        const html = renderToString(
+          <GameBoard
+            initialState={{
+              phase: 'PLAYER_TURN_START',
+              timeLimit: 30,
+              remainingTime: 20,
+              players: mockPlayers,
+              activePlayerIndex: 0,
+            }}
+          />
+        );
+
+        expect(html).toContain('data-testid="timer-display"');
+        expect(html).toContain('残り 20 秒');
+        expect(html).toContain('bg-algo-blue-light/60');
+        expect(html).toContain('data-testid="timer-progress-bar"');
+        expect(html).toContain('bg-algo-blue');
+        expect(html).toContain('role="progressbar"');
+        expect(html).toContain('aria-valuenow="20"');
+      });
+
+      it('残り8秒（10秒未満）の盤面で、イエロー/アンバー警告タイマーおよびプログレスバー（黄）がレンダリングされる', () => {
+        const html = renderToString(
+          <GameBoard
+            initialState={{
+              phase: 'PLAYER_TURN_START',
+              timeLimit: 30,
+              remainingTime: 8,
+              players: mockPlayers,
+              activePlayerIndex: 0,
+            }}
+          />
+        );
+
+        expect(html).toContain('data-testid="timer-display"');
+        expect(html).toContain('残り 8 秒');
+        expect(html).toContain('bg-amber-50');
+        expect(html).toContain('text-amber-700');
+        expect(html).toContain('data-testid="timer-progress-bar"');
+        expect(html).toContain('bg-amber-400');
+      });
+
+      it('残り3秒（5秒未満）の盤面で、ローズレッド危険タイマー（点滅）およびプログレスバー（赤）がレンダリングされる', () => {
+        const html = renderToString(
+          <GameBoard
+            initialState={{
+              phase: 'PLAYER_TURN_START',
+              timeLimit: 30,
+              remainingTime: 3,
+              players: mockPlayers,
+              activePlayerIndex: 0,
+            }}
+          />
+        );
+
+        expect(html).toContain('data-testid="timer-display"');
+        expect(html).toContain('残り 3 秒');
+        expect(html).toContain('bg-rose-50');
+        expect(html).toContain('text-rose-600');
+        expect(html).toContain('animate-pulse');
+        expect(html).toContain('data-testid="timer-progress-bar"');
+        expect(html).toContain('bg-rose-500');
+      });
+
+      it('タイムアップ通知メッセージのレンダリングが正常に行われる', () => {
+        const html = renderToString(
+          <GameBoard
+            initialState={{
+              phase: 'PLAYER_TURN_START',
+              timeLimit: 30,
+              remainingTime: 30,
+              players: mockPlayers,
+              activePlayerIndex: 0,
+            }}
+            initialTimeUpBanner={TIME_UP_MESSAGE}
+          />
+        );
+
+        expect(html).toContain('data-testid="timeup-banner"');
+        expect(html).toContain('role="alert"');
+        expect(html).toContain('⚠️ TIME UP! 制限時間を超過したため、引いたカードが強制オープンされました');
+      });
+
+      it('タイムアップバナーがない場合はタイムアップバナーが描画されない', () => {
+        const html = renderToString(
+          <GameBoard
+            initialState={{
+              phase: 'PLAYER_TURN_START',
+              timeLimit: 30,
+              remainingTime: 30,
+              players: mockPlayers,
+              activePlayerIndex: 0,
+            }}
+            initialTimeUpBanner={null}
+          />
+        );
+
+        expect(html).not.toContain('data-testid="timeup-banner"');
+        expect(html).not.toContain(TIME_UP_MESSAGE);
+      });
     });
   });
 });

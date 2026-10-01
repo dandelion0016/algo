@@ -33,10 +33,68 @@ import {
   Flame,
 } from 'lucide-react';
 
-export const GameBoard: React.FC = () => {
+/**
+ * 持ち時間タイマー演出のボタンスタイルクラス（4.2節、Issue #15）
+ * - PAUSED: アンバー点滅
+ * - 残り5秒未満（5秒〜1秒）: ローズレッド点滅（animate-pulse, ring-2 ring-rose-200）
+ * - 残り10秒未満（9秒〜6秒）: イエロー/アンバー警告表示
+ * - 残り10秒以上: スカイブルー通常表示
+ */
+export const getTimerColorClass = (remainingTime: number, isTimerPaused: boolean): string => {
+  if (isTimerPaused) {
+    return 'bg-amber-50 border-amber-300 text-amber-700 ring-2 ring-amber-200 animate-pulse hover:bg-amber-100';
+  }
+  if (remainingTime <= 5) {
+    return 'bg-rose-50 border-rose-300 text-rose-600 animate-pulse ring-2 ring-rose-200 hover:bg-rose-100';
+  }
+  if (remainingTime < 10) {
+    return 'bg-amber-50 border-amber-300 text-amber-700 ring-1 ring-amber-200 hover:bg-amber-100';
+  }
+  return 'bg-algo-blue-light/60 border-algo-blue/30 text-algo-navy hover:bg-algo-blue-light/80';
+};
+
+/**
+ * タイマープログレスバーのカラークラス
+ */
+export const getProgressBarColorClass = (remainingTime: number, isTimerPaused: boolean): string => {
+  if (isTimerPaused) {
+    return 'bg-amber-400';
+  }
+  if (remainingTime <= 5) {
+    return 'bg-rose-500';
+  }
+  if (remainingTime < 10) {
+    return 'bg-amber-400';
+  }
+  return 'bg-algo-blue';
+};
+
+/**
+ * 持ち時間に対する残り時間の割合（%）を計算（0〜100）
+ */
+export const calculateProgressPercentage = (remainingTime: number, timeLimit: number): number => {
+  if (timeLimit <= 0) return 100;
+  return Math.max(0, Math.min(100, (remainingTime / timeLimit) * 100));
+};
+
+/**
+ * タイムアップ時の警告メッセージ定数
+ */
+export const TIME_UP_MESSAGE =
+  '⚠️ TIME UP! 制限時間を超過したため、引いたカードが強制オープンされました';
+
+export interface GameBoardProps {
+  initialState?: Partial<GameState>;
+  initialTimeUpBanner?: string | null;
+}
+
+export const GameBoard: React.FC<GameBoardProps> = ({
+  initialState,
+  initialTimeUpBanner = null,
+}) => {
   const { userId } = useUserSession();
 
-  const [gameState, setGameState] = useState<GameState>({
+  const [gameState, setGameState] = useState<GameState>(() => ({
     playerCount: 2,
     difficulty: 'normal',
     timeLimit: 30,
@@ -49,11 +107,13 @@ export const GameBoard: React.FC = () => {
     selectedTarget: null,
     logs: [],
     winner: null,
-  });
+    ...initialState,
+  }));
 
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
   const [isManualPaused, setIsManualPaused] = useState(false);
   const [cpuStatusMessage, setCpuStatusMessage] = useState<string>('');
+  const [timeUpBanner, setTimeUpBanner] = useState<string | null>(initialTimeUpBanner);
 
   // HITL確認モーダル状態 (SCR-008)
   const [confirmModal, setConfirmModal] = useState<{
@@ -97,9 +157,20 @@ export const GameBoard: React.FC = () => {
       });
       setCpuStatusMessage('');
       setIsManualPaused(false);
+      setTimeUpBanner(null);
     },
     [gameState.playerCount, gameState.difficulty, gameState.timeLimit, userId]
   );
+
+  // タイムアップ警告バナーの自動消去タイマー（6秒後に消去）
+  useEffect(() => {
+    if (timeUpBanner) {
+      const timer = setTimeout(() => {
+        setTimeUpBanner(null);
+      }, 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [timeUpBanner]);
 
   // ゲームが進行中（未決着かつセットアップ以外）かどうかの判定
   const isGameInProgress =
@@ -370,6 +441,7 @@ export const GameBoard: React.FC = () => {
         if (nextRemainingTime <= 0) {
           // 時間切れ（0秒到達）強制オープンペナルティ処理
           clearInterval(interval);
+          setTimeUpBanner(TIME_UP_MESSAGE);
           const playerIdx = prev.players.findIndex((p) => p.isHuman);
           const updatedPlayers = [...prev.players];
 
@@ -816,41 +888,70 @@ export const GameBoard: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* カウントダウンタイマー表示 */}
+            {/* カウントダウンタイマー表示 ＆ プログレスバー */}
             {gameState.timeLimit > 0 && activePlayer?.isHuman && (
-              <button
-                type="button"
-                data-testid="timer-display"
-                onClick={() => setIsManualPaused((prev) => !prev)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-black text-xs transition-all cursor-pointer select-none ${
-                  isTimerPaused
-                    ? 'bg-amber-50 border-amber-300 text-amber-700 ring-2 ring-amber-200 animate-pulse hover:bg-amber-100'
-                    : gameState.remainingTime <= 5
-                    ? 'bg-rose-50 border-rose-300 text-rose-600 animate-pulse ring-2 ring-rose-200 hover:bg-rose-100'
-                    : 'bg-algo-blue-light/60 border-algo-blue/30 text-algo-navy hover:bg-algo-blue-light/80'
-                }`}
-                title={isTimerPaused ? 'クリックでタイマー再開 (Resume)' : 'クリックでタイマー一時停止 (Pause)'}
-                aria-label={
-                  isTimerPaused
-                    ? 'タイマー一時停止中 (クリックで再開)'
-                    : `残り ${gameState.remainingTime} 秒 (クリックで一時停止)`
-                }
-              >
-                {isTimerPaused ? (
-                  <>
-                    <span className="text-xs" aria-hidden="true">⏸️</span>
-                    <span className="tracking-wider">PAUSED</span>
-                    <span className="text-[11px] text-amber-600 font-bold">({gameState.remainingTime}秒)</span>
-                  </>
-                ) : (
-                  <>
-                    <Clock
-                      className={`w-3.5 h-3.5 ${gameState.remainingTime <= 5 ? 'text-rose-500' : 'text-algo-blue'}`}
-                    />
-                    <span>残り {gameState.remainingTime} 秒</span>
-                  </>
-                )}
-              </button>
+              <div className="flex flex-col gap-1 items-stretch">
+                <button
+                  type="button"
+                  data-testid="timer-display"
+                  onClick={() => setIsManualPaused((prev) => !prev)}
+                  className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border font-black text-xs transition-all cursor-pointer select-none ${getTimerColorClass(
+                    gameState.remainingTime,
+                    isTimerPaused
+                  )}`}
+                  title={isTimerPaused ? 'クリックでタイマー再開 (Resume)' : 'クリックでタイマー一時停止 (Pause)'}
+                  aria-label={
+                    isTimerPaused
+                      ? 'タイマー一時停止中 (クリックで再開)'
+                      : `残り ${gameState.remainingTime} 秒 (クリックで一時停止)`
+                  }
+                >
+                  {isTimerPaused ? (
+                    <>
+                      <span className="text-xs" aria-hidden="true">⏸️</span>
+                      <span className="tracking-wider">PAUSED</span>
+                      <span className="text-[11px] text-amber-600 font-bold">({gameState.remainingTime}秒)</span>
+                    </>
+                  ) : (
+                    <>
+                      <Clock
+                        className={`w-3.5 h-3.5 ${
+                          gameState.remainingTime <= 5
+                            ? 'text-rose-500'
+                            : gameState.remainingTime < 10
+                            ? 'text-amber-500'
+                            : 'text-algo-blue'
+                        }`}
+                      />
+                      <span>残り {gameState.remainingTime} 秒</span>
+                    </>
+                  )}
+                </button>
+                {/* タイマープログレスバー（視覚的ゲージ） */}
+                <div
+                  data-testid="timer-progress-bar-container"
+                  className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden"
+                  title={`残り時間: ${gameState.remainingTime}/${gameState.timeLimit}秒`}
+                >
+                  <div
+                    data-testid="timer-progress-bar"
+                    className={`h-full transition-all duration-300 ease-linear rounded-full ${getProgressBarColorClass(
+                      gameState.remainingTime,
+                      isTimerPaused
+                    )}`}
+                    style={{
+                      width: `${calculateProgressPercentage(
+                        gameState.remainingTime,
+                        gameState.timeLimit
+                      )}%`,
+                    }}
+                    role="progressbar"
+                    aria-valuenow={gameState.remainingTime}
+                    aria-valuemin={0}
+                    aria-valuemax={gameState.timeLimit}
+                  />
+                </div>
+              </div>
             )}
 
             <button
@@ -879,6 +980,31 @@ export const GameBoard: React.FC = () => {
           </div>
         </div>
       </header>
+
+      {/* タイムアップ（0秒到達）警告通知バナー */}
+      {timeUpBanner && (
+        <div
+          data-testid="timeup-banner"
+          role="alert"
+          className="bg-rose-50 border-2 border-rose-300 text-rose-800 px-4 py-3 rounded-2xl shadow-md flex items-center justify-between gap-3 animate-pulse transition-all"
+        >
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+            <span className="font-bold text-xs sm:text-sm">
+              {timeUpBanner}
+            </span>
+          </div>
+          <button
+            type="button"
+            data-testid="close-timeup-banner"
+            onClick={() => setTimeUpBanner(null)}
+            className="text-rose-500 hover:text-rose-700 font-black text-sm p-1 rounded-lg hover:bg-rose-100 transition-colors"
+            aria-label="通知を閉じる"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Main Game Field Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
