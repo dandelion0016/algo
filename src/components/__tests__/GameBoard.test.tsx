@@ -947,4 +947,158 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(html).not.toContain('aria-label="数字 5 (確認済)"');
     });
   });
+
+  describe('Issue #36: モバイル端末での1画面完結レイアウト対応', () => {
+    const mockMobilePlayers: Player[] = [
+      {
+        id: 'player-1',
+        name: 'あなた',
+        isHuman: true,
+        isEliminated: false,
+        avatarColor: 'blue',
+        cards: [
+          { id: 'b-1', color: 'black', number: 1, isOpen: false },
+          { id: 'w-4', color: 'white', number: 4, isOpen: false },
+          { id: 'b-7', color: 'black', number: 7, isOpen: true },
+        ],
+      },
+      {
+        id: 'cpu-1',
+        name: 'CPU 1',
+        isHuman: false,
+        isEliminated: false,
+        avatarColor: 'green',
+        cards: [
+          { id: 'b-3', color: 'black', number: 3, isOpen: false },
+          { id: 'w-6', color: 'white', number: 6, isOpen: false },
+        ],
+      },
+    ];
+
+    it('盤面全体コンテナに100dvhおよびオーバーフロー防止クラスが付与されている', () => {
+      const html = renderToString(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_TURN_START',
+            timeLimit: 30,
+            remainingTime: 30,
+            players: mockMobilePlayers,
+            activePlayerIndex: 0,
+            deck: [{ id: 'w-8', color: 'white', number: 8, isOpen: false }],
+          }}
+        />
+      );
+
+      // モバイルで1画面に収めるためのCSSクラス
+      expect(html).toContain('h-[100dvh]');
+      expect(html).toContain('max-h-[100dvh]');
+      expect(html).toContain('overflow-hidden');
+      expect(html).toContain('lg:h-auto');
+      expect(html).toContain('lg:overflow-visible');
+    });
+
+    it('モバイル向け対戦ログトグルボタン（btn-toggle-log）がレンダリングされる', () => {
+      const mockLogs: AttackLog[] = [
+        {
+          id: 'log-1',
+          attackerId: 'player-1',
+          attackerName: 'あなた',
+          targetPlayerId: 'cpu-1',
+          targetPlayerName: 'CPU 1',
+          targetCardIndex: 0,
+          targetColor: 'black',
+          guessedNumber: 3,
+          isHit: true,
+          timestamp: Date.now(),
+          message: 'あなたの推理が的中！',
+        },
+      ];
+
+      const html = renderToString(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_TURN_START',
+            timeLimit: 30,
+            remainingTime: 30,
+            players: mockMobilePlayers,
+            activePlayerIndex: 0,
+            deck: [{ id: 'w-8', color: 'white', number: 8, isOpen: false }],
+            logs: mockLogs,
+          }}
+        />
+      );
+
+      expect(html).toContain('data-testid="btn-toggle-log"');
+      expect(html).toContain('aria-label="対戦ログを開く (1件)"');
+    });
+
+    it('中央操作エリア（山札・引いたカード・手番ガイダンス）と相手・自身手札がすべてレンダリングされる', () => {
+      const html = renderToString(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_TURN_START',
+            timeLimit: 30,
+            remainingTime: 30,
+            players: mockMobilePlayers,
+            activePlayerIndex: 0,
+            deck: [{ id: 'w-8', color: 'white', number: 8, isOpen: false }],
+          }}
+        />
+      );
+
+      // 相手手札
+      expect(html).toContain('data-testid="player-hand-cpu-1"');
+      // 山札
+      expect(html).toContain('data-testid="btn-draw-card"');
+      // 引いたカードエリア
+      expect(html).toContain('data-testid="drawn-card-area"');
+      // ガイダンスメッセージ
+      expect(html).toContain('data-testid="status-message"');
+      // 自身手札
+      expect(html).toContain('data-testid="player-hand-player-1"');
+      // デスクトップ用ログエリア
+      expect(html).toContain('data-testid="game-log-list"');
+    });
+
+    it('4人対戦時でも相手全員の手札エリアとカードが省スペースで描画される', () => {
+      const fourPlayers: Player[] = [
+        ...mockMobilePlayers,
+        {
+          id: 'cpu-2',
+          name: 'CPU 2',
+          isHuman: false,
+          isEliminated: false,
+          avatarColor: 'purple',
+          cards: [{ id: 'b-2', color: 'black', number: 2, isOpen: false }],
+        },
+        {
+          id: 'cpu-3',
+          name: 'CPU 3',
+          isHuman: false,
+          isEliminated: false,
+          avatarColor: 'amber',
+          cards: [{ id: 'w-5', color: 'white', number: 5, isOpen: false }],
+        },
+      ];
+
+      const html = renderToString(
+        <GameBoard
+          initialState={{
+            playerCount: 4,
+            phase: 'PLAYER_TURN_START',
+            timeLimit: 30,
+            remainingTime: 30,
+            players: fourPlayers,
+            activePlayerIndex: 0,
+            deck: [],
+          }}
+        />
+      );
+
+      expect(html).toContain('data-testid="player-hand-cpu-1"');
+      expect(html).toContain('data-testid="player-hand-cpu-2"');
+      expect(html).toContain('data-testid="player-hand-cpu-3"');
+      expect(html).toContain('data-testid="player-hand-player-1"');
+    });
+  });
 });
