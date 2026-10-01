@@ -125,6 +125,31 @@ Phase 0-B設計書（docs/design/<domain>/...）に基づき、たたき台コ�
 | **セキュリティ** | 権限認可・疑似攻撃検査 | W件 | ✅ ALL PASS | 不正テナントID遮断、監査ログ出力確認 |
 | **SRE・運用** | ヘルスチェック・メトリクス | V件 | ✅ ALL PASS | メトリクス計測、500系エラー集約確認 |
 
+## 📸 受入確認スナップショット（Visual Evidence）
+E2Eテストで採取された画面スナップショットをインラインレンダリングで提示します（Raw GitHub URL使用）。
+
+### 📱 レスポンシブ比較 (PC vs スマホ)
+| デスクトップ (PC: 1280px) | モバイル (スマホ: 375px) |
+| :---: | :---: |
+| <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/14-responsive-pc.png" width="450" alt="PC対戦盤面" /> | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/16-responsive-mobile.png" width="220" alt="モバイル対戦盤面" /> |
+| **PC表示**: 相手手札・山札・自手札がワイドに整列 | **スマホ表示**: 375px幅でカード欠けなく最適化 |
+
+<details>
+<summary><b>🔍 全スナップショット・インラインギャラリー（クリックで展開）</b></summary>
+
+| スナップショット | プレビュー画像 | 検証シナリオ |
+| :--- | :---: | :--- |
+| `01-setup-screen.png` | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/01-setup-screen.png" width="260" alt="設定画面" /> | ゲーム初期設定画面 |
+| `02-game-board-init.png` | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/02-game-board-init.png" width="260" alt="盤面初期化" /> | 対戦開始直後の盤面配置 |
+| `03-rule-guide-modal.png` | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/03-rule-guide-modal.png" width="260" alt="ルールモーダル" /> | 公式ルール解説モーダル |
+| `04-player-drawn-card.png` | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/04-player-drawn-card.png" width="260" alt="ドローカード" /> | ドローカード表示 |
+| `05-attack-modal-opened.png` | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/05-attack-modal-opened.png" width="260" alt="アタックモーダル" /> | アタック数字推理モーダル |
+| `06-attack-result.png` | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/06-attack-result.png" width="260" alt="アタック結果" /> | アタック判定結果・ログ |
+| `13-hitl-confirm-modal.png` | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/13-hitl-confirm-modal.png" width="260" alt="HITLモーダル" /> | HITL確認モーダル |
+| `17-mobile-setup-fit.png` | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/17-mobile-setup-fit.png" width="200" alt="モバイル設定" /> | モバイル設定画面フィット |
+
+</details>
+
 ## 人間ゲートキーパーへのお願い
 上記テスト結果および変更差分をご確認の上、Approve ＆ マージをお願いいたします。
 マージ完了後、次の設計書ギャップ解消タスクへ自律移行します。

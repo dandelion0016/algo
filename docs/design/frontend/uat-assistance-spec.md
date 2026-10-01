@@ -78,24 +78,54 @@ test('プレイヤードローとアタックモーダルの検証', async ({ pa
 
 ## 4. 人間ゲートキーパー向け UAT受入サマリレポート形式
 
-Phase 1 の各トピックブランチPull Request作成時、および `PROJECT_STATUS.md` に以下の形式でエビデンスを自動添付します。
+Phase 1 の各トピックブランチPull Request作成時、CI実行結果（Step Summary / PRコメント）、および `PROJECT_STATUS.md` に以下の形式で視覚的エビデンス（インライン画像）を自動添付・提示します。
+
+GitHub上での視覚的確認を最大化するため、単なるパス文字列ではなく、`https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/<file>.png` を用いた HTML `<img>` タグによるインラインレンダリング、PC/モバイル横並びレスポンシブ比較テーブル、および折りたたみギャラリー（`<details>`）を標準フォーマットとして定義します。
+
+### 4.1 レポートフォーマット標準テンプレート
 
 ```markdown
 ### 📱 実機UAT自動化アシスト・事前検証サマリ（アルゴWeb対戦）
 
-| No | 検証シナリオ | 実行種別 | 結果 | 視覚的エビデンス | 人間確認推奨ポイント |
+#### 📸 レスポンシブ視覚的エビデンス（PC vs モバイル比較）
+
+| デスクトップ (PC: 1280px) | モバイル (スマホ: 375px) |
+| :---: | :---: |
+| <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/14-responsive-pc.png" width="480" alt="PC対戦盤面" /> | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/16-responsive-mobile.png" width="230" alt="モバイル対戦盤面" /> |
+| **PC表示**: 相手手札・山札・自手札がワイドに整列 | **スマホ表示**: 375px幅でカード欠けなく最適化 |
+
+#### 📋 シナリオ検証ステータス一覧
+
+| No | 検証シナリオ | 実行種別 | 結果 | 視覚的エビデンス (プレビュー) | 人間確認推奨ポイント |
 | :---: | :--- | :---: | :---: | :--- | :--- |
-| 1 | 初期セットアップ ＆ 2/3/4人開始 | Playwright | ✅ PASS | `screenshots/02-game-board-init.png` | 人数変更時の手札枚数（4/3/2枚）の並び |
-| 2 | ルール解説モーダル開閉 | Playwright | ✅ PASS | `screenshots/03-rule-guide-modal.png` | 4つのルールの可読性と閉じる動作 |
-| 3 | ドロー ➔ アタック推理モーダル | Playwright | ✅ PASS | `screenshots/05-attack-modal-opened.png` | 確認済み数字のグレーアウト表示感 |
-| 4 | アタック的中 ＆ ステイ分岐 | Playwright | ✅ PASS | `screenshots/06-attack-hit-banner.png` | 的中バナー演出と継続/ステイの選択 |
-| 5 | アタックハズレ ＆ オープンペナルティ | Playwright | ✅ PASS | `screenshots/08-attack-miss-penalty.png` | ドローカードがOPENで手札に入るアニメ |
-| 6 | 持ち時間タイマー ＆ 時間切れ強制 | Playwright | ✅ PASS | `screenshots/10-timeout-forced-open.png` | 5秒前の赤パルス演出と時間切れ自動交代 |
-| 7 | HITL操作ガード（再戦・設定戻り） | Playwright | ✅ PASS | `screenshots/13-hitl-confirm-modal.png` | モーダル表示中のタイマー停止動作 |
-| 8 | マルチデバイス・レスポンシブ | Playwright | ✅ PASS | `screenshots/16-responsive-mobile.png` | スマホ幅（375px）でのカード視認性 |
+| 1 | 初期セットアップ ＆ 2/3/4人開始 | Playwright | ✅ PASS | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/01-setup-screen.png" width="160" alt="セットアップ" /><br>`01-setup-screen.png` | 人数変更時の手札枚数（4/3/2枚）の並び |
+| 2 | 対戦盤面初期化 | Playwright | ✅ PASS | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/02-game-board-init.png" width="160" alt="盤面初期化" /><br>`02-game-board-init.png` | カード並び順（昇順・同数黒左）の初期配置 |
+| 3 | ルール解説モーダル開閉 | Playwright | ✅ PASS | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/03-rule-guide-modal.png" width="160" alt="ルールモーダル" /><br>`03-rule-guide-modal.png` | 4つのルールの可読性と閉じる動作 |
+| 4 | ドロー ➔ アタック推理モーダル | Playwright | ✅ PASS | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/05-attack-modal-opened.png" width="160" alt="アタック推理" /><br>`05-attack-modal-opened.png` | 確認済み数字のグレーアウト表示感 |
+| 5 | アタック判定・結果フィードバック | Playwright | ✅ PASS | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/06-attack-result.png" width="160" alt="アタック結果" /><br>`06-attack-result.png` | 的中/ハズレ演出とログ記録 |
+| 6 | HITL操作ガード（再戦・設定戻り） | Playwright | ✅ PASS | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/13-hitl-confirm-modal.png" width="160" alt="HITLガード" /><br>`13-hitl-confirm-modal.png` | モーダル表示中のタイマー停止動作 |
+| 7 | モバイル初期設定画面フィット | Playwright | ✅ PASS | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/17-mobile-setup-fit.png" width="160" alt="モバイル設定" /><br>`17-mobile-setup-fit.png` | スマホ画面での設定ボタン押しやすさ |
+
+<details>
+<summary><b>🔍 全スナップショット・インラインギャラリー（クリックで展開）</b></summary>
+
+| ファイル名 | プレビュー画像 | 説明 |
+| :--- | :--- | :--- |
+| `01-setup-screen.png` | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/01-setup-screen.png" width="300" /> | ゲーム初期設定画面 |
+| `02-game-board-init.png` | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/02-game-board-init.png" width="300" /> | 対戦開始直後の盤面（プレイヤー手番） |
+| `03-rule-guide-modal.png` | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/03-rule-guide-modal.png" width="300" /> | 公式ルール解説モーダル |
+| `04-player-drawn-card.png` | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/04-player-drawn-card.png" width="300" /> | プレイヤードローカード表示 |
+| `05-attack-modal-opened.png` | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/05-attack-modal-opened.png" width="300" /> | アタック数字推理モーダル（0〜11選択） |
+| `06-attack-result.png` | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/06-attack-result.png" width="300" /> | アタック判定結果とログ反映 |
+| `13-hitl-confirm-modal.png` | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/13-hitl-confirm-modal.png" width="300" /> | 途中離脱防止HITL確認モーダル |
+| `14-responsive-pc.png` | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/14-responsive-pc.png" width="300" /> | PCデスクトップ全体レイアウト |
+| `16-responsive-mobile.png` | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/16-responsive-mobile.png" width="200" /> | モバイル（375px）全体レイアウト |
+| `17-mobile-setup-fit.png` | <img src="https://raw.githubusercontent.com/<owner>/<repo>/<branch>/e2e/screenshots/17-mobile-setup-fit.png" width="200" /> | モバイル設定画面フィット |
+
+</details>
 
 > **💡 人間ゲートキーパー向け実機確認ガイド**:
-> 全8シナリオの自動E2E検証を 100% クリアしています。人間による実機検証では、特に **「No.3 の数字推理モーダルの操作感」** および **「No.6 の持ち時間タイマーのカウントダウン演出」** を重点的にご確認ください。
+> 全シナリオの自動E2E検証を 100% クリアしています。人間による実機検証では、インライン画像をご確認いただいた上で、特に気になるピンポイントの操作感（モーダル開閉、カード選択、タイマー等）のみ実機でご確認ください。
 ```
 
 ---
