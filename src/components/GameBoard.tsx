@@ -21,6 +21,7 @@ import { ConfirmModal } from './ConfirmModal';
 import { ResultModal } from './ResultModal';
 import { TutorialPromptModal } from './TutorialPromptModal';
 import { TutorialModal } from './TutorialModal';
+import { CpuAttackModal, CpuAttackResultData } from './CpuAttackModal';
 import { useUserSession } from '../hooks/useUserSession';
 import {
   Layers,
@@ -170,6 +171,26 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const [timeUpBanner, setTimeUpBanner] = useState<string | null>(initialTimeUpBanner);
   const [isMobileLogOpen, setIsMobileLogOpen] = useState(false);
 
+  // CPUアタック結果確認モーダル用状態と非同期リゾルバ
+  const [cpuAttackResult, setCpuAttackResult] = useState<CpuAttackResultData | null>(null);
+  const cpuAttackResolverRef = useRef<(() => void) | null>(null);
+
+  const waitForCpuAttackOk = useCallback((data: CpuAttackResultData) => {
+    return new Promise<void>((resolve) => {
+      cpuAttackResolverRef.current = resolve;
+      setCpuAttackResult(data);
+    });
+  }, []);
+
+  const handleCpuAttackOk = useCallback(() => {
+    setCpuAttackResult(null);
+    if (cpuAttackResolverRef.current) {
+      const resolve = cpuAttackResolverRef.current;
+      cpuAttackResolverRef.current = null;
+      resolve();
+    }
+  }, []);
+
   // 初回アクセス時のチュートリアル確認モーダル表示チェック
   useEffect(() => {
     try {
@@ -205,6 +226,14 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       diff: Difficulty = gameState.difficulty,
       limit: TimeLimit = gameState.timeLimit
     ) => {
+      // CPU待機中であればリセット解除
+      setCpuAttackResult(null);
+      if (cpuAttackResolverRef.current) {
+        const resolve = cpuAttackResolverRef.current;
+        cpuAttackResolverRef.current = null;
+        resolve();
+      }
+
       const rawDeck = createDeck();
       const currentUserId = userId || 'player';
       const { players, remainingDeck } = setupGamePlayers(rawDeck, count, currentUserId);
@@ -505,6 +534,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       gameState.phase === 'SETUP' ||
       gameState.phase === 'GAME_OVER' ||
       gameState.phase === 'CPU_ACTING' ||
+      gameState.phase === 'PLAYER_TURN_START' ||
+      cpuAttackResult !== null ||
       isTimerPaused
     ) {
       return;
@@ -595,7 +626,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [gameState.phase, gameState.timeLimit, userId, isTimerPaused]);
+  }, [gameState.phase, gameState.timeLimit, userId, isTimerPaused, cpuAttackResult]);
 
   // CPU手番の自律処理（連続アタックループ対応）
   useEffect(() => {
@@ -716,6 +747,18 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
           const activePlayers = currentPlayers.filter((p) => !p.isEliminated);
           if (activePlayers.length === 1) {
+            await waitForCpuAttackOk({
+              attackerName: currentCpu.name,
+              targetPlayerName: targetPlayer.name,
+              targetCardIndex: decision.targetCardIndex,
+              targetColor: targetCard.color,
+              guessedNumber: decision.guessedNumber,
+              isHit: true,
+              actualNumber: targetCard.number,
+              nextAction: 'GAME_OVER',
+            });
+            if (!isMounted) return;
+
             setGameState((prev) => ({
               ...prev,
               deck: currentDeck,
@@ -754,6 +797,19 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               ...prev,
               logs: currentLogs,
             }));
+
+            await waitForCpuAttackOk({
+              attackerName: currentCpu.name,
+              targetPlayerName: targetPlayer.name,
+              targetCardIndex: decision.targetCardIndex,
+              targetColor: targetCard.color,
+              guessedNumber: decision.guessedNumber,
+              isHit: true,
+              actualNumber: targetCard.number,
+              nextAction: 'CONTINUE',
+            });
+            if (!isMounted) return;
+
             setCpuStatusMessage(`${currentCpu.name} はさらにアタックを継続します...`);
 
             // 適切なディレイ（700〜1000ms）を挟んで連続アタックループ
@@ -790,6 +846,30 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             }
 
             const nextIdx = getNextActivePlayerIndex(gameState.activePlayerIndex, currentPlayers);
+            const nextPlayer = currentPlayers[nextIdx];
+            const nextPlayerName = nextPlayer.isHuman ? 'あなた' : nextPlayer.name;
+
+            // 盤面を更新
+            setGameState((prev) => ({
+              ...prev,
+              deck: currentDeck,
+              players: currentPlayers,
+              logs: currentLogs,
+            }));
+
+            await waitForCpuAttackOk({
+              attackerName: currentCpu.name,
+              targetPlayerName: targetPlayer.name,
+              targetCardIndex: decision.targetCardIndex,
+              targetColor: targetCard.color,
+              guessedNumber: decision.guessedNumber,
+              isHit: true,
+              actualNumber: targetCard.number,
+              nextAction: 'STAY',
+              nextPlayerName,
+            });
+            if (!isMounted) return;
+
             const isNextHuman = currentPlayers[nextIdx].isHuman;
 
             setGameState((prev) => ({
@@ -819,6 +899,30 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           }
 
           const nextIdx = getNextActivePlayerIndex(gameState.activePlayerIndex, currentPlayers);
+          const nextPlayer = currentPlayers[nextIdx];
+          const nextPlayerName = nextPlayer.isHuman ? 'あなた' : nextPlayer.name;
+
+          // 引いたカードがオープンされた盤面を即座にUIへ反映
+          setGameState((prev) => ({
+            ...prev,
+            deck: currentDeck,
+            players: currentPlayers,
+            logs: currentLogs,
+          }));
+
+          await waitForCpuAttackOk({
+            attackerName: currentCpu.name,
+            targetPlayerName: targetPlayer.name,
+            targetCardIndex: decision.targetCardIndex,
+            targetColor: targetCard.color,
+            guessedNumber: decision.guessedNumber,
+            isHit: false,
+            actualNumber: targetCard.number,
+            nextAction: 'TURN_END',
+            nextPlayerName,
+          });
+          if (!isMounted) return;
+
           const isNextHuman = currentPlayers[nextIdx].isHuman;
 
           setGameState((prev) => ({
@@ -863,6 +967,28 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       }
 
       const nextIdx = getNextActivePlayerIndex(gameState.activePlayerIndex, currentPlayers);
+      const nextPlayer = currentPlayers[nextIdx];
+      const nextPlayerName = nextPlayer.isHuman ? 'あなた' : nextPlayer.name;
+
+      setGameState((prev) => ({
+        ...prev,
+        deck: currentDeck,
+        players: currentPlayers,
+        logs: currentLogs,
+      }));
+
+      await waitForCpuAttackOk({
+        attackerName: currentCpu.name,
+        targetPlayerName: '相手',
+        targetCardIndex: 0,
+        targetColor: 'black',
+        guessedNumber: 0,
+        isHit: true,
+        nextAction: 'STAY',
+        nextPlayerName,
+      });
+      if (!isMounted) return;
+
       const isNextHuman = currentPlayers[nextIdx].isHuman;
 
       setGameState((prev) => ({
@@ -1500,9 +1626,16 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         onCancel={handleCloseConfirmModal}
       />
 
+      {/* CPUアタック結果確認モーダル */}
+      <CpuAttackModal
+        isOpen={cpuAttackResult !== null}
+        data={cpuAttackResult}
+        onConfirm={handleCpuAttackOk}
+      />
+
       {/* SCR-006: 決着リザルト＆祝祭演出モーダル */}
       <ResultModal
-        isOpen={gameState.phase === 'GAME_OVER' && isResultModalOpen}
+        isOpen={gameState.phase === 'GAME_OVER' && isResultModalOpen && !cpuAttackResult}
         winner={gameState.winner}
         humanPlayer={humanPlayer || null}
         players={gameState.players}

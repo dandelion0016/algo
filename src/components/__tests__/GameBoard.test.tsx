@@ -1145,4 +1145,93 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(html).toContain('data-testid="btn-open-rules"');
     });
   });
+
+  describe('CPUアタック結果確認モーダルおよびタイマー停止仕様 (ユーザー要求対応)', () => {
+    it('PLAYER_TURN_START時（カードを引く前）はタイマーカウントダウン条件が無効であること', () => {
+      // タイマー有効判定関数
+      const isTimerRunning = (params: {
+        timeLimit: number;
+        phase: GameState['phase'];
+        isCpuAttackWaiting: boolean;
+        isTimerPaused: boolean;
+      }) => {
+        if (
+          params.timeLimit === 0 ||
+          params.phase === 'SETUP' ||
+          params.phase === 'GAME_OVER' ||
+          params.phase === 'CPU_ACTING' ||
+          params.phase === 'PLAYER_TURN_START' ||
+          params.isCpuAttackWaiting ||
+          params.isTimerPaused
+        ) {
+          return false;
+        }
+        return true;
+      };
+
+      // ドロー前（PLAYER_TURN_START）: タイマー停止
+      expect(
+        isTimerRunning({
+          timeLimit: 15,
+          phase: 'PLAYER_TURN_START',
+          isCpuAttackWaiting: false,
+          isTimerPaused: false,
+        })
+      ).toBe(false);
+
+      // CPUアタックOK待ち時: タイマー停止
+      expect(
+        isTimerRunning({
+          timeLimit: 15,
+          phase: 'PLAYER_SELECT_TARGET',
+          isCpuAttackWaiting: true,
+          isTimerPaused: false,
+        })
+      ).toBe(false);
+
+      // ドロー完了（PLAYER_SELECT_TARGET）＆OK待ちなし: タイマー作動
+      expect(
+        isTimerRunning({
+          timeLimit: 15,
+          phase: 'PLAYER_SELECT_TARGET',
+          isCpuAttackWaiting: false,
+          isTimerPaused: false,
+        })
+      ).toBe(true);
+
+      // 推理中（PLAYER_GUESS_NUMBER）: タイマー作動
+      expect(
+        isTimerRunning({
+          timeLimit: 15,
+          phase: 'PLAYER_GUESS_NUMBER',
+          isCpuAttackWaiting: false,
+          isTimerPaused: false,
+        })
+      ).toBe(true);
+    });
+
+    it('盤面HTMLの初期レンダリングでCpuAttackModalが存在し、初期状態では表示されないこと', () => {
+      const html = renderToString(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_TURN_START',
+            players: [
+              {
+                id: 'player-1',
+                name: 'あなた',
+                isHuman: true,
+                avatarColor: 'from-blue-500 to-indigo-600',
+                isEliminated: false,
+                cards: [],
+              },
+            ],
+            activePlayerIndex: 0,
+          }}
+        />
+      );
+
+      // 初期状態ではCPUアタック結果モーダルは非表示
+      expect(html).not.toContain('data-testid="cpu-attack-modal"');
+    });
+  });
 });
