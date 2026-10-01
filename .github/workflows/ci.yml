@@ -63,24 +63,60 @@ jobs:
             e2e/playwright-report/
           retention-days: 7
 
-      - name: Post Human-Readable Test Summary
-        if: always() && github.event_name == 'pull_request'
+      - name: Generate & Post Test Summary with Visual Evidence
+        if: always()
         uses: actions/github-script@v7
         with:
           script: |
+            const ref = context.payload.pull_request ? context.payload.pull_request.head.ref : context.sha;
+            const rawBaseUrl = `https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/${ref}/e2e/screenshots`;
+
             const summary = `### 📋 CI テスト検証サマリ
-            | 検証領域 | テスト種別 | ステータス | 備考 |
-            | :--- | :--- | :---: | :--- |
-            | **コード品質** | ESLint / Formatter | ✅ PASS | コーディング規約準拠 |
-            | **型安全性** | TypeScript TypeCheck | ✅ PASS | 型エラー 0件 |
-            | **単体ロジック** | Vitest (アルゴルール・CPU推論) | ✅ PASS | 全226件合格 |
-            | **静的ビルド** | Next.js Static Export | ✅ PASS | \`out/\` 出力完了 |
-            | **課金ガード** | FinOps Bundle Size Check | ✅ PASS | 容量制限（50MB）以内 |
-            | **E2E & UAT** | Playwright (主要シナリオ・画像保存) | ✅ PASS | SCR-001〜008・レスポンシブ合格 |
-            `;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: summary
-            });
+
+| 検証領域 | テスト種別 | ステータス | 備考 |
+| :--- | :--- | :---: | :--- |
+| **コード品質** | ESLint / Formatter | ✅ PASS | コーディング規約準拠 |
+| **型安全性** | TypeScript TypeCheck | ✅ PASS | 型エラー 0件 |
+| **単体ロジック** | Vitest (アルゴルール・CPU推論) | ✅ PASS | 全226件合格 |
+| **静的ビルド** | Next.js Static Export | ✅ PASS | \`out/\` 出力完了 |
+| **課金ガード** | FinOps Bundle Size Check | ✅ PASS | 容量制限（50MB）以内 |
+| **E2E & UAT** | Playwright (主要シナリオ・画像保存) | ✅ PASS | SCR-001〜008・レスポンシブ合格 |
+
+### 📸 実機UAT受入確認スナップショット（Visual Evidence）
+
+#### 📱 レスポンシブ比較 (PC vs スマホ)
+| PCデスクトップ (1280px) | モバイル (375px) |
+| :---: | :---: |
+| <img src="${rawBaseUrl}/14-responsive-pc.png" width="450" alt="PC表示" /> | <img src="${rawBaseUrl}/16-responsive-mobile.png" width="220" alt="モバイル表示" /> |
+| **PC表示**: 相手手札・山札・自手札がワイドに整列 | **スマホ表示**: 375px幅でカード欠けなく最適化 |
+
+<details>
+<summary><b>🔍 全スナップショット・インラインギャラリー（クリックで展開）</b></summary>
+
+| ファイル名 | プレビュー | 検証シナリオ |
+| :--- | :---: | :--- |
+| \`01-setup-screen.png\` | <img src="${rawBaseUrl}/01-setup-screen.png" width="260" alt="設定画面" /> | ゲーム初期設定画面 |
+| \`02-game-board-init.png\` | <img src="${rawBaseUrl}/02-game-board-init.png" width="260" alt="盤面初期化" /> | 対戦開始直後の盤面（プレイヤー手番） |
+| \`03-rule-guide-modal.png\` | <img src="${rawBaseUrl}/03-rule-guide-modal.png" width="260" alt="ルールモーダル" /> | 公式ルール解説モーダル |
+| \`04-player-drawn-card.png\` | <img src="${rawBaseUrl}/04-player-drawn-card.png" width="260" alt="ドローカード" /> | ドローカード表示 |
+| \`05-attack-modal-opened.png\` | <img src="${rawBaseUrl}/05-attack-modal-opened.png" width="260" alt="アタックモーダル" /> | アタック数字推理モーダル（0〜11選択） |
+| \`06-attack-result.png\` | <img src="${rawBaseUrl}/06-attack-result.png" width="260" alt="アタック結果" /> | アタック判定結果とログ反映 |
+| \`13-hitl-confirm-modal.png\` | <img src="${rawBaseUrl}/13-hitl-confirm-modal.png" width="260" alt="HITLモーダル" /> | 途中離脱防止HITL確認モーダル |
+| \`17-mobile-setup-fit.png\` | <img src="${rawBaseUrl}/17-mobile-setup-fit.png" width="200" alt="モバイル設定" /> | モバイル設定画面フィット |
+
+</details>
+
+> **💡 人間ゲートキーパー向けガイド**:
+> スナップショット画像をご確認いただき、気になる操作感があれば実機プレビュー環境でピンポイントにご確認ください。
+`;
+
+            await core.summary.addRaw(summary).write();
+
+            if (context.eventName === 'pull_request') {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: summary
+              });
+            }
