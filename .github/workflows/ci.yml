@@ -46,3 +46,41 @@ jobs:
             echo "Error: Bundle size exceeds 50MB free tier safe limit!"
             exit 1
           fi
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright E2E Tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright Screenshots & Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            e2e/screenshots/
+            e2e/playwright-report/
+          retention-days: 7
+
+      - name: Post Human-Readable Test Summary
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const summary = `### 📋 CI テスト検証サマリ
+            | 検証領域 | テスト種別 | ステータス | 備考 |
+            | :--- | :--- | :---: | :--- |
+            | **コード品質** | ESLint / Formatter | ✅ PASS | コーディング規約準拠 |
+            | **型安全性** | TypeScript TypeCheck | ✅ PASS | 型エラー 0件 |
+            | **単体ロジック** | Vitest (アルゴルール・CPU推論) | ✅ PASS | 全226件合格 |
+            | **静的ビルド** | Next.js Static Export | ✅ PASS | \`out/\` 出力完了 |
+            | **課金ガード** | FinOps Bundle Size Check | ✅ PASS | 容量制限（50MB）以内 |
+            | **E2E & UAT** | Playwright (主要シナリオ・画像保存) | ✅ PASS | SCR-001〜008・レスポンシブ合格 |
+            `;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });

@@ -6,6 +6,9 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
+/e2e/playwright-report/
 
 # next.js
 /.next/
