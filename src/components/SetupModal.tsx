@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { PlayerCount, Difficulty, TimeLimit } from '../types/game';
-import { Users, Brain, Timer, BookOpen, ArrowRight, Sparkles } from 'lucide-react';
+import { Users, Brain, Timer, BookOpen, ArrowRight, Sparkles, GraduationCap } from 'lucide-react';
 import { useUserSession } from '../hooks/useUserSession';
 
 export interface SetupModalProps {
@@ -14,6 +14,7 @@ export interface SetupModalProps {
   onSelectTimeLimit: (limit: TimeLimit) => void;
   onStartGame: () => void;
   onOpenRules: () => void;
+  onOpenTutorial?: () => void;
   userId?: string;
 }
 
@@ -77,6 +78,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({
   onSelectTimeLimit,
   onStartGame,
   onOpenRules,
+  onOpenTutorial,
   userId: propUserId,
 }) => {
   const session = useUserSession();
@@ -230,9 +232,9 @@ export const SetupModal: React.FC<SetupModalProps> = ({
 
           <div className="grid grid-cols-3 gap-2.5">
             {[
-              { limit: 30 as TimeLimit, label: '30秒', desc: '標準テンポ', badge: 'おすすめ' },
+              { limit: 30 as TimeLimit, label: '30秒', desc: '標準テンポ', badge: '標準テンポ' },
               { limit: 15 as TimeLimit, label: '15秒', desc: '早指しスピーディ', badge: 'スリリング' },
-              { limit: 0 as TimeLimit, label: '無制限', desc: 'じっくり長考', badge: 'マイペース' },
+              { limit: 0 as TimeLimit, label: '無制限', desc: 'じっくり長考', badge: 'おすすめ（初心者向け）' },
             ].map((item) => {
               const isSelected = timeLimit === item.limit;
               return (
@@ -305,16 +307,28 @@ export const SetupModal: React.FC<SetupModalProps> = ({
         </div>
 
         {/* 4. アクションボタン */}
-        <div className="pt-2 flex flex-col sm:flex-row gap-3">
+        <div className="pt-2 flex flex-col sm:flex-row gap-2.5 sm:gap-3">
           <button
             type="button"
             data-testid="btn-setup-rules"
             onClick={onOpenRules}
-            className="sm:w-1/3 py-3 px-4 rounded-2xl border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all shadow-2xs"
+            className="sm:w-auto py-3 px-3.5 rounded-2xl border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all shadow-2xs"
           >
             <BookOpen className="w-4 h-4 text-algo-blue" />
             <span>ルールを確認</span>
           </button>
+
+          {onOpenTutorial && (
+            <button
+              type="button"
+              data-testid="btn-setup-tutorial"
+              onClick={onOpenTutorial}
+              className="sm:w-auto py-3 px-3.5 rounded-2xl border border-algo-blue/40 bg-algo-blue-light/40 text-algo-navy hover:bg-algo-blue-light/70 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all shadow-2xs"
+            >
+              <GraduationCap className="w-4 h-4 text-algo-blue" />
+              <span>チュートリアル</span>
+            </button>
+          )}
 
           <button
             type="button"

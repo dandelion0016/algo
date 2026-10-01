@@ -19,6 +19,8 @@ import { RuleGuideModal } from './RuleGuideModal';
 import { SetupModal } from './SetupModal';
 import { ConfirmModal } from './ConfirmModal';
 import { ResultModal } from './ResultModal';
+import { TutorialPromptModal } from './TutorialPromptModal';
+import { TutorialModal } from './TutorialModal';
 import { useUserSession } from '../hooks/useUserSession';
 import {
   Layers,
@@ -26,6 +28,7 @@ import {
   Trophy,
   RotateCcw,
   BookOpen,
+  GraduationCap,
   Bot,
   User,
   Settings2,
@@ -144,9 +147,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
   const [gameState, setGameState] = useState<GameState>(() => ({
     playerCount: 2,
-    difficulty: 'normal',
-    timeLimit: 30,
-    remainingTime: 30,
+    difficulty: 'easy',
+    timeLimit: 0,
+    remainingTime: 0,
     deck: [],
     players: [],
     activePlayerIndex: 0,
@@ -159,11 +162,26 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   }));
 
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
+  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
+  const [isTutorialPromptOpen, setIsTutorialPromptOpen] = useState(false);
   const [isResultModalOpen, setIsResultModalOpen] = useState(true);
   const [isManualPaused, setIsManualPaused] = useState(false);
   const [cpuStatusMessage, setCpuStatusMessage] = useState<string>('');
   const [timeUpBanner, setTimeUpBanner] = useState<string | null>(initialTimeUpBanner);
   const [isMobileLogOpen, setIsMobileLogOpen] = useState(false);
+
+  // 初回アクセス時のチュートリアル確認モーダル表示チェック
+  useEffect(() => {
+    try {
+      const isCompleted = localStorage.getItem('algo_tutorial_completed') === 'true';
+      const isSkipped = localStorage.getItem('algo_tutorial_skip_prompt') === 'true';
+      if (!isCompleted && !isSkipped) {
+        setIsTutorialPromptOpen(true);
+      }
+    } catch (e) {
+      // fallback if localStorage is disabled or restricted
+    }
+  }, []);
 
   // HITL確認モーダル状態 (SCR-008)
   const [confirmModal, setConfirmModal] = useState<{
@@ -236,9 +254,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     gameState.phase !== 'GAME_OVER' &&
     gameState.winner === null;
 
-  // タイマー一時停止（Pause）判定: ルールモーダル、HITL確認モーダル、または手動ポーズ時
+  // タイマー一時停止（Pause）判定: ルールモーダル、チュートリアルモーダル、HITL確認モーダル、または手動ポーズ時
   const isTimerPaused = Boolean(
-    (isRuleModalOpen || confirmModal.isOpen || isManualPaused) &&
+    (isRuleModalOpen || isTutorialOpen || confirmModal.isOpen || isManualPaused) &&
       isGameInProgress &&
       gameState.phase !== 'CPU_ACTING'
   );
@@ -902,8 +920,22 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             initializeGame(gameState.playerCount, gameState.difficulty, gameState.timeLimit)
           }
           onOpenRules={() => setIsRuleModalOpen(true)}
+          onOpenTutorial={() => setIsTutorialOpen(true)}
         />
         <RuleGuideModal isOpen={isRuleModalOpen} onClose={() => setIsRuleModalOpen(false)} />
+        <TutorialPromptModal
+          isOpen={isTutorialPromptOpen}
+          onStartTutorial={() => {
+            setIsTutorialPromptOpen(false);
+            setIsTutorialOpen(true);
+          }}
+          onSkip={() => setIsTutorialPromptOpen(false)}
+        />
+        <TutorialModal
+          isOpen={isTutorialOpen}
+          onClose={() => setIsTutorialOpen(false)}
+          onComplete={() => setIsTutorialOpen(false)}
+        />
       </div>
     );
   }
@@ -1010,6 +1042,15 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 </div>
               </div>
             )}
+
+            <button
+              data-testid="btn-header-tutorial"
+              onClick={() => setIsTutorialOpen(true)}
+              className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-algo-blue/30 bg-algo-blue-light/30 hover:bg-algo-blue-light/60 text-algo-navy text-[11px] sm:text-xs font-bold transition-all shadow-2xs"
+            >
+              <GraduationCap className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-algo-blue" />
+              <span>チュートリアル</span>
+            </button>
 
             <button
               data-testid="btn-open-rules"
@@ -1433,6 +1474,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       )}
 
       <RuleGuideModal isOpen={isRuleModalOpen} onClose={() => setIsRuleModalOpen(false)} />
+      <TutorialModal
+        isOpen={isTutorialOpen}
+        onClose={() => setIsTutorialOpen(false)}
+        onComplete={() => setIsTutorialOpen(false)}
+      />
 
       <ConfirmModal
         isOpen={confirmModal.isOpen}
