@@ -12,6 +12,7 @@ interface CardComponentProps {
   size?: 'sm' | 'md' | 'lg';
   label?: string;
   isEliminated?: boolean;
+  testId?: string;
 }
 
 export const CardComponent: React.FC<CardComponentProps> = ({
@@ -23,6 +24,7 @@ export const CardComponent: React.FC<CardComponentProps> = ({
   size = 'md',
   label,
   isEliminated = false,
+  testId,
 }) => {
   const isBlack = card.color === 'black';
 
@@ -55,11 +57,31 @@ export const CardComponent: React.FC<CardComponentProps> = ({
   const showNumber = card.number !== null && (card.isOpen || isOwner);
   const isSecretToOpponent = card.number !== null && !card.isOpen && isOwner;
 
+  const isClickable = Boolean(isSelectable && !isEliminated && onClick);
+  const cardTestId = testId || `card-${card.color}-${card.number ?? 'hidden'}`;
+
   return (
-    <div className="flex flex-col items-center gap-1 select-none">
+    <div className="flex flex-col items-center gap-1 select-none" data-testid="card-element">
       {label && <span className="text-[10px] sm:text-xs text-slate-500 font-semibold">{label}</span>}
       <div
-        onClick={isSelectable && !isEliminated ? onClick : undefined}
+        data-testid={cardTestId}
+        role={isClickable ? 'button' : undefined}
+        tabIndex={isClickable ? 0 : undefined}
+        aria-label={`${isBlack ? '黒' : '白'}カード ${label || ''}${
+          showNumber ? ` (数字: ${card.number})` : ' (伏せカード)'
+        }${card.isOpen ? ' [オープン]' : ''}`}
+        aria-pressed={isSelected ? true : undefined}
+        onClick={isClickable ? onClick : undefined}
+        onKeyDown={
+          isClickable
+            ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onClick?.();
+                }
+              }
+            : undefined
+        }
         className={`relative flex flex-col items-center justify-center ${sizeClasses} ${colorClasses} ${stateClasses}`}
       >
         {/* 左上の色識別丸インジケータ */}

@@ -150,6 +150,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({
                 <button
                   key={item.count}
                   type="button"
+                  data-testid={`btn-select-player-count-${item.count}`}
                   onClick={() => onSelectPlayerCount(item.count)}
                   className={`p-3 rounded-2xl border-2 text-center transition-all flex flex-col items-center justify-center gap-0.5 ${
                     isSelected
@@ -238,6 +239,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({
                 <button
                   key={item.limit}
                   type="button"
+                  data-testid={`btn-select-time-limit-${item.limit}`}
                   onClick={() => onSelectTimeLimit(item.limit)}
                   className={`p-3 rounded-2xl border-2 text-center transition-all flex flex-col items-center justify-center gap-0.5 ${
                     isSelected
@@ -287,6 +289,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({
                 <button
                   key={item.diff}
                   type="button"
+                  data-testid={`btn-select-difficulty-${item.diff}`}
                   onClick={() => onSelectDifficulty(item.diff)}
                   className={`p-2.5 rounded-2xl border-2 text-center transition-all flex flex-col items-center justify-center ${
                     isSelected
@@ -305,6 +308,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({
         <div className="pt-2 flex flex-col sm:flex-row gap-3">
           <button
             type="button"
+            data-testid="btn-setup-rules"
             onClick={onOpenRules}
             className="sm:w-1/3 py-3 px-4 rounded-2xl border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all shadow-2xs"
           >
@@ -314,6 +318,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({
 
           <button
             type="button"
+            data-testid="btn-start-game"
             onClick={onStartGame}
             className="flex-1 py-3 px-6 rounded-2xl bg-gradient-to-r from-algo-yellow to-algo-yellow-dark hover:brightness-105 active:scale-98 text-slate-950 font-black text-sm sm:text-base shadow-md shadow-amber-300/40 flex items-center justify-center gap-2 transition-all border border-amber-300/60"
           >
