@@ -1032,7 +1032,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   // 1. セットアップ画面
   if (gameState.phase === 'SETUP') {
     return (
-      <div className="min-h-screen py-8 px-4 flex flex-col justify-center items-center">
+      <div className="h-[100dvh] max-h-[100dvh] lg:min-h-screen lg:h-auto flex flex-col justify-center items-center p-2 sm:p-4 lg:py-8 overflow-hidden lg:overflow-visible">
         <SetupModal
           playerCount={gameState.playerCount}
           difficulty={gameState.difficulty}
