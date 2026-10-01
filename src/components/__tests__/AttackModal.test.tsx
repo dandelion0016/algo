@@ -239,4 +239,55 @@ describe('AttackModal Component (SCR-004 & Issue #17: data-testid and a11y)', ()
       expect(html).not.toContain('候補外');
     });
   });
+
+  describe('過去の外れ宣言・失敗数字の視覚化 (Issue #43)', () => {
+    it('failedNumbers が渡された場合、過去の外れ宣言サマリが表示される', () => {
+      const html = renderToString(
+        <AttackModal
+          {...defaultProps}
+          failedNumbers={[3, 7]}
+        />
+      );
+
+      expect(html).toContain('data-testid="attack-failed-numbers-hint"');
+      expect(html).toContain('過去の外れ宣言:');
+      expect(html).toContain('✕[3, 7]');
+    });
+
+    it('外れた数字ボタンに data-failed-guess="true", ✕ハズレ済バッジ, aria-label が付与される', () => {
+      const html = renderToString(
+        <AttackModal
+          {...defaultProps}
+          failedNumbers={[3, 7]}
+        />
+      );
+
+      // ボタン属性
+      expect(html).toMatch(/data-testid="btn-guess-num-3"[^>]*data-failed-guess="true"/);
+      expect(html).toMatch(/data-testid="btn-guess-num-7"[^>]*data-failed-guess="true"/);
+
+      // バッジ
+      expect(html).toContain('data-testid="failed-badge-3"');
+      expect(html).toContain('data-testid="failed-badge-7"');
+      expect(html).toContain('✕ハズレ済');
+
+      // aria-label
+      expect(html).toContain('aria-label="数字 3 (✕ハズレ済)"');
+      expect(html).toContain('aria-label="数字 7 (✕ハズレ済)"');
+
+      // 外れていない数字には付与されない
+      expect(html).not.toMatch(/data-testid="btn-guess-num-2"[^>]*data-failed-guess="true"/);
+    });
+
+    it('failedNumbers が空の場合は過去の外れ宣言サマリは表示されない', () => {
+      const html = renderToString(
+        <AttackModal
+          {...defaultProps}
+          failedNumbers={[]}
+        />
+      );
+
+      expect(html).not.toContain('data-testid="attack-failed-numbers-hint"');
+    });
+  });
 });

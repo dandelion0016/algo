@@ -11,7 +11,7 @@ import {
   getNextActivePlayerIndex,
   maskCardForPlayer,
 } from '../lib/algoEngine';
-import { getPossibleNumbersForCard, formatCandidateRange } from '../lib/candidateAssist';
+import { getPossibleNumbersForCard, formatCandidateRange, getFailedNumbersForCard } from '../lib/candidateAssist';
 import { decideMultiCpuAttack, decideMultiCpuContinue } from '../lib/cpuAI';
 import { CardComponent } from './CardComponent';
 import { AttackModal } from './AttackModal';
@@ -1351,6 +1351,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                             )
                           : undefined;
 
+                      const failedNumbers = getFailedNumbersForCard(gameState.logs, opp.id, idx);
+
                       return (
                         <CardComponent
                           key={card.id}
@@ -1360,6 +1362,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                           label={`#${idx + 1}`}
                           testId={`opponent-card-${idx}`}
                           candidateHint={candidateHint}
+                          failedGuesses={failedNumbers}
                           isEliminated={opp.isEliminated}
                           isSelectable={
                             activePlayer?.isHuman &&
@@ -1596,7 +1599,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
         {/* Right 1 col: Log & Visuals (Desktop) */}
         <div className="hidden lg:block lg:col-span-1 space-y-4">
-          <GameLog logs={gameState.logs} />
+          <GameLog logs={gameState.logs} players={gameState.players} />
         </div>
       </div>
 
@@ -1629,7 +1632,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               </button>
             </div>
             <div className="flex-1 overflow-y-auto">
-              <GameLog logs={gameState.logs} />
+              <GameLog logs={gameState.logs} players={gameState.players} />
             </div>
           </div>
         </div>
@@ -1650,6 +1653,15 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             }))
           }
           disabledNumbers={targetKnownNumbers}
+          failedNumbers={
+            selectedTargetPlayer
+              ? getFailedNumbersForCard(
+                  gameState.logs,
+                  selectedTargetPlayer.id,
+                  gameState.selectedTarget.cardIndex
+                )
+              : []
+          }
           possibleNumbers={
             selectedTargetPlayer
               ? getPossibleNumbersForCard({

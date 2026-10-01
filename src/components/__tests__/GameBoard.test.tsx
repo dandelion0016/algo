@@ -1352,4 +1352,110 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(html).not.toContain('data-testid="cpu-attack-modal"');
     });
   });
+
+  describe('推理履歴・失敗数字の盤面表示 (Issue #43)', () => {
+    it('過去にハズレとなった相手の伏せカードに failed-guesses-badge が表示される', () => {
+      const logs: AttackLog[] = [
+        {
+          id: 'log-1',
+          attackerId: 'player-1',
+          attackerName: 'あなた',
+          targetPlayerId: 'cpu-1',
+          targetPlayerName: 'CPU アル',
+          targetCardIndex: 0,
+          targetColor: 'black',
+          guessedNumber: 5,
+          isHit: false, // ハズレ
+          timestamp: 1000,
+          message: 'ハズレ',
+        },
+      ];
+
+      const html = renderToString(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_SELECT_TARGET',
+            players: [
+              {
+                id: 'player-1',
+                name: 'あなた',
+                isHuman: true,
+                avatarColor: '',
+                isEliminated: false,
+                cards: [{ id: 'b-0', color: 'black', number: 0, isOpen: false }],
+              },
+              {
+                id: 'cpu-1',
+                name: 'CPU アル',
+                isHuman: false,
+                avatarColor: '',
+                isEliminated: false,
+                cards: [{ id: 'b-5', color: 'black', number: 5, isOpen: false }],
+              },
+            ],
+            activePlayerIndex: 0,
+            logs,
+          }}
+        />
+      );
+
+      expect(html).toContain('data-testid="failed-guesses-badge"');
+      expect(html).toContain('✕5');
+    });
+
+    it('アタック入力中（PLAYER_GUESS_NUMBER）に対象カードの外れ数字が AttackModal に伝達される', () => {
+      const logs: AttackLog[] = [
+        {
+          id: 'log-1',
+          attackerId: 'player-1',
+          attackerName: 'あなた',
+          targetPlayerId: 'cpu-1',
+          targetPlayerName: 'CPU アル',
+          targetCardIndex: 0,
+          targetColor: 'black',
+          guessedNumber: 7,
+          isHit: false,
+          timestamp: 1000,
+          message: 'ハズレ',
+        },
+      ];
+
+      const html = renderToString(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_GUESS_NUMBER',
+            selectedTarget: {
+              playerId: 'cpu-1',
+              cardIndex: 0,
+            },
+            players: [
+              {
+                id: 'player-1',
+                name: 'あなた',
+                isHuman: true,
+                avatarColor: '',
+                isEliminated: false,
+                cards: [{ id: 'b-0', color: 'black', number: 0, isOpen: false }],
+              },
+              {
+                id: 'cpu-1',
+                name: 'CPU アル',
+                isHuman: false,
+                avatarColor: '',
+                isEliminated: false,
+                cards: [{ id: 'b-8', color: 'black', number: 8, isOpen: false }],
+              },
+            ],
+            activePlayerIndex: 0,
+            logs,
+          }}
+        />
+      );
+
+      expect(html).toContain('data-testid="attack-modal"');
+      expect(html).toContain('data-testid="attack-failed-numbers-hint"');
+      expect(html).toContain('✕7');
+      expect(html).toMatch(/data-testid="btn-guess-num-7"[^>]*data-failed-guess="true"/);
+    });
+  });
 });
