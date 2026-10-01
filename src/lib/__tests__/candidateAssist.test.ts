@@ -5,6 +5,8 @@ import {
   getKnownNumbersForColor,
   getPossibleNumbersForCard,
   formatCandidateRange,
+  getFailedNumbersForCard,
+  formatFailedNumbersBadge,
 } from '../candidateAssist';
 import { Card, Player, AttackLog } from '../../types/game';
 
@@ -234,6 +236,116 @@ describe('candidateAssist', () => {
     it('複数要素なら "min〜max" を返す', () => {
       expect(formatCandidateRange([3, 4, 5, 6])).toBe('3〜6');
       expect(formatCandidateRange([1, 9])).toBe('1〜9');
+    });
+  });
+
+  describe('getFailedNumbersForCard (Issue #43: 失敗数字抽出ロジック)', () => {
+    it('ログが空またはundefinedの場合は空配列を返す', () => {
+      expect(getFailedNumbersForCard(undefined, 'cpu-1', 0)).toEqual([]);
+      expect(getFailedNumbersForCard([], 'cpu-1', 0)).toEqual([]);
+    });
+
+    it('対象プレイヤー・対象カードの失敗数字（isHit === false）のみを抽出し、昇順ソート＆重複排除する', () => {
+      const logs: AttackLog[] = [
+        {
+          id: 'log-1',
+          attackerId: 'player',
+          attackerName: 'あなた',
+          targetPlayerId: 'cpu-1',
+          targetPlayerName: 'CPU 1',
+          targetCardIndex: 1,
+          targetColor: 'black',
+          guessedNumber: 7,
+          isHit: false, // 失敗
+          timestamp: 1000,
+          message: 'ハズレ',
+        },
+        {
+          id: 'log-2',
+          attackerId: 'player',
+          attackerName: 'あなた',
+          targetPlayerId: 'cpu-1',
+          targetPlayerName: 'CPU 1',
+          targetCardIndex: 1,
+          targetColor: 'black',
+          guessedNumber: 3,
+          isHit: false, // 失敗
+          timestamp: 2000,
+          message: 'ハズレ',
+        },
+        {
+          id: 'log-3',
+          attackerId: 'cpu-2',
+          attackerName: 'CPU 2',
+          targetPlayerId: 'cpu-1',
+          targetPlayerName: 'CPU 1',
+          targetCardIndex: 1,
+          targetColor: 'black',
+          guessedNumber: 3, // 重複宣言
+          isHit: false,
+          timestamp: 3000,
+          message: 'ハズレ',
+        },
+        {
+          id: 'log-4',
+          attackerId: 'player',
+          attackerName: 'あなた',
+          targetPlayerId: 'cpu-1',
+          targetPlayerName: 'CPU 1',
+          targetCardIndex: 1,
+          targetColor: 'black',
+          guessedNumber: 5,
+          isHit: true, // 的中ログは含めない
+          timestamp: 4000,
+          message: '的中',
+        },
+        {
+          id: 'log-5',
+          attackerId: 'player',
+          attackerName: 'あなた',
+          targetPlayerId: 'cpu-1',
+          targetPlayerName: 'CPU 1',
+          targetCardIndex: 0, // 別カード
+          targetColor: 'black',
+          guessedNumber: 2,
+          isHit: false,
+          timestamp: 5000,
+          message: 'ハズレ',
+        },
+        {
+          id: 'log-6',
+          attackerId: 'player',
+          attackerName: 'あなた',
+          targetPlayerId: 'cpu-2', // 別プレイヤー
+          targetPlayerName: 'CPU 2',
+          targetCardIndex: 1,
+          guessedNumber: 4,
+          isHit: false,
+          targetColor: 'white',
+          timestamp: 6000,
+          message: 'ハズレ',
+        },
+      ];
+
+      const failedNums = getFailedNumbersForCard(logs, 'cpu-1', 1);
+      // 7と3（重複3は排除）が昇順で [3, 7] となる
+      expect(failedNums).toEqual([3, 7]);
+    });
+  });
+
+  describe('formatFailedNumbersBadge (Issue #43: 失敗数字バッジ文字列生成)', () => {
+    it('空配列なら空文字を返す', () => {
+      expect(formatFailedNumbersBadge([])).toBe('');
+    });
+
+    it('単一の失敗数字なら "✕3" の形式で返す', () => {
+      expect(formatFailedNumbersBadge([3])).toBe('✕3');
+      expect(formatFailedNumbersBadge([11])).toBe('✕11');
+    });
+
+    it('複数の失敗数字なら "✕[3, 7]" の形式で返す', () => {
+      expect(formatFailedNumbersBadge([3, 7])).toBe('✕[3, 7]');
+      expect(formatFailedNumbersBadge([2, 5, 8])).toBe('✕[2, 5, 8]');
     });
   });
 });

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { CardColor } from '../types/game';
-import { formatCandidateRange } from '../lib/candidateAssist';
+import { formatCandidateRange, formatFailedNumbersBadge } from '../lib/candidateAssist';
 import { Sparkles, X, Target } from 'lucide-react';
 
 interface AttackModalProps {
@@ -14,6 +14,7 @@ interface AttackModalProps {
   disabledNumbers?: number[]; // 既にオープンまたは自分の手札にある数字
   possibleNumbers?: number[]; // 推理候補数字リスト (Issue #42)
   assistEnabled?: boolean;    // 初心者アシスト有効フラグ (Issue #42)
+  failedNumbers?: number[];   // そのカードに対して過去に外れた数字リスト (Issue #43)
 }
 
 export const AttackModal: React.FC<AttackModalProps> = ({
@@ -25,6 +26,7 @@ export const AttackModal: React.FC<AttackModalProps> = ({
   disabledNumbers = [],
   possibleNumbers,
   assistEnabled = true,
+  failedNumbers = [],
 }) => {
   const [selectedNum, setSelectedNum] = useState<number | null>(null);
 
@@ -137,12 +139,29 @@ export const AttackModal: React.FC<AttackModalProps> = ({
               </span>
             </div>
           )}
+
+          {/* 過去の外れ数字サマリ (Issue #43: ミスアタック再宣言防止) */}
+          {failedNumbers.length > 0 && (
+            <div
+              data-testid="attack-failed-numbers-hint"
+              className="mt-2 py-1 px-3 rounded-xl bg-rose-50/90 border border-rose-200 text-rose-900 text-xs font-bold flex items-center justify-between shadow-2xs"
+            >
+              <span className="flex items-center gap-1.5">
+                <span aria-hidden="true" className="text-rose-500 font-black">✕</span>
+                <span>過去の外れ宣言:</span>
+              </span>
+              <span className="font-black text-sm text-rose-600">
+                {formatFailedNumbersBadge(failedNumbers)}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* 0〜11 の数字選択ボタン */}
         <div className="grid grid-cols-4 gap-2.5 my-5" role="group" aria-label="推理する数字の選択">
           {Array.from({ length: 12 }, (_, i) => i).map((num) => {
             const isKnown = disabledNumbers.includes(num);
+            const isFailed = failedNumbers.includes(num);
             const isSelected = selectedNum === num;
             const isPossible = !possibleNumbers || possibleNumbers.includes(num);
             const isImpossible = Boolean(assistEnabled && possibleNumbers && !isPossible);
@@ -153,12 +172,17 @@ export const AttackModal: React.FC<AttackModalProps> = ({
                 type="button"
                 data-testid={`btn-guess-num-${num}`}
                 data-candidate-out={isImpossible ? 'true' : undefined}
-                aria-label={`数字 ${num}${isKnown ? ' (確認済)' : ''}`}
+                data-failed-guess={isFailed ? 'true' : undefined}
+                aria-label={`数字 ${num}${isFailed ? ' (✕ハズレ済)' : isKnown ? ' (確認済)' : ''}`}
                 aria-pressed={isSelected}
                 onClick={() => setSelectedNum(num)}
                 className={`py-3 rounded-2xl font-black text-lg transition-all flex flex-col items-center justify-center border-2 ${
                   isSelected
-                    ? 'bg-algo-yellow text-slate-950 border-algo-yellow-dark ring-4 ring-algo-yellow/40 scale-105 shadow-md'
+                    ? isFailed
+                      ? 'bg-rose-100 text-rose-950 border-rose-400 ring-4 ring-rose-300/50 scale-105 shadow-md'
+                      : 'bg-algo-yellow text-slate-950 border-algo-yellow-dark ring-4 ring-algo-yellow/40 scale-105 shadow-md'
+                    : isFailed
+                    ? 'bg-rose-50/70 text-rose-700 border-rose-300 opacity-80 hover:opacity-100 hover:border-rose-400'
                     : isImpossible
                     ? 'bg-slate-100/50 text-slate-400 border-dashed border-slate-300 opacity-60 hover:opacity-90 hover:border-slate-400'
                     : isKnown
@@ -166,8 +190,25 @@ export const AttackModal: React.FC<AttackModalProps> = ({
                     : 'bg-white text-slate-800 border-slate-200 hover:border-algo-blue hover:bg-algo-blue-light/30'
                 }`}
               >
-                <span className={isImpossible ? 'line-through decoration-slate-400/80' : ''}>{num}</span>
-                {isImpossible ? (
+                <span
+                  className={
+                    isFailed
+                      ? 'line-through decoration-rose-500 decoration-2 text-rose-500'
+                      : isImpossible
+                      ? 'line-through decoration-slate-400/80'
+                      : ''
+                  }
+                >
+                  {num}
+                </span>
+                {isFailed ? (
+                  <span
+                    className="text-[8px] text-rose-600 font-bold"
+                    data-testid={`failed-badge-${num}`}
+                  >
+                    ✕ハズレ済
+                  </span>
+                ) : isImpossible ? (
                   <span className="text-[8px] text-rose-500 font-bold">候補外</span>
                 ) : isKnown ? (
                   <span className="text-[8px] text-slate-400 font-bold">確認済</span>
@@ -204,12 +245,16 @@ export const AttackModal: React.FC<AttackModalProps> = ({
             }}
             className={`flex-1 py-3 rounded-2xl font-black text-sm transition-all shadow-md ${
               selectedNum !== null
-                ? 'bg-gradient-to-r from-algo-blue to-algo-blue-dark text-white hover:brightness-105 shadow-algo-blue/30 active:scale-98'
+                ? failedNumbers.includes(selectedNum)
+                  ? 'bg-gradient-to-r from-rose-500 to-rose-700 text-white hover:brightness-105 shadow-rose-500/30 active:scale-98'
+                  : 'bg-gradient-to-r from-algo-blue to-algo-blue-dark text-white hover:brightness-105 shadow-algo-blue/30 active:scale-98'
                 : 'bg-slate-200 text-slate-400 cursor-not-allowed'
             }`}
           >
             {selectedNum !== null
-              ? assistEnabled && possibleNumbers && !possibleNumbers.includes(selectedNum)
+              ? failedNumbers.includes(selectedNum)
+                ? `[ ${selectedNum} ] でアタック！ (⚠️ハズレ済)`
+                : assistEnabled && possibleNumbers && !possibleNumbers.includes(selectedNum)
                 ? `[ ${selectedNum} ] でアタック！ (⚠️候補外)`
                 : `[ ${selectedNum} ] でアタック！`
               : '数字を選んでください'}

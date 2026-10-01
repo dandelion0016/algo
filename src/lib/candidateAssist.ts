@@ -168,15 +168,8 @@ export function getPossibleNumbersForCard(options: CandidateAssistOptions): numb
   // 4. 過去の失敗ログから対象カードに対する外れ数字を除外
   const failedSet = new Set<number>(failedGuesses);
   if (logs && targetPlayerId) {
-    for (const log of logs) {
-      if (
-        log.targetPlayerId === targetPlayerId &&
-        log.targetCardIndex === targetIndex &&
-        !log.isHit
-      ) {
-        failedSet.add(log.guessedNumber);
-      }
-    }
+    const cardFailed = getFailedNumbersForCard(logs, targetPlayerId, targetIndex);
+    cardFailed.forEach((num) => failedSet.add(num));
   }
 
   // 5. minPossible .. maxPossible の範囲から、既知数字・失敗数字を除外
@@ -191,6 +184,51 @@ export function getPossibleNumbersForCard(options: CandidateAssistOptions): numb
   }
 
   return candidates;
+}
+
+/**
+ * 過去のアタックログから、特定のプレイヤー・カードインデックスに対する失敗数字リストを抽出
+ * （ミスアタック再宣言防止 / Issue #43）
+ *
+ * @param logs アタック履歴一覧
+ * @param targetPlayerId 対象プレイヤーID
+ * @param targetCardIndex 対象カードのインデックス (0-indexed)
+ * @returns 過去に宣言されて外れた数字の配列（昇順ソート済み、重複なし）
+ */
+export function getFailedNumbersForCard(
+  logs: AttackLog[] | undefined,
+  targetPlayerId: string,
+  targetCardIndex: number
+): number[] {
+  if (!logs || logs.length === 0) {
+    return [];
+  }
+
+  const failed = new Set<number>();
+  for (const log of logs) {
+    if (
+      log.targetPlayerId === targetPlayerId &&
+      log.targetCardIndex === targetCardIndex &&
+      !log.isHit
+    ) {
+      failed.add(log.guessedNumber);
+    }
+  }
+
+  return Array.from(failed).sort((a, b) => a - b);
+}
+
+/**
+ * 失敗数字リストをカード表示用バッジ文字列にフォーマット（例: "✕3", "✕[3, 7]"）
+ */
+export function formatFailedNumbersBadge(failedNumbers: number[]): string {
+  if (!failedNumbers || failedNumbers.length === 0) {
+    return '';
+  }
+  if (failedNumbers.length === 1) {
+    return `✕${failedNumbers[0]}`;
+  }
+  return `✕[${failedNumbers.join(', ')}]`;
 }
 
 /**

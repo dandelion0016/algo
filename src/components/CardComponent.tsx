@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Card, PublicCard } from '../types/game';
+import { formatFailedNumbersBadge } from '../lib/candidateAssist';
 
 interface CardComponentProps {
   card: PublicCard | Card;
@@ -12,6 +13,7 @@ interface CardComponentProps {
   size?: 'xs' | 'sm' | 'md' | 'lg';
   label?: string;
   candidateHint?: string; // 候補数字範囲ヒント (Issue #42)
+  failedGuesses?: number[]; // 過去に外れた数字リスト (Issue #43)
   isEliminated?: boolean;
   testId?: string;
 }
@@ -25,6 +27,7 @@ export const CardComponent: React.FC<CardComponentProps> = ({
   size = 'md',
   label,
   candidateHint,
+  failedGuesses,
   isEliminated = false,
   testId,
 }) => {
@@ -148,6 +151,21 @@ export const CardComponent: React.FC<CardComponentProps> = ({
           </div>
         )}
       </div>
+
+      {/* 過去の外れ数字バッジ (Issue #43: ミスアタック再宣言防止) */}
+      {failedGuesses && failedGuesses.length > 0 && !showNumber && (
+        <div
+          data-testid="failed-guesses-badge"
+          className={`px-1.5 py-0.5 rounded-full font-black tracking-tight border shadow-2xs whitespace-nowrap text-center ${
+            size === 'xs'
+              ? 'text-[7px] sm:text-[8px] bg-rose-50 text-rose-700 border-rose-300'
+              : 'text-[9px] sm:text-[10px] bg-rose-50 text-rose-700 border-rose-300'
+          }`}
+          title={`過去の外れ数字: ${failedGuesses.join(', ')}`}
+        >
+          {formatFailedNumbersBadge(failedGuesses)}
+        </div>
+      )}
 
       {/* 推理候補範囲バッジ (Issue #42) */}
       {candidateHint && !showNumber && (
