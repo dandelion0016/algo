@@ -536,5 +536,61 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
         expect(html).not.toContain(TIME_UP_MESSAGE);
       });
     });
+
+    describe('決着画面（SCR-006 / GAME_OVER）と ResultModal の統合検証', () => {
+      const mockGameOverPlayers = [
+        {
+          id: 'test_user_1',
+          name: 'あなた',
+          isHuman: true,
+          cards: [
+            { id: 'b-1', color: 'black' as const, number: 1, isOpen: false },
+            { id: 'w-2', color: 'white' as const, number: 2, isOpen: false },
+          ],
+          isEliminated: false,
+          avatarColor: 'from-blue-500 to-indigo-600',
+        },
+        {
+          id: 'cpu-1',
+          name: 'CPU 1',
+          isHuman: false,
+          cards: [
+            { id: 'b-5', color: 'black' as const, number: 5, isOpen: true },
+            { id: 'w-8', color: 'white' as const, number: 8, isOpen: true },
+          ],
+          isEliminated: true,
+          avatarColor: 'from-amber-500 to-orange-600',
+        },
+      ];
+
+      it('GAME_OVER フェーズ時に決着モーダル（ResultModal）および祝祭演出が正常にレンダリングされる', () => {
+        const html = renderToString(
+          <GameBoard
+            initialState={{
+              phase: 'GAME_OVER',
+              timeLimit: 30,
+              remainingTime: 30,
+              playerCount: 2,
+              difficulty: 'normal',
+              players: mockGameOverPlayers,
+              winner: mockGameOverPlayers[0], // 人間プレイヤーが勝者
+            }}
+          />
+        );
+
+        // ResultModal 本体の存在
+        expect(html).toContain('data-testid="result-modal"');
+        expect(html).toContain('data-testid="result-winner-badge"');
+        expect(html).toContain('👑 あなたの完全勝利！');
+        expect(html).toContain('data-testid="confetti-effect"');
+
+        // アクションボタンの存在
+        expect(html).toContain('data-testid="btn-play-again"');
+        expect(html).toContain('data-testid="btn-return-setup"');
+
+        // 中央テーブル内の戦績サマリ表示ボタン
+        expect(html).toContain('戦績サマリを表示');
+      });
+    });
   });
 });
