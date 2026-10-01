@@ -7,10 +7,11 @@ import {
   getProgressBarColorClass,
   calculateProgressPercentage,
   TIME_UP_MESSAGE,
+  getKnownNumbersForColor,
 } from '../GameBoard';
 import * as useUserSessionModule from '../../hooks/useUserSession';
 import { createDeck, setupGamePlayers, insertCardInOrder, isAllOpen, getNextActivePlayerIndex } from '../../lib/algoEngine';
-import { Card, GameState, AttackLog } from '../../types/game';
+import { Card, GameState, AttackLog, Player } from '../../types/game';
 
 // useUserSession フックのモック化
 vi.mock('../../hooks/useUserSession', () => ({
@@ -765,6 +766,185 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
         expect(html).toContain('data-testid="btn-continue-attack"');
         expect(html).toContain('data-testid="btn-stay"');
       });
+    });
+  });
+
+  describe('getKnownNumbersForColor (Issue #38: ターゲットカードの色を考慮した確認済み数字の算出)', () => {
+    const mockColorPlayers: Player[] = [
+      {
+        id: 'player-1',
+        name: 'あなた',
+        isHuman: true,
+        isEliminated: false,
+        avatarColor: 'blue',
+        cards: [
+          { id: 'b-2', color: 'black', number: 2, isOpen: false },
+          { id: 'w-3', color: 'white', number: 3, isOpen: false },
+          { id: 'b-7', color: 'black', number: 7, isOpen: true },
+        ],
+      },
+      {
+        id: 'cpu-1',
+        name: 'CPU 1',
+        isHuman: false,
+        isEliminated: false,
+        avatarColor: 'green',
+        cards: [
+          { id: 'b-4', color: 'black', number: 4, isOpen: false }, // 相手の伏せ黒カード（推理対象）
+          { id: 'b-5', color: 'black', number: 5, isOpen: true }, // 相手のオープン黒カード
+          { id: 'w-8', color: 'white', number: 8, isOpen: true }, // 相手のオープン白カード
+          { id: 'w-9', color: 'white', number: 9, isOpen: false }, // 相手の伏せ白カード
+        ],
+      },
+    ];
+
+    it('ターゲットが黒のとき、白カードの数字は含まれず、自分の黒・相手のオープン黒・引いた黒の数字のみが含まれる', () => {
+      const drawnCard: Card = { id: 'b-10', color: 'black', number: 10, isOpen: false };
+      const known = getKnownNumbersForColor('black', mockColorPlayers, drawnCard);
+
+      // 人間手札の黒: 2, 7
+      expect(known).toContain(2);
+      expect(known).toContain(7);
+      // 相手のオープン黒: 5
+      expect(known).toContain(5);
+      // 引いた黒: 10
+      expect(known).toContain(10);
+
+      // 白カードの数字は含まれないこと（Issue #38の核心）
+      expect(known).not.toContain(3); // 自分の白
+      expect(known).not.toContain(8); // 相手のオープン白
+      expect(known).not.toContain(9); // 相手の伏せ白
+
+      // 相手の伏せ黒カードの数字は含まれないこと
+      expect(known).not.toContain(4);
+
+      // 全件検証
+      expect(known.sort((a, b) => a - b)).toEqual([2, 5, 7, 10]);
+    });
+
+    it('ターゲットが白のとき、黒カードの数字は含まれず、自分の白・相手のオープン白・引いた白の数字のみが含まれる', () => {
+      const drawnCard: Card = { id: 'w-11', color: 'white', number: 11, isOpen: false };
+      const known = getKnownNumbersForColor('white', mockColorPlayers, drawnCard);
+
+      // 人間手札の白: 3
+      expect(known).toContain(3);
+      // 相手のオープン白: 8
+      expect(known).toContain(8);
+      // 引いた白: 11
+      expect(known).toContain(11);
+
+      // 黒カードの数字は含まれないこと
+      expect(known).not.toContain(2); // 自分の黒
+      expect(known).not.toContain(7); // 自分の黒
+      expect(known).not.toContain(4); // 相手の伏せ黒
+      expect(known).not.toContain(5); // 相手のオープン黒
+
+      // 相手の伏せ白カードの数字は含まれないこと
+      expect(known).not.toContain(9);
+
+      // 全件検証
+      expect(known.sort((a, b) => a - b)).toEqual([3, 8, 11]);
+    });
+
+    it('引いたカード（drawnCard）の色がターゲットと異なる場合、確認済み数字に含まれない', () => {
+      const drawnWhiteCard: Card = { id: 'w-1', color: 'white', number: 1, isOpen: false };
+      const known = getKnownNumbersForColor('black', mockColorPlayers, drawnWhiteCard);
+
+      expect(known).not.toContain(1);
+    });
+
+    it('同一数字の重複カードが存在しても確認済み数字リストには重複なく含まれる', () => {
+      const duplicatePlayers: Player[] = [
+        {
+          id: 'player-1',
+          name: 'あなた',
+          isHuman: true,
+          isEliminated: false,
+          avatarColor: 'blue',
+          cards: [{ id: 'b-2-a', color: 'black', number: 2, isOpen: true }],
+        },
+        {
+          id: 'cpu-1',
+          name: 'CPU 1',
+          isHuman: false,
+          isEliminated: false,
+          avatarColor: 'green',
+          cards: [{ id: 'b-2-b', color: 'black', number: 2, isOpen: true }],
+        },
+      ];
+      const drawnCard: Card = { id: 'b-2-c', color: 'black', number: 2, isOpen: false };
+
+      const known = getKnownNumbersForColor('black', duplicatePlayers, drawnCard);
+      expect(known.filter((n) => n === 2).length).toBe(1);
+    });
+
+    it('GameBoard内で黒カードターゲット選択時にAttackModalへ渡される確認済み数字に白の数字が含まれない', () => {
+      const html = renderToString(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_GUESS_NUMBER',
+            timeLimit: 30,
+            remainingTime: 30,
+            players: mockColorPlayers,
+            activePlayerIndex: 0,
+            selectedTarget: {
+              playerId: 'cpu-1',
+              cardIndex: 0, // mockColorPlayers[1].cards[0] は color: 'black', number: 4
+            },
+            drawnCard: { id: 'b-10', color: 'black', number: 10, isOpen: false },
+          }}
+        />
+      );
+
+      // モーダルが表示されている
+      expect(html).toContain('data-testid="attack-modal"');
+      expect(html).toContain('黒カード');
+
+      // 黒の確認済み数字 (2, 5, 7, 10) には「確認済」バッジまたは aria-label に (確認済) が付く
+      expect(html).toContain('aria-label="数字 2 (確認済)"');
+      expect(html).toContain('aria-label="数字 5 (確認済)"');
+      expect(html).toContain('aria-label="数字 7 (確認済)"');
+      expect(html).toContain('aria-label="数字 10 (確認済)"');
+
+      // 白の数字 (3, 8) には「確認済」が付かないこと（Issue #38）
+      expect(html).toContain('aria-label="数字 3"');
+      expect(html).not.toContain('aria-label="数字 3 (確認済)"');
+      expect(html).toContain('aria-label="数字 8"');
+      expect(html).not.toContain('aria-label="数字 8 (確認済)"');
+    });
+
+    it('GameBoard内で白カードターゲット選択時にAttackModalへ渡される確認済み数字に黒の数字が含まれない', () => {
+      const html = renderToString(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_GUESS_NUMBER',
+            timeLimit: 30,
+            remainingTime: 30,
+            players: mockColorPlayers,
+            activePlayerIndex: 0,
+            selectedTarget: {
+              playerId: 'cpu-1',
+              cardIndex: 3, // mockColorPlayers[1].cards[3] は color: 'white', number: 9
+            },
+            drawnCard: { id: 'w-11', color: 'white', number: 11, isOpen: false },
+          }}
+        />
+      );
+
+      // モーダルが表示されている
+      expect(html).toContain('data-testid="attack-modal"');
+      expect(html).toContain('白カード');
+
+      // 白の確認済み数字 (3, 8, 11) には「確認済」が付く
+      expect(html).toContain('aria-label="数字 3 (確認済)"');
+      expect(html).toContain('aria-label="数字 8 (確認済)"');
+      expect(html).toContain('aria-label="数字 11 (確認済)"');
+
+      // 黒の数字 (2, 5, 7) には「確認済」が付かないこと（Issue #38）
+      expect(html).toContain('aria-label="数字 2"');
+      expect(html).not.toContain('aria-label="数字 2 (確認済)"');
+      expect(html).toContain('aria-label="数字 5"');
+      expect(html).not.toContain('aria-label="数字 5 (確認済)"');
     });
   });
 });
