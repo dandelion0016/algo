@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Card, GameState, Difficulty, PlayerCount, TimeLimit, AttackLog, Player } from '../types/game';
+import { Card, GameState, Difficulty, PlayerCount, TimeLimit, AttackLog, Player, CardColor } from '../types/game';
 import {
   createDeck,
   setupGamePlayers,
@@ -83,6 +83,51 @@ export const calculateProgressPercentage = (remainingTime: number, timeLimit: nu
  */
 export const TIME_UP_MESSAGE =
   '⚠️ TIME UP! 制限時間を超過したため、引いたカードが強制オープンされました';
+
+/**
+ * ターゲットカードの色（黒または白）に応じた確認済み数字（既知数字）のリストを抽出する (Issue #38)
+ * - 自分の手札のうち、ターゲットと同色のカードの数字
+ * - 全プレイヤーのオープン済みカードのうち、ターゲットと同色のカードの数字
+ * - 自分が引いたカード（drawnCard）のうち、ターゲットと同色のカードの数字
+ *
+ * @param targetColor アタック対象カードの色 ('black' | 'white')
+ * @param players ゲームに参加しているプレイヤー一覧
+ * @param drawnCard プレイヤーが引いたカード（存在する場合）
+ * @returns ターゲットと同色で既に確認済みの重複のない数字配列
+ */
+export const getKnownNumbersForColor = (
+  targetColor: CardColor,
+  players: Player[],
+  drawnCard?: Card | null
+): number[] => {
+  const knownNumbers: number[] = [];
+
+  // 1. 人間プレイヤー（自分）の同色手札の数字
+  const humanPlayer = players.find((p) => p.isHuman);
+  if (humanPlayer) {
+    humanPlayer.cards.forEach((c) => {
+      if (c.color === targetColor && !knownNumbers.includes(c.number)) {
+        knownNumbers.push(c.number);
+      }
+    });
+  }
+
+  // 2. 全プレイヤーのオープン済み同色カードの数字
+  players.forEach((p) => {
+    p.cards.forEach((c) => {
+      if (c.isOpen && c.color === targetColor && !knownNumbers.includes(c.number)) {
+        knownNumbers.push(c.number);
+      }
+    });
+  });
+
+  // 3. プレイヤーが引いたカード（drawnCard）の同色の数字
+  if (drawnCard && drawnCard.color === targetColor && !knownNumbers.includes(drawnCard.number)) {
+    knownNumbers.push(drawnCard.number);
+  }
+
+  return knownNumbers;
+};
 
 export interface GameBoardProps {
   initialState?: Partial<GameState>;
@@ -821,22 +866,21 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     };
   }, [gameState.phase, gameState.activePlayerIndex, gameState.winner]);
 
-  // ヒント用：確認済み数字
+  // ターゲットカード情報およびターゲット色に応じた確認済み数字（Issue #38）
   const humanPlayer = gameState.players.find((p) => p.isHuman);
-  const knownNumbers: number[] = [];
-  if (humanPlayer) {
-    humanPlayer.cards.forEach((c) => knownNumbers.push(c.number));
-  }
-  gameState.players.forEach((p) => {
-    p.cards.forEach((c) => {
-      if (c.isOpen && !knownNumbers.includes(c.number)) {
-        knownNumbers.push(c.number);
-      }
-    });
-  });
-  if (gameState.drawnCard && !knownNumbers.includes(gameState.drawnCard.number)) {
-    knownNumbers.push(gameState.drawnCard.number);
-  }
+  const selectedTargetPlayer = gameState.selectedTarget
+    ? gameState.players.find((p) => p.id === gameState.selectedTarget?.playerId)
+    : null;
+  const selectedTargetCard =
+    selectedTargetPlayer && gameState.selectedTarget
+      ? selectedTargetPlayer.cards[gameState.selectedTarget.cardIndex]
+      : null;
+  const selectedTargetColor: CardColor = selectedTargetCard?.color || 'black';
+  const targetKnownNumbers = getKnownNumbersForColor(
+    selectedTargetColor,
+    gameState.players,
+    gameState.drawnCard
+  );
 
   // 1. セットアップ画面
   if (gameState.phase === 'SETUP') {
@@ -1318,15 +1362,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       {/* Modals */}
       {gameState.selectedTarget && gameState.phase === 'PLAYER_GUESS_NUMBER' && (
         <AttackModal
-          targetPlayerName={
-            gameState.players.find((p) => p.id === gameState.selectedTarget?.playerId)?.name || ''
-          }
+          targetPlayerName={selectedTargetPlayer?.name || ''}
           targetIndex={gameState.selectedTarget.cardIndex}
-          targetColor={
-            gameState.players.find((p) => p.id === gameState.selectedTarget?.playerId)?.cards[
-              gameState.selectedTarget.cardIndex
-            ].color || 'black'
-          }
+          targetColor={selectedTargetColor}
           onConfirmGuess={handleConfirmGuess}
           onCancel={() =>
             setGameState((prev) => ({
@@ -1335,7 +1373,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               phase: 'PLAYER_SELECT_TARGET',
             }))
           }
-          disabledNumbers={knownNumbers}
+          disabledNumbers={targetKnownNumbers}
         />
       )}
 
