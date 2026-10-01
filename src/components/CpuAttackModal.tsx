@@ -1,36 +1,58 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { Bot, CheckCircle2, XCircle, ArrowRight, ShieldAlert, Sparkles } from 'lucide-react';
+import { Bot, User, CheckCircle2, XCircle, ArrowRight, ShieldAlert, Sparkles } from 'lucide-react';
 
-export type CpuAttackNextAction = 'CONTINUE' | 'STAY' | 'TURN_END' | 'GAME_OVER';
+export type AttackNextAction = 'CONTINUE' | 'STAY' | 'TURN_END' | 'GAME_OVER';
+export type CpuAttackNextAction = AttackNextAction;
 
-export interface CpuAttackResultData {
+export interface AttackResultData {
   attackerName: string;
+  isHuman?: boolean;
   targetPlayerName: string;
   targetCardIndex: number;
   targetColor: 'black' | 'white';
   guessedNumber: number;
   isHit: boolean;
   actualNumber?: number;
-  nextAction: CpuAttackNextAction;
+  nextAction: AttackNextAction;
   nextPlayerName?: string;
 }
+export type CpuAttackResultData = AttackResultData;
 
-export interface CpuAttackModalProps {
+export interface AttackResultModalProps {
   isOpen: boolean;
-  data: CpuAttackResultData | null;
+  data: AttackResultData | null;
   onConfirm: () => void;
 }
+export type CpuAttackModalProps = AttackResultModalProps;
 
 /**
  * 展開案内メッセージの生成
  */
 export const getNextActionMessage = (
   attackerName: string,
-  nextAction: CpuAttackNextAction,
-  nextPlayerName?: string
+  nextAction: AttackNextAction,
+  nextPlayerName?: string,
+  isHuman?: boolean
 ): string => {
+  const isHumanPlayer = isHuman || attackerName === 'あなた';
+
+  if (isHumanPlayer) {
+    switch (nextAction) {
+      case 'CONTINUE':
+        return '的中！続けてアタックするか、手札に加えてステイするか選択できます';
+      case 'STAY':
+        return '手札に加えてステイしました';
+      case 'TURN_END':
+        return `あなたのターンが終了しました。次は ${nextPlayerName || '次のプレイヤー'} の番です`;
+      case 'GAME_OVER':
+        return '勝敗が決しました';
+      default:
+        return '';
+    }
+  }
+
   switch (nextAction) {
     case 'CONTINUE':
       return `${attackerName} はさらにアタックを継続します`;
@@ -46,12 +68,12 @@ export const getNextActionMessage = (
 };
 
 /**
- * CPUアタック結果確認モーダル
+ * 推理結果確認モーダル (CPU & プレイヤー)
  * - パステルイエロー（#FCF97A）×スカイブルー（#7BA6EF）基調のUI
  * - 盤面状況も視認できるよう backdrop-blur を配置
- * - Enter/Escape キー操作でも次へ進める
+ * - Enter/Escape/Space キー操作でも次へ進める
  */
-export const CpuAttackModal: React.FC<CpuAttackModalProps> = ({
+export const AttackResultModal: React.FC<AttackResultModalProps> = ({
   isOpen,
   data,
   onConfirm,
@@ -72,10 +94,13 @@ export const CpuAttackModal: React.FC<CpuAttackModalProps> = ({
 
   if (!isOpen || !data) return null;
 
+  const isHumanPlayer = Boolean(data.isHuman || data.attackerName === 'あなた');
+
   const nextActionMessage = getNextActionMessage(
     data.attackerName,
     data.nextAction,
-    data.nextPlayerName
+    data.nextPlayerName,
+    data.isHuman
   );
 
   const isTargetBlack = data.targetColor === 'black';
@@ -88,15 +113,30 @@ export const CpuAttackModal: React.FC<CpuAttackModalProps> = ({
       data-testid="cpu-attack-modal"
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-fade-in"
     >
-      <div className="relative w-full max-w-sm sm:max-w-md bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-3xl shadow-2xl border-2 border-[#7BA6EF]/40 overflow-hidden animate-scale-up">
+      <div
+        data-testid="attack-result-modal"
+        className="relative w-full max-w-sm sm:max-w-md bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-3xl shadow-2xl border-2 border-[#7BA6EF]/40 overflow-hidden animate-scale-up"
+      >
         {/* パステルイエローとスカイブルーのアクセントヘッダーライン */}
         <div className="h-2.5 w-full bg-gradient-to-r from-[#FCF97A] via-[#7BA6EF] to-[#FCF97A]" />
 
         <div className="p-5 sm:p-6 flex flex-col items-center text-center">
           {/* アタッカー表示 */}
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#7BA6EF]/15 border border-[#7BA6EF]/30 text-algo-navy text-xs font-black mb-2">
-            <Bot className="w-3.5 h-3.5 text-[#355ea7]" />
-            <span>{`${data.attackerName} のアタック`}</span>
+          <div
+            data-testid="attack-result-badge"
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#7BA6EF]/15 border border-[#7BA6EF]/30 text-algo-navy text-xs font-black mb-2"
+          >
+            {isHumanPlayer ? (
+              <>
+                <User className="w-3.5 h-3.5 text-[#355ea7]" />
+                <span>あなたのアタック</span>
+              </>
+            ) : (
+              <>
+                <Bot className="w-3.5 h-3.5 text-[#355ea7]" />
+                <span>{`${data.attackerName} のアタック`}</span>
+              </>
+            )}
           </div>
 
           <h2
@@ -189,7 +229,9 @@ export const CpuAttackModal: React.FC<CpuAttackModalProps> = ({
                     ❌ ハズレ（失敗）
                   </div>
                   <div className="text-[11px] sm:text-xs text-rose-600 font-medium">
-                    {`${data.attackerName} の引いたカードがオープンされました`}
+                    {isHumanPlayer
+                      ? 'あなたの引いたカードがオープンされました'
+                      : `${data.attackerName} の引いたカードがオープンされました`}
                   </div>
                 </div>
               </div>
@@ -224,3 +266,5 @@ export const CpuAttackModal: React.FC<CpuAttackModalProps> = ({
     </div>
   );
 };
+
+export const CpuAttackModal = AttackResultModal;
