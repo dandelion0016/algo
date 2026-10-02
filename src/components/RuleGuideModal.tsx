@@ -39,7 +39,7 @@ export const RuleGuideModal: React.FC<RuleGuideModalProps> = ({ isOpen, onClose 
               <BookOpen className="w-5 h-5 text-slate-900" />
             </div>
             <h3 id="rule-guide-modal-title" className="text-lg font-black text-slate-900">
-              NumLogic（ナムロジック）の基本ルール
+              アルゴ（algo）の公式ルール
             </h3>
           </div>
           <button
