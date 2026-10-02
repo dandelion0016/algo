@@ -22,7 +22,12 @@ import { ConfirmModal } from './ConfirmModal';
 import { ResultModal } from './ResultModal';
 import { TutorialPromptModal } from './TutorialPromptModal';
 import { TutorialModal } from './TutorialModal';
-import { CpuAttackModal, CpuAttackResultData } from './CpuAttackModal';
+import {
+  AttackResultModal,
+  AttackResultData,
+  CpuAttackModal,
+  CpuAttackResultData,
+} from './CpuAttackModal';
 import { HintModal } from './HintModal';
 import { getBestHint, HintResult } from '../lib/hintAdvisor';
 import { useUserSession } from '../hooks/useUserSession';
@@ -200,25 +205,30 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     });
   }, []);
 
-  // CPUアタック結果確認モーダル用状態と非同期リゾルバ
-  const [cpuAttackResult, setCpuAttackResult] = useState<CpuAttackResultData | null>(null);
-  const cpuAttackResolverRef = useRef<(() => void) | null>(null);
+  // 推理結果確認モーダル用状態と非同期リゾルバ (CPU & プレイヤー)
+  const [attackResult, setAttackResult] = useState<AttackResultData | null>(null);
+  const attackResolverRef = useRef<(() => void) | null>(null);
 
-  const waitForCpuAttackOk = useCallback((data: CpuAttackResultData) => {
+  const waitForAttackOk = useCallback((data: AttackResultData) => {
     return new Promise<void>((resolve) => {
-      cpuAttackResolverRef.current = resolve;
-      setCpuAttackResult(data);
+      attackResolverRef.current = resolve;
+      setAttackResult(data);
     });
   }, []);
 
-  const handleCpuAttackOk = useCallback(() => {
-    setCpuAttackResult(null);
-    if (cpuAttackResolverRef.current) {
-      const resolve = cpuAttackResolverRef.current;
-      cpuAttackResolverRef.current = null;
+  const handleAttackOk = useCallback(() => {
+    setAttackResult(null);
+    if (attackResolverRef.current) {
+      const resolve = attackResolverRef.current;
+      attackResolverRef.current = null;
       resolve();
     }
   }, []);
+
+  // CPUアタック処理との後方互換エイリアス
+  const cpuAttackResult = attackResult;
+  const waitForCpuAttackOk = waitForAttackOk;
+  const handleCpuAttackOk = handleAttackOk;
 
   // 初回アクセス時のチュートリアル確認モーダル表示チェック
   useEffect(() => {
@@ -260,11 +270,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       diff: Difficulty = gameState.difficulty,
       limit: TimeLimit = gameState.timeLimit
     ) => {
-      // CPU待機中であればリセット解除
-      setCpuAttackResult(null);
-      if (cpuAttackResolverRef.current) {
-        const resolve = cpuAttackResolverRef.current;
-        cpuAttackResolverRef.current = null;
+      // アタック結果待機中であればリセット解除
+      setAttackResult(null);
+      if (attackResolverRef.current) {
+        const resolve = attackResolverRef.current;
+        attackResolverRef.current = null;
         resolve();
       }
 
@@ -448,8 +458,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     }));
   };
 
-  // プレイヤーが数字を予想してアタック確定
-  const handleConfirmGuess = (guessedNumber: number) => {
+  // プレイヤーが数字を予想してアタック確定 (Issue #56: 結果確認モーダル表示と確認待機)
+  const handleConfirmGuess = async (guessedNumber: number) => {
     if (gameState.phase !== 'PLAYER_GUESS_NUMBER' || !gameState.selectedTarget) return;
 
     const { playerId, cardIndex } = gameState.selectedTarget;
@@ -492,50 +502,110 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       });
 
       const activePlayers = updatedPlayers.filter((p) => !p.isEliminated);
-      if (activePlayers.length === 1) {
+      const isGameOver = activePlayers.length === 1;
+
+      // 盤面の被弾カードを即座に開示しログを追記
+      setGameState((prev) => ({
+        ...prev,
+        players: updatedPlayers,
+        logs: [log, ...prev.logs],
+      }));
+
+      // 推理結果確認モーダルを表示してOKを待機 (Issue #56)
+      await waitForAttackOk({
+        attackerName: humanPlayer?.name || 'あなた',
+        isHuman: true,
+        targetPlayerName: targetPlayer.name,
+        targetCardIndex: cardIndex,
+        targetColor: targetCard.color,
+        guessedNumber,
+        isHit: true,
+        actualNumber: targetCard.number,
+        nextAction: isGameOver ? 'GAME_OVER' : 'CONTINUE',
+      });
+
+      if (isGameOver) {
         setGameState((prev) => ({
           ...prev,
-          players: updatedPlayers,
-          logs: [log, ...prev.logs],
           winner: activePlayers[0],
           phase: 'GAME_OVER',
         }));
-        return;
+      } else {
+        setGameState((prev) => ({
+          ...prev,
+          selectedTarget: null,
+          phase: 'PLAYER_DECIDE_NEXT',
+        }));
       }
-
-      setGameState((prev) => ({
-        ...prev,
-        players: updatedPlayers,
-        logs: [log, ...prev.logs],
-        selectedTarget: null,
-        phase: 'PLAYER_DECIDE_NEXT',
-      }));
     } else {
       const playerIdx = gameState.players.findIndex((p) => p.isHuman);
-      const updatedPlayers = [...gameState.players];
-      if (gameState.drawnCard) {
-        const openedDrawn: Card = { ...gameState.drawnCard, isOpen: true };
-        updatedPlayers[playerIdx] = {
-          ...updatedPlayers[playerIdx],
-          cards: insertCardInOrder(updatedPlayers[playerIdx].cards, openedDrawn),
-        };
-      }
+      const nextActiveIdx = getNextActivePlayerIndex(
+        playerIdx >= 0 ? playerIdx : 0,
+        gameState.players
+      );
+      const nextPlayer = gameState.players[nextActiveIdx];
 
-      const nextActiveIdx = getNextActivePlayerIndex(0, updatedPlayers);
-      const isNextCpu = !updatedPlayers[nextActiveIdx].isHuman;
-
-      setIsManualPaused(false);
-      setActiveHint(null);
+      // ログ追記
       setGameState((prev) => ({
         ...prev,
-        players: updatedPlayers,
-        drawnCard: null,
-        selectedTarget: null,
-        activePlayerIndex: nextActiveIdx,
-        remainingTime: prev.timeLimit,
         logs: [log, ...prev.logs],
-        phase: isNextCpu ? 'CPU_ACTING' : 'PLAYER_TURN_START',
       }));
+
+      // 推理結果確認モーダルを表示してOKを待機 (Issue #56)
+      await waitForAttackOk({
+        attackerName: humanPlayer?.name || 'あなた',
+        isHuman: true,
+        targetPlayerName: targetPlayer.name,
+        targetCardIndex: cardIndex,
+        targetColor: targetCard.color,
+        guessedNumber,
+        isHit: false,
+        actualNumber: targetCard.number,
+        nextAction: 'TURN_END',
+        nextPlayerName: nextPlayer ? nextPlayer.name : undefined,
+      });
+
+      // OK押下後に引いたカードをオープンして手番交代 (Issue #56)
+      setIsManualPaused(false);
+      setActiveHint(null);
+      setGameState((prev) => {
+        const pIdx = prev.players.findIndex((p) => p.isHuman);
+        const updatedPlayers = [...prev.players];
+        if (prev.drawnCard && pIdx >= 0) {
+          const openedDrawn: Card = { ...prev.drawnCard, isOpen: true };
+          const newCards = insertCardInOrder(updatedPlayers[pIdx].cards, openedDrawn);
+          updatedPlayers[pIdx] = {
+            ...updatedPlayers[pIdx],
+            cards: newCards,
+            isEliminated: isAllOpen(newCards),
+          };
+        }
+
+        const activePlayers = updatedPlayers.filter((p) => !p.isEliminated);
+        if (activePlayers.length === 1) {
+          return {
+            ...prev,
+            players: updatedPlayers,
+            drawnCard: null,
+            selectedTarget: null,
+            winner: activePlayers[0],
+            phase: 'GAME_OVER',
+          };
+        }
+
+        const nextIdx = getNextActivePlayerIndex(pIdx >= 0 ? pIdx : 0, updatedPlayers);
+        const isNextCpu = !updatedPlayers[nextIdx].isHuman;
+
+        return {
+          ...prev,
+          players: updatedPlayers,
+          drawnCard: null,
+          selectedTarget: null,
+          activePlayerIndex: nextIdx,
+          remainingTime: prev.timeLimit,
+          phase: isNextCpu ? 'CPU_ACTING' : 'PLAYER_TURN_START',
+        };
+      });
     }
   };
 
@@ -583,7 +653,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       gameState.phase === 'GAME_OVER' ||
       gameState.phase === 'CPU_ACTING' ||
       gameState.phase === 'PLAYER_TURN_START' ||
-      cpuAttackResult !== null ||
+      attackResult !== null ||
       isTimerPaused
     ) {
       return;
@@ -674,7 +744,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [gameState.phase, gameState.timeLimit, userId, isTimerPaused, cpuAttackResult]);
+  }, [gameState.phase, gameState.timeLimit, userId, isTimerPaused, attackResult]);
 
   // CPU手番の自律処理（連続アタックループ対応）
   useEffect(() => {
@@ -1706,7 +1776,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       )}
 
       {/* Modals */}
-      {gameState.selectedTarget && gameState.phase === 'PLAYER_GUESS_NUMBER' && (
+      {gameState.selectedTarget && gameState.phase === 'PLAYER_GUESS_NUMBER' && !attackResult && (
         <AttackModal
           targetPlayerName={selectedTargetPlayer?.name || ''}
           targetIndex={gameState.selectedTarget.cardIndex}
@@ -1772,16 +1842,16 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         onCancel={handleCloseConfirmModal}
       />
 
-      {/* CPUアタック結果確認モーダル */}
-      <CpuAttackModal
-        isOpen={cpuAttackResult !== null}
-        data={cpuAttackResult}
-        onConfirm={handleCpuAttackOk}
+      {/* 推理結果確認モーダル (CPU & プレイヤー) */}
+      <AttackResultModal
+        isOpen={attackResult !== null}
+        data={attackResult}
+        onConfirm={handleAttackOk}
       />
 
       {/* SCR-006: 決着リザルト＆祝祭演出モーダル */}
       <ResultModal
-        isOpen={gameState.phase === 'GAME_OVER' && isResultModalOpen && !cpuAttackResult}
+        isOpen={gameState.phase === 'GAME_OVER' && isResultModalOpen && !attackResult}
         winner={gameState.winner}
         humanPlayer={humanPlayer || null}
         players={gameState.players}

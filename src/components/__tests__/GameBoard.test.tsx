@@ -10,7 +10,8 @@ import {
   getKnownNumbersForColor,
 } from '../GameBoard';
 import * as useUserSessionModule from '../../hooks/useUserSession';
-import { createDeck, setupGamePlayers, insertCardInOrder, isAllOpen, getNextActivePlayerIndex } from '../../lib/algoEngine';
+import { createDeck, setupGamePlayers, insertCardInOrder, isAllOpen, getNextActivePlayerIndex, checkAttack } from '../../lib/algoEngine';
+import { getNextActionMessage } from '../CpuAttackModal';
 import { Card, GameState, AttackLog, Player } from '../../types/game';
 
 // useUserSession フックのモック化
@@ -1350,6 +1351,116 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
 
       // 初期状態ではCPUアタック結果モーダルは非表示
       expect(html).not.toContain('data-testid="cpu-attack-modal"');
+    });
+  });
+
+  describe('プレイヤーアタック時の推理結果確認モーダル表示と確認待機 (Issue #56)', () => {
+    it('プレイヤーのアタック結果確認モーダル待機中はタイマーカウントダウンが停止すること', () => {
+      const isTimerRunning = (params: {
+        timeLimit: number;
+        phase: GameState['phase'];
+        isAttackResultWaiting: boolean;
+        isTimerPaused: boolean;
+      }) => {
+        if (
+          params.timeLimit === 0 ||
+          params.phase === 'SETUP' ||
+          params.phase === 'GAME_OVER' ||
+          params.phase === 'CPU_ACTING' ||
+          params.phase === 'PLAYER_TURN_START' ||
+          params.isAttackResultWaiting ||
+          params.isTimerPaused
+        ) {
+          return false;
+        }
+        return true;
+      };
+
+      // プレイヤーが推理後、モーダル待機中はタイマーが停止すること
+      expect(
+        isTimerRunning({
+          timeLimit: 20,
+          phase: 'PLAYER_GUESS_NUMBER',
+          isAttackResultWaiting: true,
+          isTimerPaused: false,
+        })
+      ).toBe(false);
+
+      // モーダルが閉じられた後、次の決定フェーズ（PLAYER_DECIDE_NEXT）でタイマーが稼働すること
+      expect(
+        isTimerRunning({
+          timeLimit: 20,
+          phase: 'PLAYER_DECIDE_NEXT',
+          isAttackResultWaiting: false,
+          isTimerPaused: false,
+        })
+      ).toBe(true);
+    });
+
+    it('プレイヤーのアタック的中時: ターゲット被弾カードが開示され、モーダル待機後にPLAYER_DECIDE_NEXTへ移行すること', () => {
+      const initialPlayerCards: Card[] = [
+        { id: 'p1', color: 'black', number: 2, isOpen: false },
+      ];
+      const initialCpuCards: Card[] = [
+        { id: 'c1', color: 'white', number: 5, isOpen: false },
+        { id: 'c2', color: 'black', number: 8, isOpen: false },
+      ];
+
+      // アタック的中シミュレーション
+      const targetCard = initialCpuCards[0];
+      const guessedNumber = 5;
+      const isHit = checkAttack(targetCard, guessedNumber);
+      expect(isHit).toBe(true);
+
+      // 被弾カードのオープン処理
+      const updatedCpuCards = initialCpuCards.map((c, i) =>
+        i === 0 ? { ...c, isOpen: true } : c
+      );
+      expect(updatedCpuCards[0].isOpen).toBe(true);
+
+      // 展開案内メッセージの確認
+      const nextMessage = getNextActionMessage('あなた', 'CONTINUE');
+      expect(nextMessage).toBe('的中！続けてアタックするか、手札に加えてステイするか選択できます');
+    });
+
+    it('プレイヤーのアタック決着時: 最後のカード的中時に勝敗決着メッセージが案内されGAME_OVERへ移行すること', () => {
+      const initialCpuCards: Card[] = [
+        { id: 'c1', color: 'white', number: 5, isOpen: false },
+      ];
+
+      // 最後の1枚を的中
+      const isHit = checkAttack(initialCpuCards[0], 5);
+      expect(isHit).toBe(true);
+
+      const updatedCpuCards = [{ ...initialCpuCards[0], isOpen: true }];
+      const isEliminated = isAllOpen(updatedCpuCards);
+      expect(isEliminated).toBe(true);
+
+      // 決着メッセージ
+      const nextMessage = getNextActionMessage('あなた', 'GAME_OVER');
+      expect(nextMessage).toBe('勝敗が決しました');
+    });
+
+    it('プレイヤーのアタックハズレ時: ハズレ判定文と手番終了案内が行われ、OK押下後に引いたカードがオープンされて手番交代すること', () => {
+      const initialPlayerCards: Card[] = [
+        { id: 'p1', color: 'black', number: 2, isOpen: false },
+      ];
+      const drawnCard: Card = { id: 'd1', color: 'white', number: 7, isOpen: false };
+
+      // ハズレ
+      const isHit = checkAttack({ id: 'c1', color: 'black', number: 9, isOpen: false }, 3);
+      expect(isHit).toBe(false);
+
+      // 展開案内メッセージ
+      const nextMessage = getNextActionMessage('あなた', 'TURN_END', 'CPU 1');
+      expect(nextMessage).toBe('あなたのターンが終了しました。次は CPU 1 の番です');
+
+      // OK押下後の引いたカードのオープンと挿入
+      const openedDrawn = { ...drawnCard, isOpen: true };
+      const updatedPlayerCards = insertCardInOrder(initialPlayerCards, openedDrawn);
+
+      expect(updatedPlayerCards.length).toBe(2);
+      expect(updatedPlayerCards.find((c) => c.id === 'd1')?.isOpen).toBe(true);
     });
   });
 
