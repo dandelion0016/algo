@@ -239,16 +239,18 @@ describe('ResultModal Component (SCR-006: 決着画面・祝祭演出・戦績�
   });
 
   describe('アクションボタンの属性検証', () => {
-    it('「同じ設定でもう一度遊ぶ（再戦）」ボタンが存在する', () => {
+    it('「同じ設定でもう一度遊ぶ（再戦）」ボタンが存在し、重複する絵文字を含まない', () => {
       const html = renderToString(<ResultModal {...defaultProps} />);
       expect(html).toContain('data-testid="btn-play-again"');
       expect(html).toContain('同じ設定でもう一度遊ぶ（再戦）');
+      expect(html).not.toContain('🔄');
     });
 
-    it('「設定を変更する（タイトルへ）」ボタンが存在する', () => {
+    it('「設定を変更する（タイトルへ）」ボタンが存在し、重複する絵文字を含まない', () => {
       const html = renderToString(<ResultModal {...defaultProps} />);
       expect(html).toContain('data-testid="btn-return-setup"');
       expect(html).toContain('設定を変更する（タイトルへ）');
+      expect(html).not.toContain('⚙');
     });
   });
 });

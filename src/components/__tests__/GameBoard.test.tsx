@@ -517,7 +517,8 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
 
         expect(html).toContain('data-testid="timeup-banner"');
         expect(html).toContain('role="alert"');
-        expect(html).toContain('⚠️ TIME UP! 制限時間を超過したため、引いたカードが強制オープンされました');
+        expect(html).toContain('TIME UP! 制限時間を超過したため、引いたカードが強制オープンされました');
+        expect(html).not.toContain('⚠️');
       });
 
       it('タイムアップバナーがない場合はタイムアップバナーが描画されない', () => {

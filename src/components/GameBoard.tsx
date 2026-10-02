@@ -97,7 +97,7 @@ export const calculateProgressPercentage = (remainingTime: number, timeLimit: nu
  * タイムアップ時の警告メッセージ定数
  */
 export const TIME_UP_MESSAGE =
-  '⚠️ TIME UP! 制限時間を超過したため、引いたカードが強制オープンされました';
+  'TIME UP! 制限時間を超過したため、引いたカードが強制オープンされました';
 
 /**
  * ターゲットカードの色（黒または白）に応じた確認済み数字（既知数字）のリストを抽出する (Issue #38)
