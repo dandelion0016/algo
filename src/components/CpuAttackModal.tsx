@@ -118,16 +118,16 @@ export const AttackResultModal: React.FC<AttackResultModalProps> = ({
       aria-modal="true"
       aria-labelledby="cpu-attack-modal-title"
       data-testid="cpu-attack-modal"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-3 sm:p-4 animate-fade-in"
     >
       <div
         data-testid="attack-result-modal"
-        className="relative w-full max-w-sm sm:max-w-md bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-3xl shadow-2xl border-2 border-[#7BA6EF]/40 overflow-hidden animate-scale-up"
+        className="relative w-full max-w-sm sm:max-w-md bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-3xl shadow-2xl border-2 border-[#7BA6EF]/40 overflow-hidden animate-scale-up max-h-[92dvh] flex flex-col"
       >
         {/* パステルイエローとスカイブルーのアクセントヘッダーライン */}
-        <div className="h-2.5 w-full bg-gradient-to-r from-[#FCF97A] via-[#7BA6EF] to-[#FCF97A]" />
+        <div className="h-2.5 w-full bg-gradient-to-r from-[#FCF97A] via-[#7BA6EF] to-[#FCF97A] shrink-0" />
 
-        <div className="p-5 sm:p-6 flex flex-col items-center text-center">
+        <div className="p-4 sm:p-6 flex flex-col items-center text-center overflow-y-auto max-h-full">
           {/* アタッカー表示 */}
           <div
             data-testid="attack-result-badge"

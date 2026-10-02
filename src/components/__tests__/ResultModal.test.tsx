@@ -253,6 +253,13 @@ describe('ResultModal Component (SCR-006: 決着画面・祝祭演出・戦績�
       expect(html).toContain('設定を変更する（タイトルへ）');
       expect(html).not.toContain('⚙');
     });
+
+    it('モバイル画面（375x667等）での下部見切れ防止のため max-h-[92dvh] および overflow-y-auto が付与されている (Issue #67)', () => {
+      const html = renderToString(<ResultModal {...defaultProps} onClose={vi.fn()} />);
+      expect(html).toContain('max-h-[92dvh]');
+      expect(html).toContain('overflow-y-auto');
+      expect(html).toContain('盤面を振り返る（モーダルを閉じる）');
+    });
   });
 
   describe('キーボードアクセシビリティ仕様検証 (Issue #70: Enter/Space/Escape)', () => {
