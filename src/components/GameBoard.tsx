@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { getAppVersion } from '../lib/version';
 import { Card, GameState, Difficulty, PlayerCount, TimeLimit, AttackLog, Player, CardColor } from '../types/game';
 import {
   createDeck,

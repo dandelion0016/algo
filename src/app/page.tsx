@@ -1,5 +1,6 @@
 import { GameBoard } from '../components/GameBoard';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { getAppVersion } from '../lib/version';
 
 export default function Home() {
   return (

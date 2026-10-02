@@ -4,6 +4,7 @@ import React from 'react';
 import { PlayerCount, Difficulty, TimeLimit } from '../types/game';
 import { Users, Brain, Timer, BookOpen, ArrowRight, Sparkles, GraduationCap } from 'lucide-react';
 import { useUserSession } from '../hooks/useUserSession';
+import { getAppVersion } from '../lib/version';
 
 export interface SetupModalProps {
   playerCount: PlayerCount;
@@ -102,7 +103,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                 <h2 className="text-base sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-1.5">
-                  algo <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-algo-blue text-white font-bold">Web対戦</span>
+                  algo <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-algo-blue text-white font-bold">Web対戦</span> <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 font-bold">{getAppVersion()}</span>
                 </h2>
                 {/* ユーザーIDバッジ */}
                 <div
