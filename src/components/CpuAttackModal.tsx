@@ -17,6 +17,7 @@ export interface AttackResultData {
   actualNumber?: number;
   nextAction: AttackNextAction;
   nextPlayerName?: string;
+  isDeckExhausted?: boolean;
 }
 export type CpuAttackResultData = AttackResultData;
 
@@ -34,16 +35,19 @@ export const getNextActionMessage = (
   attackerName: string,
   nextAction: AttackNextAction,
   nextPlayerName?: string,
-  isHuman?: boolean
+  isHuman?: boolean,
+  isDeckExhausted?: boolean
 ): string => {
   const isHumanPlayer = isHuman || attackerName === 'あなた';
 
   if (isHumanPlayer) {
     switch (nextAction) {
       case 'CONTINUE':
-        return '的中！続けてアタックするか、手札に加えてステイするか選択できます';
+        return isDeckExhausted
+          ? '的中！続けてアタックするか、ステイするか選択できます'
+          : '的中！続けてアタックするか、手札に加えてステイするか選択できます';
       case 'STAY':
-        return '手札に加えてステイしました';
+        return isDeckExhausted ? 'ステイしました' : '手札に加えてステイしました';
       case 'TURN_END':
         return `あなたのターンが終了しました。次は ${nextPlayerName || '次のプレイヤー'} の番です`;
       case 'GAME_OVER':
@@ -57,7 +61,9 @@ export const getNextActionMessage = (
     case 'CONTINUE':
       return `${attackerName} はさらにアタックを継続します`;
     case 'STAY':
-      return `${attackerName} は手札に加えてステイしました`;
+      return isDeckExhausted
+        ? `${attackerName} はステイしました`
+        : `${attackerName} は手札に加えてステイしました`;
     case 'TURN_END':
       return `${attackerName} のターンが終了しました。次は ${nextPlayerName || '次のプレイヤー'} の番です`;
     case 'GAME_OVER':
@@ -100,7 +106,8 @@ export const AttackResultModal: React.FC<AttackResultModalProps> = ({
     data.attackerName,
     data.nextAction,
     data.nextPlayerName,
-    data.isHuman
+    data.isHuman,
+    data.isDeckExhausted
   );
 
   const isTargetBlack = data.targetColor === 'black';
@@ -229,7 +236,9 @@ export const AttackResultModal: React.FC<AttackResultModalProps> = ({
                     ❌ ハズレ（失敗）
                   </div>
                   <div className="text-[11px] sm:text-xs text-rose-600 font-medium">
-                    {isHumanPlayer
+                    {data.isDeckExhausted
+                      ? '山札がないため、手札の伏せカードがオープンされました'
+                      : isHumanPlayer
                       ? 'あなたの引いたカードがオープンされました'
                       : `${data.attackerName} の引いたカードがオープンされました`}
                   </div>
