@@ -33,7 +33,7 @@ describe('CardComponent (Issue #43: failed-guesses-badge)', () => {
     expect(html).toContain('✕3');
   });
 
-  it('複数失敗数字がある場合、✕[3, 7] の形式でバッジが表示される', () => {
+  it('2件の失敗数字がある場合、コンパクトな ✕3,7 の形式でバッジが表示されツールチップが付与される', () => {
     const html = renderToString(
       <CardComponent
         card={hiddenCard}
@@ -43,7 +43,26 @@ describe('CardComponent (Issue #43: failed-guesses-badge)', () => {
     );
 
     expect(html).toContain('data-testid="failed-guesses-badge"');
-    expect(html).toContain('✕[3, 7]');
+    expect(html).toContain('✕3,7');
+    expect(html).toContain('title="過去の外れ数字: 3, 7"');
+    expect(html).toContain('max-w-[48px]');
+    expect(html).toContain('truncate');
+  });
+
+  it('3件以上の失敗数字がある場合、✕1,3.. の省略形式でバッジが表示され完全な全件ツールチップが付与される', () => {
+    const html = renderToString(
+      <CardComponent
+        card={hiddenCard}
+        isOwner={false}
+        failedGuesses={[1, 3, 5, 7]}
+      />
+    );
+
+    expect(html).toContain('data-testid="failed-guesses-badge"');
+    expect(html).toContain('✕1,3..');
+    expect(html).toContain('title="過去の外れ数字: 1, 3, 5, 7"');
+    expect(html).toContain('max-w-[48px]');
+    expect(html).toContain('truncate');
   });
 
   it('failedGuesses が空配列の場合は failed-guesses-badge は表示されない', () => {

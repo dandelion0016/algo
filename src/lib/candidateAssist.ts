@@ -219,7 +219,8 @@ export function getFailedNumbersForCard(
 }
 
 /**
- * 失敗数字リストをカード表示用バッジ文字列にフォーマット（例: "✕3", "✕[3, 7]"）
+ * 失敗数字リストをカード表示用バッジ文字列にフォーマット（例: "✕3", "✕3,7", "✕1,3.."）
+ * カード幅（44px）を超過して隣と重ならないよう、2件は角括弧なし、3件以上は省略表記（Issue #69）
  */
 export function formatFailedNumbersBadge(failedNumbers: number[]): string {
   if (!failedNumbers || failedNumbers.length === 0) {
@@ -228,7 +229,21 @@ export function formatFailedNumbersBadge(failedNumbers: number[]): string {
   if (failedNumbers.length === 1) {
     return `✕${failedNumbers[0]}`;
   }
-  return `✕[${failedNumbers.join(', ')}]`;
+  if (failedNumbers.length === 2) {
+    return `✕${failedNumbers[0]},${failedNumbers[1]}`;
+  }
+  return `✕${failedNumbers[0]},${failedNumbers[1]}..`;
+}
+
+/**
+ * 失敗数字リストの完全な一覧をツールチップ用のテキストにフォーマット（例: "過去の外れ数字: 1, 3, 5, 7"）
+ * バッジが省略表記になっても、ホバー等で全数字を確認可能にする（Issue #69）
+ */
+export function getFailedNumbersTooltip(failedNumbers: number[]): string {
+  if (!failedNumbers || failedNumbers.length === 0) {
+    return '';
+  }
+  return `過去の外れ数字: ${failedNumbers.join(', ')}`;
 }
 
 /**
