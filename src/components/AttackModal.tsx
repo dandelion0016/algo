@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CardColor } from '../types/game';
 import { formatCandidateRange, formatFailedNumbersBadge } from '../lib/candidateAssist';
 import { Sparkles, X, Target } from 'lucide-react';
@@ -29,14 +29,29 @@ export const AttackModal: React.FC<AttackModalProps> = ({
   failedNumbers = [],
 }) => {
   const [selectedNum, setSelectedNum] = useState<number | null>(null);
+  const inputBufferRef = useRef<string>('');
+  const bufferTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const isBlack = targetColor === 'black';
 
-  // キーボードアクセシビリティ: 数字キー(0〜9, テンキー)、Enter、Escape
+  // タイマーのアンマウント時クリーンアップ
+  useEffect(() => {
+    return () => {
+      if (bufferTimerRef.current) {
+        clearTimeout(bufferTimerRef.current);
+      }
+    };
+  }, []);
+
+  // キーボードアクセシビリティ: 数字キー(0〜11, 2桁バッファリング, テンキー)、矢印キー、Enter、Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
+        if (bufferTimerRef.current) {
+          clearTimeout(bufferTimerRef.current);
+        }
+        inputBufferRef.current = '';
         onCancel();
         return;
       }
@@ -44,24 +59,83 @@ export const AttackModal: React.FC<AttackModalProps> = ({
       if (e.key === 'Enter') {
         if (selectedNum !== null) {
           e.preventDefault();
+          if (bufferTimerRef.current) {
+            clearTimeout(bufferTimerRef.current);
+          }
+          inputBufferRef.current = '';
           onConfirmGuess(selectedNum);
         }
         return;
       }
 
+      // 矢印キー操作 (ArrowLeft / ArrowRight / ArrowUp / ArrowDown)
+      // グリッドは 4列 (0〜3, 4〜7, 8〜11)
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+        e.preventDefault();
+        if (bufferTimerRef.current) {
+          clearTimeout(bufferTimerRef.current);
+        }
+        inputBufferRef.current = '';
+
+        setSelectedNum((prev) => {
+          if (prev === null) {
+            return 0;
+          }
+          switch (e.key) {
+            case 'ArrowLeft':
+              return Math.max(0, prev - 1);
+            case 'ArrowRight':
+              return Math.min(11, prev + 1);
+            case 'ArrowUp':
+              return prev - 4 >= 0 ? prev - 4 : prev;
+            case 'ArrowDown':
+              return prev + 4 <= 11 ? prev + 4 : prev;
+            default:
+              return prev;
+          }
+        });
+        return;
+      }
+
       // 数字キー (0〜9) またはテンキー (Numpad0〜Numpad9)
-      let num: number | null = null;
+      let digit: number | null = null;
       if (e.key >= '0' && e.key <= '9') {
-        num = parseInt(e.key, 10);
-      } else if (e.code.startsWith('Numpad') && e.code.length === 7) {
+        digit = parseInt(e.key, 10);
+      } else if (e.code && e.code.startsWith('Numpad') && e.code.length === 7) {
         const parsed = parseInt(e.code.slice(6), 10);
         if (!isNaN(parsed) && parsed >= 0 && parsed <= 9) {
-          num = parsed;
+          digit = parsed;
         }
       }
 
-      if (num !== null && num >= 0 && num <= 11) {
-        setSelectedNum(num);
+      if (digit !== null) {
+        // 2桁数字入力のバッファリング
+        // 直前の入力が '1' で、続いて '0' または '1' が入力された場合は「10」または「11」を選択
+        if (inputBufferRef.current === '1' && (digit === 0 || digit === 1)) {
+          if (bufferTimerRef.current) {
+            clearTimeout(bufferTimerRef.current);
+          }
+          inputBufferRef.current = '';
+          const num = digit === 0 ? 10 : 11;
+          setSelectedNum(num);
+        } else if (digit === 1) {
+          // '1' が押されたらまず '1' を選択し、600ms の猶予で2桁目入力を待機
+          setSelectedNum(1);
+          inputBufferRef.current = '1';
+          if (bufferTimerRef.current) {
+            clearTimeout(bufferTimerRef.current);
+          }
+          bufferTimerRef.current = setTimeout(() => {
+            inputBufferRef.current = '';
+          }, 600);
+        } else {
+          // '0' または '2'〜'9' の場合、即座に選択＆バッファクリア
+          if (bufferTimerRef.current) {
+            clearTimeout(bufferTimerRef.current);
+          }
+          inputBufferRef.current = '';
+          setSelectedNum(digit);
+        }
       }
     };
 

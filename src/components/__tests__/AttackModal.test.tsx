@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { renderToString } from 'react-dom/server';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { AttackModal } from '../AttackModal';
 
 describe('AttackModal Component (SCR-004 & Issue #17: data-testid and a11y)', () => {
@@ -75,109 +76,141 @@ describe('AttackModal Component (SCR-004 & Issue #17: data-testid and a11y)', ()
     });
   });
 
-  describe('キーボードショートカット＆イベントハンドリング仕様検証', () => {
-    // AttackModal内のキーボードハンドラーロジックをテスト
-    const createKeyHandler = (
-      selectedNum: number | null,
-      setSelectedNum: (n: number) => void,
-      onConfirmGuess: (n: number) => void,
-      onCancel: () => void
-    ) => {
-      return (e: { key: string; code?: string; preventDefault: () => void }) => {
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          onCancel();
-          return;
-        }
+  describe('キーボードショートカット＆イベントハンドリング仕様検証 (Issue #70: 2桁数字「10」「11」、矢印キー、Enter/Escape)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
 
-        if (e.key === 'Enter') {
-          if (selectedNum !== null) {
-            e.preventDefault();
-            onConfirmGuess(selectedNum);
-          }
-          return;
-        }
-
-        let num: number | null = null;
-        if (e.key >= '0' && e.key <= '9') {
-          num = parseInt(e.key, 10);
-        } else if (e.code && e.code.startsWith('Numpad') && e.code.length === 7) {
-          const parsed = parseInt(e.code.slice(6), 10);
-          if (!isNaN(parsed) && parsed >= 0 && parsed <= 9) {
-            num = parsed;
-          }
-        }
-
-        if (num !== null && num >= 0 && num <= 11) {
-          setSelectedNum(num);
-        }
-      };
-    };
+    afterEach(() => {
+      vi.useRealTimers();
+    });
 
     it('Escapeキーで onCancel が呼ばれる', () => {
       const onCancel = vi.fn();
-      const onConfirmGuess = vi.fn();
-      const setSelectedNum = vi.fn();
-      const preventDefault = vi.fn();
+      render(<AttackModal {...defaultProps} onCancel={onCancel} />);
 
-      const handler = createKeyHandler(null, setSelectedNum, onConfirmGuess, onCancel);
-      handler({ key: 'Escape', preventDefault });
+      fireEvent.keyDown(window, { key: 'Escape' });
 
       expect(onCancel).toHaveBeenCalledTimes(1);
-      expect(preventDefault).toHaveBeenCalled();
-      expect(onConfirmGuess).not.toHaveBeenCalled();
     });
 
     it('通常数字キー（0〜9）で対応する数字が選択される', () => {
-      const onCancel = vi.fn();
-      const onConfirmGuess = vi.fn();
-      const setSelectedNum = vi.fn();
-      const preventDefault = vi.fn();
+      render(<AttackModal {...defaultProps} />);
 
-      const handler = createKeyHandler(null, setSelectedNum, onConfirmGuess, onCancel);
-
-      for (let i = 0; i <= 9; i++) {
-        handler({ key: `${i}`, preventDefault });
-        expect(setSelectedNum).toHaveBeenCalledWith(i);
+      for (let i = 2; i <= 9; i++) {
+        fireEvent.keyDown(window, { key: `${i}` });
+        const btn = screen.getByTestId(`btn-guess-num-${i}`);
+        expect(btn).toHaveAttribute('aria-pressed', 'true');
       }
     });
 
     it('テンキー（Numpad0〜Numpad9）で対応する数字が選択される', () => {
-      const onCancel = vi.fn();
-      const onConfirmGuess = vi.fn();
-      const setSelectedNum = vi.fn();
-      const preventDefault = vi.fn();
+      render(<AttackModal {...defaultProps} />);
 
-      const handler = createKeyHandler(null, setSelectedNum, onConfirmGuess, onCancel);
-
-      for (let i = 0; i <= 9; i++) {
-        handler({ key: 'Unidentified', code: `Numpad${i}`, preventDefault });
-        expect(setSelectedNum).toHaveBeenCalledWith(i);
-      }
+      fireEvent.keyDown(window, { key: 'Unidentified', code: 'Numpad3' });
+      const btn = screen.getByTestId('btn-guess-num-3');
+      expect(btn).toHaveAttribute('aria-pressed', 'true');
     });
 
-    it('数字選択済みの状態でEnterキーを押すと onConfirmGuess が発火する', () => {
-      const onCancel = vi.fn();
-      const onConfirmGuess = vi.fn();
-      const setSelectedNum = vi.fn();
-      const preventDefault = vi.fn();
+    it('キーボード「1」→「0」の連続入力で数字「10」が選択される (Issue #70)', () => {
+      render(<AttackModal {...defaultProps} />);
 
-      const handler = createKeyHandler(7, setSelectedNum, onConfirmGuess, onCancel);
-      handler({ key: 'Enter', preventDefault });
+      // 「1」を押下
+      fireEvent.keyDown(window, { key: '1' });
+      expect(screen.getByTestId('btn-guess-num-1')).toHaveAttribute('aria-pressed', 'true');
 
-      expect(onConfirmGuess).toHaveBeenCalledWith(7);
-      expect(preventDefault).toHaveBeenCalled();
-      expect(onCancel).not.toHaveBeenCalled();
+      // 600ms 以内に「0」を押下
+      fireEvent.keyDown(window, { key: '0' });
+      expect(screen.getByTestId('btn-guess-num-10')).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByTestId('btn-guess-num-1')).toHaveAttribute('aria-pressed', 'false');
     });
 
-    it('未選択（null）の状態でEnterキーを押しても onConfirmGuess は発火しない', () => {
-      const onCancel = vi.fn();
-      const onConfirmGuess = vi.fn();
-      const setSelectedNum = vi.fn();
-      const preventDefault = vi.fn();
+    it('キーボード「1」→「1」の連続入力で数字「11」が選択される (Issue #70)', () => {
+      render(<AttackModal {...defaultProps} />);
 
-      const handler = createKeyHandler(null, setSelectedNum, onConfirmGuess, onCancel);
-      handler({ key: 'Enter', preventDefault });
+      // 「1」を押下
+      fireEvent.keyDown(window, { key: '1' });
+      expect(screen.getByTestId('btn-guess-num-1')).toHaveAttribute('aria-pressed', 'true');
+
+      // 600ms 以内に「1」を押下
+      fireEvent.keyDown(window, { key: '1' });
+      expect(screen.getByTestId('btn-guess-num-11')).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByTestId('btn-guess-num-1')).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    it('「1」入力後に600ms待機時間が経過した場合、バッファが破棄されて次の数字が単独選択される (Issue #70)', () => {
+      render(<AttackModal {...defaultProps} />);
+
+      fireEvent.keyDown(window, { key: '1' });
+      expect(screen.getByTestId('btn-guess-num-1')).toHaveAttribute('aria-pressed', 'true');
+
+      // 600ms 経過
+      act(() => {
+        vi.advanceTimersByTime(600);
+      });
+
+      // その後「0」を押下 -> 「10」ではなく「0」が選択される
+      fireEvent.keyDown(window, { key: '0' });
+      expect(screen.getByTestId('btn-guess-num-0')).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByTestId('btn-guess-num-10')).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    it('矢印キー（ArrowLeft / ArrowRight / ArrowUp / ArrowDown）で選択数字が移動する (Issue #70)', () => {
+      render(<AttackModal {...defaultProps} />);
+
+      // 初期未選択から ArrowRight を押すと 0 が選択される
+      fireEvent.keyDown(window, { key: 'ArrowRight' });
+      expect(screen.getByTestId('btn-guess-num-0')).toHaveAttribute('aria-pressed', 'true');
+
+      // 0 から ArrowRight で 1 に移動
+      fireEvent.keyDown(window, { key: 'ArrowRight' });
+      expect(screen.getByTestId('btn-guess-num-1')).toHaveAttribute('aria-pressed', 'true');
+
+      // 1 から ArrowDown で 5 に移動 (4列グリッド)
+      fireEvent.keyDown(window, { key: 'ArrowDown' });
+      expect(screen.getByTestId('btn-guess-num-5')).toHaveAttribute('aria-pressed', 'true');
+
+      // 5 から ArrowUp で 1 に戻る
+      fireEvent.keyDown(window, { key: 'ArrowUp' });
+      expect(screen.getByTestId('btn-guess-num-1')).toHaveAttribute('aria-pressed', 'true');
+
+      // 1 から ArrowLeft で 0 に戻る
+      fireEvent.keyDown(window, { key: 'ArrowLeft' });
+      expect(screen.getByTestId('btn-guess-num-0')).toHaveAttribute('aria-pressed', 'true');
+
+      // 0 で ArrowLeft を押しても 0 に留まる（下限ガード）
+      fireEvent.keyDown(window, { key: 'ArrowLeft' });
+      expect(screen.getByTestId('btn-guess-num-0')).toHaveAttribute('aria-pressed', 'true');
+
+      // 11 まで移動して ArrowRight を押しても 11 に留まる（上限ガード）
+      fireEvent.keyDown(window, { key: '1' });
+      fireEvent.keyDown(window, { key: '1' });
+      expect(screen.getByTestId('btn-guess-num-11')).toHaveAttribute('aria-pressed', 'true');
+
+      fireEvent.keyDown(window, { key: 'ArrowRight' });
+      expect(screen.getByTestId('btn-guess-num-11')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('矢印キーで数字選択後、Enterキーでアタックが実行される (Issue #70)', () => {
+      const onConfirmGuess = vi.fn();
+      render(<AttackModal {...defaultProps} onConfirmGuess={onConfirmGuess} />);
+
+      // ArrowRight で 0 を選択
+      fireEvent.keyDown(window, { key: 'ArrowRight' });
+      // ArrowRight で 1 を選択
+      fireEvent.keyDown(window, { key: 'ArrowRight' });
+      // Enter で決定
+      fireEvent.keyDown(window, { key: 'Enter' });
+
+      expect(onConfirmGuess).toHaveBeenCalledTimes(1);
+      expect(onConfirmGuess).toHaveBeenCalledWith(1);
+    });
+
+    it('数字未選択（null）の状態でEnterキーを押しても onConfirmGuess は発火しない', () => {
+      const onConfirmGuess = vi.fn();
+      render(<AttackModal {...defaultProps} onConfirmGuess={onConfirmGuess} />);
+
+      fireEvent.keyDown(window, { key: 'Enter' });
 
       expect(onConfirmGuess).not.toHaveBeenCalled();
     });
