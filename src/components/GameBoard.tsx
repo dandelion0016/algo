@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { getAppVersion } from '../lib/version';
 import { Card, GameState, Difficulty, PlayerCount, TimeLimit, AttackLog, Player, CardColor } from '../types/game';
 import {
   createDeck,
@@ -1228,6 +1229,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 </span>
                 <span className="text-[9px] sm:text-[10px] font-bold px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-slate-100 text-slate-600">
                   {gameState.timeLimit === 0 ? '無制限' : `${gameState.timeLimit}秒`}
+                </span>
+                <span data-testid="gameboard-version-badge" className="text-[9px] sm:text-[10px] font-medium font-mono px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-slate-100 text-slate-500">
+                  {getAppVersion()}
                 </span>
               </h1>
               <p className="text-[11px] text-slate-500 font-medium hidden sm:block">数字当て論理推理ボードゲーム</p>
