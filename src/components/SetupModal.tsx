@@ -341,6 +341,11 @@ export const SetupModal: React.FC<SetupModalProps> = ({
             <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
           </button>
         </div>
+
+        {/* バージョン表記 (下部控えめ表示) */}
+        <div data-testid="setup-bottom-version" className="pt-1 sm:pt-2 text-center text-[10px] text-slate-400 font-mono">
+          NumLogic {getAppVersion()}
+        </div>
       </div>
     </div>
   );
