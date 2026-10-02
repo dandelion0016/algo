@@ -7,8 +7,11 @@ import {
   getProgressBarColorClass,
   calculateProgressPercentage,
   TIME_UP_MESSAGE,
+  TIME_UP_AUTO_DRAW_MESSAGE,
+  TIME_UP_NO_DECK_MESSAGE,
   getKnownNumbersForColor,
 } from '../GameBoard';
+import { render, screen, act } from '@testing-library/react';
 import * as useUserSessionModule from '../../hooks/useUserSession';
 import { createDeck, setupGamePlayers, insertCardInOrder, isAllOpen, getNextActivePlayerIndex, checkAttack } from '../../lib/algoEngine';
 import { getNextActionMessage } from '../CpuAttackModal';
@@ -1294,9 +1297,9 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
     });
   });
 
-  describe('CPUアタック結果確認モーダルおよびタイマー停止仕様 (ユーザー要求対応)', () => {
-    it('PLAYER_TURN_START時（カードを引く前）はタイマーカウントダウン条件が無効であること', () => {
-      // タイマー有効判定関数
+  describe('タイマーカウントダウン作動条件および放置対策 (Issue #62)', () => {
+    it('PLAYER_TURN_START時（カードを引く前）でもタイマーカウントダウンが作動すること', () => {
+      // タイマー有効判定関数 (Issue #62: PLAYER_TURN_STARTも作動)
       const isTimerRunning = (params: {
         timeLimit: number;
         phase: GameState['phase'];
@@ -1308,7 +1311,6 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
           params.phase === 'SETUP' ||
           params.phase === 'GAME_OVER' ||
           params.phase === 'CPU_ACTING' ||
-          params.phase === 'PLAYER_TURN_START' ||
           params.isCpuAttackWaiting ||
           params.isTimerPaused
         ) {
@@ -1317,7 +1319,7 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
         return true;
       };
 
-      // ドロー前（PLAYER_TURN_START）: タイマー停止
+      // ドロー前（PLAYER_TURN_START）: タイマー作動（放置防止）
       expect(
         isTimerRunning({
           timeLimit: 15,
@@ -1325,7 +1327,7 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
           isCpuAttackWaiting: false,
           isTimerPaused: false,
         })
-      ).toBe(false);
+      ).toBe(true);
 
       // CPUアタックOK待ち時: タイマー停止
       expect(
@@ -1396,7 +1398,6 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
           params.phase === 'SETUP' ||
           params.phase === 'GAME_OVER' ||
           params.phase === 'CPU_ACTING' ||
-          params.phase === 'PLAYER_TURN_START' ||
           params.isAttackResultWaiting ||
           params.isTimerPaused
         ) {
@@ -1916,6 +1917,183 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
 
       expect(logMessage).toContain('山札がないため、手札の伏せカードがオープンされました。');
       expect(logMessage).not.toContain('引いたカードがオープンされました');
+    });
+  });
+
+  describe('ドロー前（PLAYER_TURN_START）のタイマーカウントダウンと自動ドロータイムアップペナルティ (Issue #62)', () => {
+    it('PLAYER_TURN_START フェーズでもタイマーが1秒毎にカウントダウンすること', () => {
+      vi.useFakeTimers();
+
+      const { container } = render(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_TURN_START',
+            timeLimit: 15,
+            remainingTime: 15,
+            activePlayerIndex: 0,
+            deck: [
+              { id: 'd-1', color: 'black', number: 7, isOpen: false },
+              { id: 'd-2', color: 'white', number: 4, isOpen: false },
+            ],
+            players: [
+              {
+                id: 'p1',
+                name: 'あなた',
+                isHuman: true,
+                avatarColor: 'from-blue-500 to-indigo-600',
+                isEliminated: false,
+                cards: [
+                  { id: 'c1', color: 'black', number: 2, isOpen: false },
+                  { id: 'c2', color: 'white', number: 9, isOpen: false },
+                ],
+              },
+              {
+                id: 'cpu1',
+                name: 'CPU 1',
+                isHuman: false,
+                avatarColor: 'from-purple-500 to-indigo-600',
+                isEliminated: false,
+                cards: [
+                  { id: 'c3', color: 'black', number: 3, isOpen: false },
+                ],
+              },
+            ],
+          }}
+        />
+      );
+
+      // 初期の残り時間表示
+      expect(container.textContent).toContain('残り 15 秒');
+
+      // 1秒進める
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(container.textContent).toContain('残り 14 秒');
+
+      // さらに2秒進める
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(container.textContent).toContain('残り 12 秒');
+
+      vi.useRealTimers();
+    });
+
+    it('山札がある状態でドロー前にタイムアップした場合、自動ドローオープンペナルティが発動しCPU手番へ移行すること', () => {
+      vi.useFakeTimers();
+
+      const { container } = render(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_TURN_START',
+            timeLimit: 15,
+            remainingTime: 1, // 残り1秒
+            activePlayerIndex: 0,
+            drawnCard: null,
+            deck: [
+              { id: 'd-1', color: 'black', number: 5, isOpen: false },
+              { id: 'd-2', color: 'white', number: 8, isOpen: false },
+            ],
+            players: [
+              {
+                id: 'p1',
+                name: 'あなた',
+                isHuman: true,
+                avatarColor: 'from-blue-500 to-indigo-600',
+                isEliminated: false,
+                cards: [
+                  { id: 'c1', color: 'black', number: 2, isOpen: false },
+                  { id: 'c2', color: 'white', number: 9, isOpen: false },
+                ],
+              },
+              {
+                id: 'cpu1',
+                name: 'CPU 1',
+                isHuman: false,
+                avatarColor: 'from-purple-500 to-indigo-600',
+                isEliminated: false,
+                cards: [
+                  { id: 'c3', color: 'black', number: 3, isOpen: false },
+                ],
+              },
+            ],
+          }}
+        />
+      );
+
+      // 1秒進めてタイムアップを発生させる
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      // 1. 自動ドローバナーが表示されること
+      expect(container.textContent).toContain(TIME_UP_AUTO_DRAW_MESSAGE);
+
+      // 2. 山札から1枚引かれ、山札が1枚になっていること（初期2枚 -> 1枚）
+      expect(container.textContent).toContain('1 枚');
+
+      // 3. プレイヤーの手札が3枚になり、自動ドローされたカード（black 5）が表向きで挿入されていること
+      const p1Cards = screen.getAllByRole('button').filter(
+        (el) => el.getAttribute('data-testid')?.startsWith('card-')
+      );
+      // または textContent に自動ドローされたカードの数字 "5" が表向きとして表示されていること
+      expect(container.textContent).toContain('5');
+
+      // 4. 手番がCPU（CPU 1の手番）へ移行していること
+      expect(container.textContent).toContain('CPU 1');
+
+      vi.useRealTimers();
+    });
+
+    it('山札が0枚の状態でタイムアップした場合、手札の伏せカードがオープンされ手番移行すること', () => {
+      vi.useFakeTimers();
+
+      const { container } = render(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_TURN_START',
+            timeLimit: 15,
+            remainingTime: 1,
+            activePlayerIndex: 0,
+            drawnCard: null,
+            deck: [], // 山札0枚
+            players: [
+              {
+                id: 'p1',
+                name: 'あなた',
+                isHuman: true,
+                avatarColor: 'from-blue-500 to-indigo-600',
+                isEliminated: false,
+                cards: [
+                  { id: 'c1', color: 'black', number: 2, isOpen: false },
+                  { id: 'c2', color: 'white', number: 9, isOpen: false },
+                ],
+              },
+              {
+                id: 'cpu1',
+                name: 'CPU 1',
+                isHuman: false,
+                avatarColor: 'from-purple-500 to-indigo-600',
+                isEliminated: false,
+                cards: [
+                  { id: 'c3', color: 'black', number: 3, isOpen: false },
+                ],
+              },
+            ],
+          }}
+        />
+      );
+
+      // 1秒進めてタイムアップ
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      // 山札0枚用バナーが表示されること
+      expect(container.textContent).toContain(TIME_UP_NO_DECK_MESSAGE);
+
+      vi.useRealTimers();
     });
   });
 });
