@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'アルゴ（algo）Web - 頭脳派推理カードゲーム',
-  description: '算数オリンピック・ピーター・フランクル氏ら開発の頭脳派推理ゲーム「アルゴ（algo）」をWeb上で遊べる対戦システムです。',
+  title: 'NumLogic（ナムロジック） - 頭脳派数字推理カードゲーム',
+  description: '論理的思考で白と黒の数字カードを推理するオンライン対戦ボードゲーム「NumLogic（ナムロジック）」。2〜4人対戦・思考AI搭載。',
 };
 
 export default function RootLayout({

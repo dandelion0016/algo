@@ -68,9 +68,13 @@ function sanitizeValue(value: unknown, seen = new WeakSet<object>()): unknown {
       continue;
     }
 
-    // 2. IPアドレスの場合: 末尾オクテットを .*** に置換
+    // 2. IPアドレスの場合: IPv4は末尾オクテットを .*** に、IPv6は末尾セグメントを :*** に置換
     if (IP_KEYS.has(lowerKey) && typeof val === 'string') {
-      result[key] = val.replace(/\.\d+$/, '.***');
+      if (val.includes(':')) {
+        result[key] = val.replace(/:[a-fA-F0-9]*$/, ':***');
+      } else {
+        result[key] = val.replace(/\.\d+$/, '.***');
+      }
       continue;
     }
 
