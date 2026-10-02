@@ -151,9 +151,9 @@ export const AttackModal: React.FC<AttackModalProps> = ({
       aria-modal="true"
       aria-labelledby="attack-modal-title"
       data-testid="attack-modal"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4"
     >
-      <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 text-slate-800 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl max-w-md w-full max-h-[92dvh] overflow-y-auto p-4 sm:p-6 text-slate-800 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2">

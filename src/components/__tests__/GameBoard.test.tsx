@@ -999,6 +999,34 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(html).toContain('lg:overflow-visible');
     });
 
+    it('ヘッダーアクションボタン群に whitespace-nowrap と横スクロールコンテナが付与され、文字の縦潰れが防止されている (Issue #67)', () => {
+      const html = renderToString(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_TURN_START',
+            timeLimit: 30,
+            remainingTime: 30,
+            players: mockMobilePlayers,
+            activePlayerIndex: 0,
+            deck: [{ id: 'w-8', color: 'white', number: 8, isOpen: false }],
+          }}
+        />
+      );
+
+      // 横スクロール・非折り返しコンテナ
+      expect(html).toContain('overflow-x-auto');
+      expect(html).toContain('no-scrollbar');
+
+      // 主要アクションボタンに whitespace-nowrap と shrink-0 が付与されている
+      expect(html).toMatch(/data-testid="btn-get-hint"[^>]*whitespace-nowrap[^>]*shrink-0/);
+      expect(html).toMatch(/data-testid="btn-toggle-assist"[^>]*whitespace-nowrap[^>]*shrink-0/);
+      expect(html).toMatch(/data-testid="btn-header-tutorial"[^>]*whitespace-nowrap[^>]*shrink-0/);
+      expect(html).toMatch(/data-testid="btn-open-rules"[^>]*whitespace-nowrap[^>]*shrink-0/);
+      expect(html).toMatch(/data-testid="btn-restart-game"[^>]*whitespace-nowrap[^>]*shrink-0/);
+      expect(html).toMatch(/data-testid="btn-open-settings"[^>]*whitespace-nowrap[^>]*shrink-0/);
+      expect(html).toMatch(/data-testid="btn-toggle-log"[^>]*whitespace-nowrap[^>]*shrink-0/);
+    });
+
     it('モバイル向け対戦ログトグルボタン（btn-toggle-log）がレンダリングされる', () => {
       const mockLogs: AttackLog[] = [
         {
