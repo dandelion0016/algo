@@ -100,6 +100,12 @@ export const calculateProgressPercentage = (remainingTime: number, timeLimit: nu
 export const TIME_UP_MESSAGE =
   'TIME UP! 制限時間を超過したため、引いたカードが強制オープンされました';
 
+export const TIME_UP_AUTO_DRAW_MESSAGE =
+  'タイムアップ！カードが自動ドローされ、オープンされました';
+
+export const TIME_UP_NO_DECK_MESSAGE =
+  'TIME UP! 制限時間を超過し山札がないため、手札の伏せカードが強制オープンされました';
+
 /**
  * ターゲットカードの色（黒または白）に応じた確認済み数字（既知数字）のリストを抽出する (Issue #38)
  * - 自分の手札のうち、ターゲットと同色のカードの数字
@@ -725,7 +731,6 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       gameState.phase === 'SETUP' ||
       gameState.phase === 'GAME_OVER' ||
       gameState.phase === 'CPU_ACTING' ||
-      gameState.phase === 'PLAYER_TURN_START' ||
       attackResult !== null ||
       isTimerPaused
     ) {
@@ -739,16 +744,22 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         if (nextRemainingTime <= 0) {
           // 時間切れ（0秒到達）強制オープンペナルティ処理
           clearInterval(interval);
-          setTimeUpBanner(TIME_UP_MESSAGE);
           const playerIdx = prev.players.findIndex((p) => p.isHuman);
           const updatedPlayers = [...prev.players];
 
           // まだドローしていなければ山札から引いてオープンペナルティ
           let newDeck = [...prev.deck];
           let penaltyCard = prev.drawnCard;
-          if (!penaltyCard && newDeck.length > 0) {
+          const wasAutoDrawn = !penaltyCard && newDeck.length > 0;
+
+          if (wasAutoDrawn) {
             penaltyCard = newDeck[0];
             newDeck = newDeck.slice(1);
+            setTimeUpBanner(TIME_UP_AUTO_DRAW_MESSAGE);
+          } else if (!penaltyCard && newDeck.length === 0) {
+            setTimeUpBanner(TIME_UP_NO_DECK_MESSAGE);
+          } else {
+            setTimeUpBanner(TIME_UP_MESSAGE);
           }
 
           if (penaltyCard && playerIdx >= 0) {
@@ -779,6 +790,13 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
           const activePlayers = updatedPlayers.filter((p) => !p.isEliminated);
           const currentHumanId = userId || (playerIdx >= 0 ? prev.players[playerIdx].id : 'player');
+          let logMsg = '時間切れ！引いたカードがオープンペナルティとなり手番終了。';
+          if (wasAutoDrawn) {
+            logMsg = '時間切れ！カードが自動ドローされ、オープンペナルティとなり手番終了。';
+          } else if (!penaltyCard) {
+            logMsg = '時間切れ！山札がないため手札の伏せカードがオープンペナルティとなり手番終了。';
+          }
+
           const timeOutLog: AttackLog = {
             id: `log-${Date.now()}`,
             attackerId: currentHumanId,
@@ -790,9 +808,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             guessedNumber: 0,
             isHit: false,
             timestamp: Date.now(),
-            message: !penaltyCard
-              ? '時間切れ！山札がないため手札の伏せカードがオープンペナルティとなり手番終了。'
-              : '時間切れ！引いたカードがオープンペナルティとなり手番終了。',
+            message: logMsg,
           };
 
           if (activePlayers.length === 1) {
