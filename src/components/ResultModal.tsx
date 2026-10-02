@@ -336,7 +336,7 @@ export const ResultModal: React.FC<ResultModalProps> = ({
                 className="w-full py-3.5 px-4 rounded-2xl bg-slate-900 hover:bg-slate-800 active:scale-[0.99] text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all cursor-pointer"
               >
                 <RotateCcw className="w-4 h-4 text-algo-yellow" />
-                <span>🔄 同じ設定でもう一度遊ぶ（再戦）</span>
+                <span>同じ設定でもう一度遊ぶ（再戦）</span>
               </button>
 
               <button
@@ -346,7 +346,7 @@ export const ResultModal: React.FC<ResultModalProps> = ({
                 className="w-full py-3 px-4 rounded-2xl bg-white hover:bg-slate-50 active:scale-[0.99] border border-slate-200 text-slate-700 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-2xs hover:border-slate-300 transition-all cursor-pointer"
               >
                 <Settings2 className="w-4 h-4 text-slate-500" />
-                <span>⚙ 設定を変更する（タイトルへ）</span>
+                <span>設定を変更する（タイトルへ）</span>
               </button>
 
               {onClose && (
