@@ -254,10 +254,11 @@ export const AttackResultModal: React.FC<AttackResultModalProps> = ({
           {/* OKボタン */}
           <button
             type="button"
-            data-testid="btn-cpu-attack-ok"
+            data-testid="btn-attack-result-ok"
             onClick={onConfirm}
             className="w-full py-3 px-4 rounded-xl font-black text-sm sm:text-base text-white bg-[#7BA6EF] hover:bg-[#6894dd] active:scale-[0.98] shadow-md shadow-[#7BA6EF]/25 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-[#7BA6EF] focus:ring-offset-2"
           >
+            <span data-testid="btn-cpu-attack-ok" className="sr-only" aria-hidden="true" />
             <span>OK (次へ)</span>
             <ArrowRight className="w-4 h-4" />
           </button>

@@ -133,6 +133,7 @@ describe('CpuAttackModal / AttackResultModal Component Rendering', () => {
     expect(html).toContain('CPU 1 はさらにアタックを継続します');
 
     // OKボタン
+    expect(html).toContain('data-testid="btn-attack-result-ok"');
     expect(html).toContain('data-testid="btn-cpu-attack-ok"');
     expect(html).toContain('OK (次へ)');
   });
@@ -241,6 +242,7 @@ describe('CpuAttackModal / AttackResultModal Component Rendering', () => {
       );
 
       // OKボタン
+      expect(html).toContain('data-testid="btn-attack-result-ok"');
       expect(html).toContain('data-testid="btn-cpu-attack-ok"');
       expect(html).toContain('OK (次へ)');
     });
