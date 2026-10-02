@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { renderToString } from 'react-dom/server';
+import { render, screen, fireEvent } from '@testing-library/react';
 import {
   ResultModal,
   ResultModalProps,
@@ -251,6 +252,54 @@ describe('ResultModal Component (SCR-006: 決着画面・祝祭演出・戦績�
       expect(html).toContain('data-testid="btn-return-setup"');
       expect(html).toContain('設定を変更する（タイトルへ）');
       expect(html).not.toContain('⚙');
+    });
+  });
+
+  describe('キーボードアクセシビリティ仕様検証 (Issue #70: Enter/Space/Escape)', () => {
+    it('Enterキー押下で onRestart が呼ばれる', () => {
+      const onRestart = vi.fn();
+      render(<ResultModal {...defaultProps} onRestart={onRestart} />);
+
+      fireEvent.keyDown(window, { key: 'Enter' });
+
+      expect(onRestart).toHaveBeenCalledTimes(1);
+    });
+
+    it('Spaceキー押下でも onRestart (onPlayAgain) が呼ばれる', () => {
+      const onPlayAgain = vi.fn();
+      render(<ResultModal {...defaultProps} onPlayAgain={onPlayAgain} />);
+
+      fireEvent.keyDown(window, { key: ' ' });
+
+      expect(onPlayAgain).toHaveBeenCalledTimes(1);
+    });
+
+    it('Escapeキー押下で onClose が呼ばれる', () => {
+      const onClose = vi.fn();
+      render(<ResultModal {...defaultProps} onClose={onClose} />);
+
+      fireEvent.keyDown(window, { key: 'Escape' });
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('onClose が指定されていない場合に Escapeキーを押してもエラーが発生しない', () => {
+      expect(() => {
+        render(<ResultModal {...defaultProps} onClose={undefined} />);
+        fireEvent.keyDown(window, { key: 'Escape' });
+      }).not.toThrow();
+    });
+
+    it('モーダルが非表示（isOpen=false）の時はキーイベントが発火しない', () => {
+      const onRestart = vi.fn();
+      const onClose = vi.fn();
+      render(<ResultModal {...defaultProps} isOpen={false} onRestart={onRestart} onClose={onClose} />);
+
+      fireEvent.keyDown(window, { key: 'Enter' });
+      fireEvent.keyDown(window, { key: 'Escape' });
+
+      expect(onRestart).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
     });
   });
 });

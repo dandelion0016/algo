@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   Trophy,
   RotateCcw,
@@ -28,7 +28,8 @@ export interface ResultModalProps {
   playerCount: PlayerCount;
   difficulty: Difficulty;
   timeLimit: TimeLimit;
-  onPlayAgain: () => void;
+  onPlayAgain?: () => void;
+  onRestart?: () => void;
   onReturnSetup: () => void;
   onClose?: () => void;
 }
@@ -119,9 +120,34 @@ export const ResultModal: React.FC<ResultModalProps> = ({
   difficulty,
   timeLimit,
   onPlayAgain,
+  onRestart,
   onReturnSetup,
   onClose,
 }) => {
+  const handleRestart = onRestart || onPlayAgain;
+
+  // キーボードアクセシビリティ: Enter/Space で再戦、Escape で閉じる
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (onClose) {
+          e.preventDefault();
+          onClose();
+        }
+      } else if (e.key === 'Enter' || e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        handleRestart?.();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, handleRestart, onClose]);
+
   if (!isOpen) return null;
 
   const isVictory = Boolean(winner?.isHuman || (winner === null && humanPlayer && !humanPlayer.isEliminated));
@@ -332,7 +358,7 @@ export const ResultModal: React.FC<ResultModalProps> = ({
               <button
                 type="button"
                 data-testid="btn-play-again"
-                onClick={onPlayAgain}
+                onClick={handleRestart}
                 className="w-full py-3.5 px-4 rounded-2xl bg-slate-900 hover:bg-slate-800 active:scale-[0.99] text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all cursor-pointer"
               >
                 <RotateCcw className="w-4 h-4 text-algo-yellow" />
