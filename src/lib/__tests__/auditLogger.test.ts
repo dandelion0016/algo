@@ -207,6 +207,20 @@ describe('auditLogger', () => {
       expect(masked.ipAddress).toBe('192.168.1.***');
     });
 
+    it('IPv6アドレス（コロン区切り）の末尾セグメントが部分匿名化されること', () => {
+      const payload = {
+        clientIp: '2001:0db8:85a3:0000:0000:8a2e:0370:7334',
+        ipAddress: '2001:db8::1',
+        ip: '::1',
+      };
+
+      const masked = maskAuditPayload(payload);
+
+      expect(masked.clientIp).toBe('2001:0db8:85a3:0000:0000:8a2e:0370:***');
+      expect(masked.ipAddress).toBe('2001:db8::***');
+      expect(masked.ip).toBe('::***');
+    });
+
     it('循環参照を含むオブジェクトでもクラッシュせずに処理できること', () => {
       const circularObj: Record<string, unknown> = { name: 'circular' };
       circularObj.self = circularObj;

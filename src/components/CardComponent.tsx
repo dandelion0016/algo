@@ -70,7 +70,7 @@ export const CardComponent: React.FC<CardComponentProps> = ({
   const isSecretToOpponent = card.number !== null && !card.isOpen && isOwner;
 
   const isClickable = Boolean(isSelectable && !isEliminated && onClick);
-  const cardTestId = testId || `card-${card.color}-${card.number ?? 'hidden'}`;
+  const cardTestId = testId || `card-${card.color}-${showNumber ? card.number : 'hidden'}`;
 
   return (
     <div className="flex flex-col items-center gap-1 select-none" data-testid="card-element">

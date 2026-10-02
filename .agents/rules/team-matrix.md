@@ -21,6 +21,7 @@ description: 専門領域別（Maker-Checker）＋システムアーキテクト
 | **データベース** | DB開発者 / レビュアー | `role:db/dev`, `role:db/rev` | `.agents/subagents/db-agent.md` | ER図 (`er-diagram.md`)、テーブル定義書 (`schema-spec.md`)、RLS・マルチテナント分離設計 (`rls-multitenant.md`)、スキーマ実装・レビュー |
 | **インフラ基盤** | インフラ開発者 / レビュアー | `role:infra/dev`, `role:infra/rev` | `.agents/subagents/infra-agent.md` | クラウド構成図・方式設計 (`architecture.md`)、ネットワーク設計 (`network-spec.md`)、IaC設計 (`iac-spec.md`)、IAM最小権限設計 (`iam-least-privilege.md`)、IaC実装・レビュー |
 | **セキュリティ** | セキュリティ監査担当 | `role:security` | `.agents/subagents/security-auditor.md` | 多層防御設計 (`defense-in-depth.md`)、認証認可設計 (`auth-spec.md`)、脅威分析 (`threat-modeling.md`)、監査ログ設計 (`audit-logging.md`)、疑似侵入テスト・監査 |
+| **品質・テスト監査** | QA・テスト妥当性監査担当 | `role:qa/auditor` | `.agents/subagents/test-integrity-auditor.md` | 設計書vsテスト期待値突合、テスト改ざん・骨抜き検知、JSDOM実機操作検証、ミューテーション耐性監査 |
 | **システム運用** | SRE・運用担当 | `role:ops` | `.agents/subagents/sre-ops-agent.md` | SLO/SLI・可観測性設計 (`observability-sli-slo.md`)、監視アラートマトリクス (`alert-matrix.md`)、初動Runbook基本設計 (`incident-runbook.md`)、バックアップ・DR設計 (`backup-dr-maintenance.md`)、CI/CD設計 (`cicd-pipeline.md`)、運用基盤構築 |
 
 ---

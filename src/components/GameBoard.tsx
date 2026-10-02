@@ -182,6 +182,13 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const [isTutorialPromptOpen, setIsTutorialPromptOpen] = useState(false);
   const [isResultModalOpen, setIsResultModalOpen] = useState(true);
   const [isManualPaused, setIsManualPaused] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+      (window as any).__algoGameState = gameState;
+      (window as any).__setGameState = setGameState;
+    }
+  }, [gameState]);
   const [cpuStatusMessage, setCpuStatusMessage] = useState<string>('');
   const [timeUpBanner, setTimeUpBanner] = useState<string | null>(initialTimeUpBanner);
   const [isMobileLogOpen, setIsMobileLogOpen] = useState(false);

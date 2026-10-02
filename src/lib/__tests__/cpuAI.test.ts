@@ -330,6 +330,51 @@ describe('cpuAI', () => {
       });
     });
 
+    describe('Normal difficulty', () => {
+      it('selects the target card with the fewest candidates among multiple hidden cards', () => {
+        const cpu = createPlayer('cpu-1', false, []);
+        // Opponent has two closed cards with different candidate pool sizes:
+        // Card 0: bounds [open b-2] < ? < [open b-5] => candidates: [3, 4] (2 candidates)
+        // Card 2: bounds [open b-6] < ? (no upper bound) => candidates: [7, 8, 9, 10, 11] (5 candidates)
+        const opponent = createPlayer('opp-1', true, [
+          { id: 'b-2', color: 'black', number: 2, isOpen: true },
+          { id: 'b-3', color: 'black', number: 3, isOpen: false }, // index 1: candidates [3, 4] (2)
+          { id: 'b-5', color: 'black', number: 5, isOpen: true }, // index 2: open
+          { id: 'b-8', color: 'black', number: 8, isOpen: false }, // index 3: candidates [6, 7, 8, 9, 10, 11] (many)
+        ]);
+
+        const decision = decideMultiCpuAttack(cpu, null, [cpu, opponent], 'normal');
+
+        // Must target index 1 (fewest candidates: 2)
+        expect(decision.targetPlayerId).toBe('opp-1');
+        expect(decision.targetCardIndex).toBe(1);
+        // Guessed number must be from the valid candidate set [3, 4]
+        expect([3, 4]).toContain(decision.guessedNumber);
+      });
+
+      it('picks the card with fewest candidates across multiple opponents', () => {
+        const cpu = createPlayer('cpu-1', false, []);
+        // Opponent 1: wide candidate card
+        const opp1 = createPlayer('opp-1', true, [
+          { id: 'b-0', color: 'black', number: 0, isOpen: true },
+          { id: 'b-10', color: 'black', number: 10, isOpen: false }, // candidates: [1..11] (many)
+        ]);
+        // Opponent 2: narrow candidate card (2 candidates)
+        const opp2 = createPlayer('opp-2', false, [
+          { id: 'w-7', color: 'white', number: 7, isOpen: true },
+          { id: 'w-9', color: 'white', number: 9, isOpen: false }, // bounds w-7 < ? < w-10 => candidates [8, 9] (2)
+          { id: 'w-10', color: 'white', number: 10, isOpen: true },
+        ]);
+
+        const decision = decideMultiCpuAttack(cpu, null, [cpu, opp1, opp2], 'normal');
+
+        // Must select opp-2 index 1 because it has only 2 candidates
+        expect(decision.targetPlayerId).toBe('opp-2');
+        expect(decision.targetCardIndex).toBe(1);
+        expect([8, 9]).toContain(decision.guessedNumber);
+      });
+    });
+
     describe('Hard difficulty', () => {
       it('prioritizes a confirmed target card (only 1 candidate) above all others', () => {
         const cpu = createPlayer('cpu-1', false, [
@@ -358,6 +403,28 @@ describe('cpuAI', () => {
         expect(decision.targetPlayerId).toBe('opp-1');
         expect(decision.targetCardIndex).toBe(0);
         expect(decision.guessedNumber).toBe(1);
+      });
+
+      it('selects the card with fewest candidates when no confirmed card exists, and chooses median candidate', () => {
+        const cpu = createPlayer('cpu-1', false, []);
+        // Opponent hand with two closed cards, neither confirmed:
+        // Card 1: bounds b-2 < ? < b-5 => candidates [3, 4] (2 candidates, none confirmed)
+        // Card 3: bounds b-6 < ? < b-11 => candidates [7, 8, 9, 10] (4 candidates)
+        const opponent = createPlayer('opp-1', true, [
+          { id: 'b-2', color: 'black', number: 2, isOpen: true },
+          { id: 'b-3', color: 'black', number: 3, isOpen: false }, // index 1: candidates [3, 4]
+          { id: 'b-5', color: 'black', number: 5, isOpen: true },
+          { id: 'b-8', color: 'black', number: 8, isOpen: false }, // index 3: candidates [6, 7, 8, 9, 10] (wait, b-5 < ? < b-11 => [6, 7, 8, 9, 10])
+          { id: 'b-11', color: 'black', number: 11, isOpen: true },
+        ]);
+
+        const decision = decideMultiCpuAttack(cpu, null, [cpu, opponent], 'hard');
+
+        // Must pick index 1 (fewest candidates: 2)
+        expect(decision.targetPlayerId).toBe('opp-1');
+        expect(decision.targetCardIndex).toBe(1);
+        // Median of [3, 4]: index Math.floor(2 / 2) = 1 => 4
+        expect(decision.guessedNumber).toBe(4);
       });
 
       it('selects the median candidate when no single-candidate card exists', () => {

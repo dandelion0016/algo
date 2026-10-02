@@ -56,7 +56,9 @@ function setCookie(name: string, value: string, maxAge: number = USER_ID_COOKIE_
   if (typeof document === 'undefined') {
     return;
   }
-  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+  const isHttps = typeof window !== 'undefined' && window.location?.protocol === 'https:';
+  const secureFlag = isHttps ? '; Secure' : '';
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}; SameSite=Lax${secureFlag}`;
 }
 
 /**

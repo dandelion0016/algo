@@ -60,6 +60,48 @@ describe('algoEngine', () => {
         expect(originalIds.has(c.id)).toBe(true);
       });
     });
+
+    it('does not return an identity copy (order differs from initial deck)', () => {
+      const deck = createDeck();
+      const shuffled = shuffleDeck(deck);
+
+      // Verify that the shuffled deck is not identical to the original order
+      const originalIds = deck.map((c) => c.id);
+      const shuffledIds = shuffled.map((c) => c.id);
+      expect(shuffledIds).not.toEqual(originalIds);
+
+      // Most cards should change position (fixed points in a 24-element shuffle are typically <= 5)
+      let samePositionCount = 0;
+      for (let i = 0; i < deck.length; i++) {
+        if (deck[i].id === shuffled[i].id) {
+          samePositionCount++;
+        }
+      }
+      expect(samePositionCount).toBeLessThan(10);
+    });
+
+    it('generates diverse permutations and uniform distribution across multiple shuffles', () => {
+      const deck = createDeck();
+      const iterations = 100;
+      const seenPermutations = new Set<string>();
+      const firstCardOccurrences: Record<string, number> = {};
+
+      for (let i = 0; i < iterations; i++) {
+        const shuffled = shuffleDeck(deck);
+        const orderKey = shuffled.map((c) => c.id).join(',');
+        seenPermutations.add(orderKey);
+
+        const firstCardId = shuffled[0].id;
+        firstCardOccurrences[firstCardId] = (firstCardOccurrences[firstCardId] || 0) + 1;
+      }
+
+      // 100 shuffles of 24 cards should produce 100 unique permutations (24! is ~6.2e23)
+      expect(seenPermutations.size).toBe(iterations);
+
+      // The first card should vary across multiple different cards (not always the same card or fixed subset)
+      const uniqueFirstCards = Object.keys(firstCardOccurrences);
+      expect(uniqueFirstCards.length).toBeGreaterThanOrEqual(10);
+    });
   });
 
   describe('compareCards', () => {

@@ -69,6 +69,21 @@
       }
     ]
   },
+  "test-tampering-guard": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "replace_file_content|write_to_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node hooks/guard-test-tampering.js || node .agents/hooks/guard-test-tampering.js",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
   "source-format-lint-hook": {
     "enabled": true,
     "PostToolUse": [

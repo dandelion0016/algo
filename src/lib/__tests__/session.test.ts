@@ -161,6 +161,38 @@ describe('session utility', () => {
       const session = getUserSession();
       expect(session.userId).toMatch(/^usr_[a-z0-9]{8}$/);
     });
+
+    it('does not include Secure attribute on cookie in HTTP environment', () => {
+      const session = getUserSession();
+      expect(session.isNew).toBe(true);
+      const lastCookie = mockCookies[mockCookies.length - 1];
+      expect(lastCookie).not.toContain('Secure');
+    });
+
+    it('includes ; Secure attribute on cookie in HTTPS environment', () => {
+      const originalLocation = window.location;
+      Object.defineProperty(window, 'location', {
+        value: {
+          ...originalLocation,
+          protocol: 'https:',
+        },
+        writable: true,
+        configurable: true,
+      });
+
+      try {
+        const session = getUserSession();
+        expect(session.isNew).toBe(true);
+        const lastCookie = mockCookies[mockCookies.length - 1];
+        expect(lastCookie).toContain('; Secure');
+      } finally {
+        Object.defineProperty(window, 'location', {
+          value: originalLocation,
+          writable: true,
+          configurable: true,
+        });
+      }
+    });
   });
 
   describe('getUserSession in SSR environment (document undefined)', () => {

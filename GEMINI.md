@@ -58,6 +58,15 @@
 14. **小規模プロジェクト向け軽量・実用的設計（Pragmatic & Lightweight Governance）**:
     - 本スターターキットは少人数・小規模チームが迅速に動くものを作り、安全にスケールさせることを主目的とする。
     - 最初から20以上の設計書を過密に埋め立てる BDUF を強制せず、Phase 0-A（Walking Skeleton）→ Phase 0-B（コア設計: API・DB・画面・最小IAM）を優先構築し、高度なSREや監査設計はADRとともに必要に応じてJIT（Just-In-Time）で肉付けする軽量運用を推奨する。
+15. **テスト完全性と骨抜き防止（Test Integrity ＆ Anti-Tampering）**:
+    - **テスト期待値の書き換えによる通過の厳禁**:
+      - テスト失敗時に、設計書（`docs/design/`）の記述や要件を確認せず、実装の返り値に合わせてテスト側の期待値やアサーションを緩める・書き換えてパスさせる行為（偽装追認）を「テスト改ざん」とみなし厳禁とする。
+      - 設計書と実装に乖離が生じた場合は、独断でテストを書き換えてはならず、必ずADR（`docs/adr/`）を起票して人間ゲートキーパーの承認を得た上で設計書とテストを同期すること。
+    - **自作自演・ロジック捏造テストの禁止**:
+      - テスト対象コンポーネントをマウントせず、テストコード内にダミー関数（キーハンドラ等）を自作して呼び出す行為や、テストコード内で変数を算数減算して「機能合格」と判定する行為を厳禁とする。
+      - UIコンポーネントテストは JSDOM + `@testing-library/react` を標準とし、ユーザーの操作（DOMイベント発火）と状態遷移を検証すること。
+    - **ミューテーション耐性（骨抜きアサーションの排除）**:
+      - テスト対象が何もしない恒等写像（例: `shuffleDeck` が単に配列コピーを返す等）であってもパスしてしまうような甘いアサーションを禁止し、破壊的変更に対して確実にFAILする検証項目を定義すること。
 
 ---
 
@@ -76,6 +85,6 @@
 - `@.agents/rules/antigravity-best-practices.md` : 公式ベストプラクティス（検証ループ、サンドボックス）
 - `@.agents/rules/github-board-sync.md` : GitHub CLI (`gh`) によるカンバン同期手順
 - **サブエージェント (`.agents/subagents/`)**:
-  - `system-architect.md`, `db-agent.md`, `backend-agent.md`, `frontend-agent.md`, `infra-agent.md`, `security-auditor.md`, `sre-ops-agent.md`, `spec-gap-auditor.md`
+  - `system-architect.md`, `db-agent.md`, `backend-agent.md`, `frontend-agent.md`, `infra-agent.md`, `security-auditor.md`, `sre-ops-agent.md`, `spec-gap-auditor.md`, `test-integrity-auditor.md`
 - **スキル (`.agents/skills/`)**:
   - `autonomous-gap-resolver`, `generate-review-criteria`, `refine-review-criteria`
