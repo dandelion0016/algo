@@ -345,12 +345,19 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       gameState.phase !== 'CPU_ACTING'
   );
 
-  // 新しい手番開始時に手動ポーズ状態を初期化
+  // 新しい手番開始時に手動ポーズ状態を初期化＆山札切れ時の自動アタック選択遷移 (Issue #68)
   useEffect(() => {
     if (gameState.phase === 'PLAYER_TURN_START') {
       setIsManualPaused(false);
+      if (gameState.deck.length === 0 && !gameState.winner) {
+        setGameState((prev) => ({
+          ...prev,
+          drawnCard: null,
+          phase: 'PLAYER_SELECT_TARGET',
+        }));
+      }
     }
-  }, [gameState.phase, gameState.activePlayerIndex]);
+  }, [gameState.phase, gameState.activePlayerIndex, gameState.deck.length, gameState.winner]);
 
   // 再戦リクエスト（HITLガード）
   const handleRequestRestart = useCallback(() => {
@@ -547,19 +554,59 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       }
     } else {
       const playerIdx = gameState.players.findIndex((p) => p.isHuman);
+      const isDeckExhausted = !gameState.drawnCard;
+
+      // ペナルティ適用後のシミュレーション（勝敗判定用）
+      const simulatedPlayers = [...gameState.players];
+      if (playerIdx >= 0) {
+        if (gameState.drawnCard) {
+          const openedDrawn: Card = { ...gameState.drawnCard, isOpen: true };
+          const newCards = insertCardInOrder(simulatedPlayers[playerIdx].cards, openedDrawn);
+          simulatedPlayers[playerIdx] = {
+            ...simulatedPlayers[playerIdx],
+            cards: newCards,
+            isEliminated: isAllOpen(newCards),
+          };
+        } else {
+          // 山札0枚時のペナルティ: 自分の手札の最初の伏せカードをオープン (Issue #68)
+          const firstClosedIdx = simulatedPlayers[playerIdx].cards.findIndex((c) => !c.isOpen);
+          if (firstClosedIdx !== -1) {
+            const newCards = simulatedPlayers[playerIdx].cards.map((c, i) =>
+              i === firstClosedIdx ? { ...c, isOpen: true } : c
+            );
+            simulatedPlayers[playerIdx] = {
+              ...simulatedPlayers[playerIdx],
+              cards: newCards,
+              isEliminated: isAllOpen(newCards),
+            };
+          }
+        }
+      }
+
+      const activePlayersAfterPenalty = simulatedPlayers.filter((p) => !p.isEliminated);
+      const isGameOver = activePlayersAfterPenalty.length === 1;
+
       const nextActiveIdx = getNextActivePlayerIndex(
         playerIdx >= 0 ? playerIdx : 0,
-        gameState.players
+        simulatedPlayers
       );
-      const nextPlayer = gameState.players[nextActiveIdx];
+      const nextPlayer = simulatedPlayers[nextActiveIdx];
 
-      // ログ追記
+      // ログ追記（山札切れ時は手札オープンされた旨を明記）
+      const missSuffix = isDeckExhausted
+        ? '山札がないため、手札の伏せカードがオープンされました。'
+        : '';
+      const updatedLog: AttackLog = {
+        ...log,
+        message: missSuffix ? `${log.message} ${missSuffix}` : log.message,
+      };
+
       setGameState((prev) => ({
         ...prev,
-        logs: [log, ...prev.logs],
+        logs: [updatedLog, ...prev.logs],
       }));
 
-      // 推理結果確認モーダルを表示してOKを待機 (Issue #56)
+      // 推理結果確認モーダルを表示してOKを待機 (Issue #56, #68)
       await waitForAttackOk({
         attackerName: humanPlayer?.name || 'あなた',
         isHuman: true,
@@ -569,11 +616,12 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         guessedNumber,
         isHit: false,
         actualNumber: targetCard.number,
-        nextAction: 'TURN_END',
-        nextPlayerName: nextPlayer ? nextPlayer.name : undefined,
+        nextAction: isGameOver ? 'GAME_OVER' : 'TURN_END',
+        nextPlayerName: isGameOver ? undefined : (nextPlayer ? nextPlayer.name : undefined),
+        isDeckExhausted,
       });
 
-      // OK押下後に引いたカードをオープンして手番交代 (Issue #56)
+      // OK押下後にカードをオープンして手番交代またはゲーム終了 (Issue #56, #68)
       setIsManualPaused(false);
       setActiveHint(null);
       setGameState((prev) => {
@@ -587,6 +635,19 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             cards: newCards,
             isEliminated: isAllOpen(newCards),
           };
+        } else if (!prev.drawnCard && pIdx >= 0) {
+          // 山札0枚時のペナルティ: 自分の手札の最初の伏せカードをオープン
+          const firstClosedIdx = updatedPlayers[pIdx].cards.findIndex((c) => !c.isOpen);
+          if (firstClosedIdx !== -1) {
+            const newCards = updatedPlayers[pIdx].cards.map((c, i) =>
+              i === firstClosedIdx ? { ...c, isOpen: true } : c
+            );
+            updatedPlayers[pIdx] = {
+              ...updatedPlayers[pIdx],
+              cards: newCards,
+              isEliminated: isAllOpen(newCards),
+            };
+          }
         }
 
         const activePlayers = updatedPlayers.filter((p) => !p.isEliminated);
@@ -611,7 +672,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           selectedTarget: null,
           activePlayerIndex: nextIdx,
           remainingTime: prev.timeLimit,
-          phase: isNextCpu ? 'CPU_ACTING' : 'PLAYER_TURN_START',
+          phase: isNextCpu
+            ? 'CPU_ACTING'
+            : (prev.deck.length === 0 ? 'PLAYER_SELECT_TARGET' : 'PLAYER_TURN_START'),
         };
       });
     }
@@ -649,7 +712,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       drawnCard: null,
       activePlayerIndex: nextActiveIdx,
       remainingTime: prev.timeLimit,
-      phase: isNextCpu ? 'CPU_ACTING' : 'PLAYER_TURN_START',
+      phase: isNextCpu
+        ? 'CPU_ACTING'
+        : (gameState.deck.length === 0 ? 'PLAYER_SELECT_TARGET' : 'PLAYER_TURN_START'),
     }));
   };
 
@@ -697,6 +762,19 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               cards: newCards,
               isEliminated,
             };
+          } else if (!penaltyCard && playerIdx >= 0) {
+            // 山札0枚時のタイムアップペナルティ: 手札の最初の伏せカードをオープン (Issue #68)
+            const firstClosedIdx = updatedPlayers[playerIdx].cards.findIndex((c) => !c.isOpen);
+            if (firstClosedIdx !== -1) {
+              const newCards = updatedPlayers[playerIdx].cards.map((c, i) =>
+                i === firstClosedIdx ? { ...c, isOpen: true } : c
+              );
+              updatedPlayers[playerIdx] = {
+                ...updatedPlayers[playerIdx],
+                cards: newCards,
+                isEliminated: isAllOpen(newCards),
+              };
+            }
           }
 
           const activePlayers = updatedPlayers.filter((p) => !p.isEliminated);
@@ -712,7 +790,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             guessedNumber: 0,
             isHit: false,
             timestamp: Date.now(),
-            message: '時間切れ！引いたカードがオープンペナルティとなり手番終了。',
+            message: !penaltyCard
+              ? '時間切れ！山札がないため手札の伏せカードがオープンペナルティとなり手番終了。'
+              : '時間切れ！引いたカードがオープンペナルティとなり手番終了。',
           };
 
           if (activePlayers.length === 1) {
@@ -740,7 +820,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             remainingTime: prev.timeLimit,
             activePlayerIndex: nextIdx,
             logs: [timeOutLog, ...prev.logs],
-            phase: updatedPlayers[nextIdx].isHuman ? 'PLAYER_TURN_START' : 'CPU_ACTING',
+            phase: updatedPlayers[nextIdx].isHuman
+              ? (newDeck.length === 0 ? 'PLAYER_SELECT_TARGET' : 'PLAYER_TURN_START')
+              : 'CPU_ACTING',
           };
         }
 
@@ -770,11 +852,15 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       });
 
     const executeCpuTurn = async () => {
-      setCpuStatusMessage(`${currentCpu.name} が山札からドロー中...`);
+      let currentDeck = [...gameState.deck];
+      if (currentDeck.length > 0) {
+        setCpuStatusMessage(`${currentCpu.name} が山札からドロー中...`);
+      } else {
+        setCpuStatusMessage(`${currentCpu.name} の手番（山札なし）...`);
+      }
       await delay(900);
       if (!isMounted) return;
 
-      let currentDeck = [...gameState.deck];
       let cpuDrawn: Card | null = null;
       if (currentDeck.length > 0) {
         cpuDrawn = currentDeck[0];
@@ -817,7 +903,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             deck: currentDeck,
             activePlayerIndex: nextIdx,
             remainingTime: prev.timeLimit,
-            phase: prev.players[nextIdx].isHuman ? 'PLAYER_TURN_START' : 'CPU_ACTING',
+            phase: prev.players[nextIdx].isHuman
+              ? (currentDeck.length === 0 ? 'PLAYER_SELECT_TARGET' : 'PLAYER_TURN_START')
+              : 'CPU_ACTING',
           }));
           return;
         }
@@ -828,6 +916,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         }
 
         const isHit = checkAttack(targetCard, decision.guessedNumber);
+
+        const isCpuDeckExhausted = !cpuDrawn;
+        const missLogSuffix = isCpuDeckExhausted
+          ? '山札がないため、手札の伏せカードがオープンされました。'
+          : '';
 
         const log: AttackLog = {
           id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -844,7 +937,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           timestamp: Date.now(),
           message: isHit
             ? `${currentCpu.name} が ${targetPlayer.name} の左から ${decision.targetCardIndex + 1} 番目 [${targetCard.color === 'black' ? '黒' : '白'}] を [${decision.guessedNumber}] と推理して【的中】！`
-            : `${currentCpu.name} が ${targetPlayer.name} の左から ${decision.targetCardIndex + 1} 番目 [${targetCard.color === 'black' ? '黒' : '白'}] を [${decision.guessedNumber}] と推理して【ハズレ】。`,
+            : `${currentCpu.name} が ${targetPlayer.name} の左から ${decision.targetCardIndex + 1} 番目 [${targetCard.color === 'black' ? '黒' : '白'}] を [${decision.guessedNumber}] と推理して【ハズレ】。${missLogSuffix ? ' ' + missLogSuffix : ''}`,
         };
 
         currentLogs = [log, ...currentLogs];
@@ -955,7 +1048,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               guessedNumber: 0,
               isHit: true,
               timestamp: Date.now(),
-              message: 'CPUは手札に加えてステイしました',
+              message: cpuDrawn ? 'CPUは手札に加えてステイしました' : 'CPUはステイしました',
             };
             currentLogs = [stayLog, ...currentLogs];
 
@@ -973,7 +1066,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
             const nextIdx = getNextActivePlayerIndex(gameState.activePlayerIndex, currentPlayers);
             const nextPlayer = currentPlayers[nextIdx];
-            const nextPlayerName = nextPlayer.isHuman ? 'あなた' : nextPlayer.name;
+            const nextPlayerName = nextPlayer ? (nextPlayer.isHuman ? 'あなた' : nextPlayer.name) : undefined;
 
             // 盤面を更新
             setGameState((prev) => ({
@@ -993,6 +1086,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               actualNumber: targetCard.number,
               nextAction: 'STAY',
               nextPlayerName,
+              isDeckExhausted: !cpuDrawn,
             });
             if (!isMounted) return;
 
@@ -1005,30 +1099,53 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               logs: currentLogs,
               activePlayerIndex: nextIdx,
               remainingTime: prev.timeLimit,
-              phase: isNextHuman ? 'PLAYER_TURN_START' : 'CPU_ACTING',
+              phase: isNextHuman
+                ? (currentDeck.length === 0 ? 'PLAYER_SELECT_TARGET' : 'PLAYER_TURN_START')
+                : 'CPU_ACTING',
             }));
-            setCpuStatusMessage(`${currentCpu.name} は手札に加えてステイしました。`);
+            setCpuStatusMessage(
+              cpuDrawn
+                ? `${currentCpu.name} は手札に加えてステイしました。`
+                : `${currentCpu.name} はステイしました。`
+            );
             return;
           }
         } else {
           // ハズレ (isHit === false)
-          // 引いたカードを手札にオープンで配置し、次のプレイヤーへ手番を遷移
           const cpuIdx = currentPlayers.findIndex((p) => p.id === currentCpu.id);
           if (cpuDrawn && cpuIdx !== -1) {
+            const newCards = insertCardInOrder(currentPlayers[cpuIdx].cards, {
+              ...cpuDrawn,
+              isOpen: true,
+            });
             currentPlayers[cpuIdx] = {
               ...currentPlayers[cpuIdx],
-              cards: insertCardInOrder(currentPlayers[cpuIdx].cards, {
-                ...cpuDrawn,
-                isOpen: true,
-              }),
+              cards: newCards,
+              isEliminated: isAllOpen(newCards),
             };
+          } else if (!cpuDrawn && cpuIdx !== -1) {
+            // 山札0枚ペナルティ: 手札の最初の伏せカードをオープン (Issue #68)
+            const firstClosedIdx = currentPlayers[cpuIdx].cards.findIndex((c) => !c.isOpen);
+            if (firstClosedIdx !== -1) {
+              const newCards = currentPlayers[cpuIdx].cards.map((c, i) =>
+                i === firstClosedIdx ? { ...c, isOpen: true } : c
+              );
+              currentPlayers[cpuIdx] = {
+                ...currentPlayers[cpuIdx],
+                cards: newCards,
+                isEliminated: isAllOpen(newCards),
+              };
+            }
           }
+
+          const activePlayers = currentPlayers.filter((p) => !p.isEliminated);
+          const isGameOver = activePlayers.length === 1;
 
           const nextIdx = getNextActivePlayerIndex(gameState.activePlayerIndex, currentPlayers);
           const nextPlayer = currentPlayers[nextIdx];
-          const nextPlayerName = nextPlayer.isHuman ? 'あなた' : nextPlayer.name;
+          const nextPlayerName = nextPlayer ? (nextPlayer.isHuman ? 'あなた' : nextPlayer.name) : undefined;
 
-          // 引いたカードがオープンされた盤面を即座にUIへ反映
+          // カードがオープンされた盤面を即座にUIへ反映
           setGameState((prev) => ({
             ...prev,
             deck: currentDeck,
@@ -1044,10 +1161,24 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             guessedNumber: decision.guessedNumber,
             isHit: false,
             actualNumber: targetCard.number,
-            nextAction: 'TURN_END',
-            nextPlayerName,
+            nextAction: isGameOver ? 'GAME_OVER' : 'TURN_END',
+            nextPlayerName: isGameOver ? undefined : nextPlayerName,
+            isDeckExhausted: !cpuDrawn,
           });
           if (!isMounted) return;
+
+          if (isGameOver) {
+            setGameState((prev) => ({
+              ...prev,
+              deck: currentDeck,
+              players: currentPlayers,
+              logs: currentLogs,
+              winner: activePlayers[0],
+              phase: 'GAME_OVER',
+            }));
+            setCpuStatusMessage(`${activePlayers[0].name} の完全勝利！`);
+            return;
+          }
 
           const isNextHuman = currentPlayers[nextIdx].isHuman;
 
@@ -1058,9 +1189,15 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             logs: currentLogs,
             activePlayerIndex: nextIdx,
             remainingTime: prev.timeLimit,
-            phase: isNextHuman ? 'PLAYER_TURN_START' : 'CPU_ACTING',
+            phase: isNextHuman
+              ? (currentDeck.length === 0 ? 'PLAYER_SELECT_TARGET' : 'PLAYER_TURN_START')
+              : 'CPU_ACTING',
           }));
-          setCpuStatusMessage(`${currentCpu.name} の推理はハズレました。`);
+          setCpuStatusMessage(
+            !cpuDrawn
+              ? `${currentCpu.name} の推理はハズレました（山札なしのため手札をオープン）。`
+              : `${currentCpu.name} の推理はハズレました。`
+          );
           return;
         }
       }
@@ -1077,7 +1214,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         guessedNumber: 0,
         isHit: true,
         timestamp: Date.now(),
-        message: 'CPUは手札に加えてステイしました',
+        message: cpuDrawn ? 'CPUは手札に加えてステイしました' : 'CPUはステイしました',
       };
       currentLogs = [stayLog, ...currentLogs];
 
@@ -1094,7 +1231,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
       const nextIdx = getNextActivePlayerIndex(gameState.activePlayerIndex, currentPlayers);
       const nextPlayer = currentPlayers[nextIdx];
-      const nextPlayerName = nextPlayer.isHuman ? 'あなた' : nextPlayer.name;
+      const nextPlayerName = nextPlayer ? (nextPlayer.isHuman ? 'あなた' : nextPlayer.name) : undefined;
 
       setGameState((prev) => ({
         ...prev,
@@ -1112,6 +1249,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         isHit: true,
         nextAction: 'STAY',
         nextPlayerName,
+        isDeckExhausted: !cpuDrawn,
       });
       if (!isMounted) return;
 
@@ -1124,9 +1262,15 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         logs: currentLogs,
         activePlayerIndex: nextIdx,
         remainingTime: prev.timeLimit,
-        phase: isNextHuman ? 'PLAYER_TURN_START' : 'CPU_ACTING',
+        phase: isNextHuman
+          ? (currentDeck.length === 0 ? 'PLAYER_SELECT_TARGET' : 'PLAYER_TURN_START')
+          : 'CPU_ACTING',
       }));
-      setCpuStatusMessage(`${currentCpu.name} は手札に加えてステイしました。`);
+      setCpuStatusMessage(
+        cpuDrawn
+          ? `${currentCpu.name} は手札に加えてステイしました。`
+          : `${currentCpu.name} はステイしました。`
+      );
     };
 
     executeCpuTurn();
@@ -1547,13 +1691,13 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             <div className="flex flex-col items-center gap-1 shrink-0">
               <div
                 data-testid="btn-draw-card"
-                role={gameState.phase === 'PLAYER_TURN_START' ? 'button' : undefined}
-                tabIndex={gameState.phase === 'PLAYER_TURN_START' ? 0 : undefined}
+                role={gameState.phase === 'PLAYER_TURN_START' && gameState.deck.length > 0 ? 'button' : undefined}
+                tabIndex={gameState.phase === 'PLAYER_TURN_START' && gameState.deck.length > 0 ? 0 : undefined}
                 aria-label={`山札 (残り${gameState.deck.length}枚)${
-                  gameState.phase === 'PLAYER_TURN_START' ? ' - クリックしてドロー' : ''
+                  gameState.phase === 'PLAYER_TURN_START' && gameState.deck.length > 0 ? ' - クリックしてドロー' : ''
                 }`}
                 onKeyDown={
-                  gameState.phase === 'PLAYER_TURN_START'
+                  gameState.phase === 'PLAYER_TURN_START' && gameState.deck.length > 0
                     ? (e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
@@ -1562,9 +1706,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                       }
                     : undefined
                 }
-                onClick={gameState.phase === 'PLAYER_TURN_START' ? handlePlayerDraw : undefined}
+                onClick={gameState.phase === 'PLAYER_TURN_START' && gameState.deck.length > 0 ? handlePlayerDraw : undefined}
                 className={`relative w-14 h-20 sm:w-20 sm:h-28 lg:w-24 lg:h-32 rounded-xl sm:rounded-2xl border-2 flex flex-col items-center justify-center select-none transition-all ${
-                  gameState.phase === 'PLAYER_TURN_START'
+                  gameState.phase === 'PLAYER_TURN_START' && gameState.deck.length > 0
                     ? 'border-algo-yellow-dark bg-algo-yellow-light/80 shadow-lg shadow-amber-200/50 cursor-pointer hover:scale-105 animate-bounce'
                     : 'border-slate-200 bg-slate-50 text-slate-400'
                 }`}
@@ -1572,7 +1716,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 <Layers className="w-5 h-5 sm:w-7 sm:h-7 mb-0.5 sm:mb-1 text-algo-blue" />
                 <span className="text-[9px] sm:text-[10px] font-bold text-slate-500">山札</span>
                 <span className="text-sm sm:text-base lg:text-lg font-black text-slate-900">{gameState.deck.length} 枚</span>
-                {gameState.phase === 'PLAYER_TURN_START' && (
+                {gameState.phase === 'PLAYER_TURN_START' && gameState.deck.length > 0 && (
                   <span className="absolute -bottom-1.5 sm:-bottom-2 px-1.5 sm:px-2.5 py-0.2 sm:py-0.5 rounded-full bg-algo-yellow text-slate-950 text-[9px] sm:text-[10px] font-black border border-amber-300 shadow-xs">
                     引く
                   </span>
@@ -1608,7 +1752,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     )}
                   </div>
                   <p className="text-[11px] sm:text-xs text-slate-600 font-medium leading-tight">
-                    山札をクリックしてカードを引いてください。
+                    {gameState.deck.length === 0
+                      ? '山札がありません。相手の伏せカードを選んでアタックしてください。'
+                      : '山札をクリックしてカードを引いてください。'}
                   </p>
                 </div>
               )}
@@ -1622,7 +1768,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     )}
                   </div>
                   <p className="text-[11px] sm:text-xs text-slate-600 font-medium leading-tight">
-                    相手の伏せカード（?）をクリック。
+                    {gameState.deck.length === 0 && !gameState.drawnCard
+                      ? '山札がありません。相手の伏せカードを選んでアタックしてください。'
+                      : '相手の伏せカード（?）をクリック。'}
                   </p>
                 </div>
               )}

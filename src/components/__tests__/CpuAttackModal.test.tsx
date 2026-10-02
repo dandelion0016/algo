@@ -70,6 +70,14 @@ describe('getNextActionMessage', () => {
     it('ステイ時（STAY）: 手札に加えてステイメッセージを生成する', () => {
       expect(getNextActionMessage('あなた', 'STAY')).toBe('手札に加えてステイしました');
     });
+
+    it('山札枯渇時（isDeckExhausted: true）のステイ・継続案内メッセージ (Issue #68)', () => {
+      expect(getNextActionMessage('あなた', 'STAY', undefined, true, true)).toBe('ステイしました');
+      expect(getNextActionMessage('CPU 1', 'STAY', undefined, false, true)).toBe('CPU 1 はステイしました');
+      expect(getNextActionMessage('あなた', 'CONTINUE', undefined, true, true)).toBe(
+        '的中！続けてアタックするか、ステイするか選択できます'
+      );
+    });
   });
 });
 
@@ -296,6 +304,54 @@ describe('CpuAttackModal / AttackResultModal Component Rendering', () => {
 
       expect(html).toContain('的中！');
       expect(html).toContain('勝敗が決しました');
+    });
+
+    it('山札枯渇時のプレイヤーアタックハズレ（isDeckExhausted: true）: 「山札がないため、手札の伏せカードがオープンされました」が表示され虚偽通知が排除される (Issue #68)', () => {
+      const playerExhaustedMissData: AttackResultData = {
+        attackerName: 'あなた',
+        isHuman: true,
+        targetPlayerName: 'CPU 1',
+        targetCardIndex: 0,
+        targetColor: 'black',
+        guessedNumber: 3,
+        isHit: false,
+        actualNumber: 8,
+        nextAction: 'TURN_END',
+        nextPlayerName: 'CPU 1',
+        isDeckExhausted: true,
+      };
+
+      const html = renderToString(
+        <AttackResultModal isOpen={true} data={playerExhaustedMissData} onConfirm={vi.fn()} />
+      );
+
+      expect(html).toContain('❌ ハズレ（失敗）');
+      expect(html).toContain('山札がないため、手札の伏せカードがオープンされました');
+      expect(html).not.toContain('あなたの引いたカードがオープンされました');
+    });
+
+    it('山札枯渇時のCPUアタックハズレ（isDeckExhausted: true）: 「山札がないため、手札の伏せカードがオープンされました」が表示される (Issue #68)', () => {
+      const cpuExhaustedMissData: AttackResultData = {
+        attackerName: 'CPU 1',
+        isHuman: false,
+        targetPlayerName: 'あなた',
+        targetCardIndex: 1,
+        targetColor: 'white',
+        guessedNumber: 5,
+        isHit: false,
+        actualNumber: 2,
+        nextAction: 'TURN_END',
+        nextPlayerName: 'あなた',
+        isDeckExhausted: true,
+      };
+
+      const html = renderToString(
+        <CpuAttackModal isOpen={true} data={cpuExhaustedMissData} onConfirm={vi.fn()} />
+      );
+
+      expect(html).toContain('❌ ハズレ（失敗）');
+      expect(html).toContain('山札がないため、手札の伏せカードがオープンされました');
+      expect(html).not.toContain('CPU 1 の引いたカードがオープンされました');
     });
   });
 

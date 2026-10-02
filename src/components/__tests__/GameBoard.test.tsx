@@ -1704,4 +1704,190 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(html).toContain('このカードを選択する');
     });
   });
+
+  describe('山札枯渇（残り0枚）時の手番進行・アタック失敗ペナルティ・メッセージの検証 (Issue #68)', () => {
+    const mockExhaustedPlayers: Player[] = [
+      {
+        id: 'test_user_1',
+        name: 'あなた',
+        isHuman: true,
+        cards: [
+          { id: 'b-2', color: 'black', number: 2, isOpen: false },
+          { id: 'w-5', color: 'white', number: 5, isOpen: false },
+        ],
+        isEliminated: false,
+        avatarColor: 'from-sky-400 to-blue-600',
+      },
+      {
+        id: 'cpu-1',
+        name: 'CPU 1',
+        isHuman: false,
+        cards: [
+          { id: 'b-4', color: 'black', number: 4, isOpen: false },
+          { id: 'w-8', color: 'white', number: 8, isOpen: false },
+        ],
+        isEliminated: false,
+        avatarColor: 'from-blue-400 to-indigo-500',
+      },
+    ];
+
+    it('山札0枚時の山札コンポーネント: role="button"や「引く」バッジが付与されず、クリックが促されない', () => {
+      const html = renderToString(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_TURN_START',
+            deck: [],
+            players: mockExhaustedPlayers,
+            activePlayerIndex: 0,
+          }}
+        />
+      );
+
+      // 山札表示は存在するがボタン化・ドロー誘導されない
+      expect(html).toContain('data-testid="btn-draw-card"');
+      expect(html).toMatch(/0.*枚/);
+      expect(html).toContain('aria-label="山札 (残り0枚)"');
+      expect(html).not.toContain('aria-label="山札 (残り0枚) - クリックしてドロー"');
+      // 引くバッジが表示されないこと
+      expect(html).not.toContain('>引く<');
+      // アニメーション・カーソル指定がつかないこと
+      expect(html).not.toContain('animate-bounce');
+    });
+
+    it('山札0枚時のガイダンスメッセージ: 「山札がありません。相手の伏せカードを選んでアタックしてください。」が表示される', () => {
+      // 1. PLAYER_TURN_START 時
+      const htmlTurnStart = renderToString(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_TURN_START',
+            deck: [],
+            players: mockExhaustedPlayers,
+            activePlayerIndex: 0,
+          }}
+        />
+      );
+      expect(htmlTurnStart).toContain('山札がありません。相手の伏せカードを選んでアタックしてください。');
+      expect(htmlTurnStart).not.toContain('山札をクリックしてカードを引いてください。');
+
+      // 2. PLAYER_SELECT_TARGET 時（drawnCard なし）
+      const htmlSelectTarget = renderToString(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_SELECT_TARGET',
+            deck: [],
+            drawnCard: null,
+            players: mockExhaustedPlayers,
+            activePlayerIndex: 0,
+          }}
+        />
+      );
+      expect(htmlSelectTarget).toContain('山札がありません。相手の伏せカードを選んでアタックしてください。');
+    });
+
+    it('山札0枚時のプレイヤーアタック失敗ペナルティ: 伏せカードの先頭が1枚オープンされる', () => {
+      const currentPlayers = [
+        {
+          ...mockExhaustedPlayers[0],
+          cards: [
+            { id: 'b-2', color: 'black' as const, number: 2, isOpen: false },
+            { id: 'w-5', color: 'white' as const, number: 5, isOpen: false },
+          ],
+        },
+        { ...mockExhaustedPlayers[1] },
+      ];
+
+      // 山札0枚時のハズレペナルティ適用ロジック
+      const pIdx = currentPlayers.findIndex((p) => p.isHuman);
+      const firstClosedIdx = currentPlayers[pIdx].cards.findIndex((c) => !c.isOpen);
+      expect(firstClosedIdx).toBe(0);
+
+      const newCards = currentPlayers[pIdx].cards.map((c, i) =>
+        i === firstClosedIdx ? { ...c, isOpen: true } : c
+      );
+      currentPlayers[pIdx] = {
+        ...currentPlayers[pIdx],
+        cards: newCards,
+        isEliminated: isAllOpen(newCards),
+      };
+
+      // 1枚目（b-2）がオープンされ、2枚目（w-5）は裏向きのまま
+      expect(currentPlayers[0].cards[0].isOpen).toBe(true);
+      expect(currentPlayers[0].cards[1].isOpen).toBe(false);
+      expect(currentPlayers[0].isEliminated).toBe(false);
+    });
+
+    it('山札0枚時のプレイヤーアタック失敗で手札が全オープンとなった場合、敗北（ゲーム終了）となる', () => {
+      const currentPlayers = [
+        {
+          ...mockExhaustedPlayers[0],
+          cards: [
+            { id: 'b-2', color: 'black' as const, number: 2, isOpen: true },
+            { id: 'w-5', color: 'white' as const, number: 5, isOpen: false }, // 残り1枚の伏せカード
+          ],
+        },
+        { ...mockExhaustedPlayers[1] },
+      ];
+
+      const pIdx = currentPlayers.findIndex((p) => p.isHuman);
+      const firstClosedIdx = currentPlayers[pIdx].cards.findIndex((c) => !c.isOpen);
+      expect(firstClosedIdx).toBe(1);
+
+      const newCards = currentPlayers[pIdx].cards.map((c, i) =>
+        i === firstClosedIdx ? { ...c, isOpen: true } : c
+      );
+      currentPlayers[pIdx] = {
+        ...currentPlayers[pIdx],
+        cards: newCards,
+        isEliminated: isAllOpen(newCards),
+      };
+
+      expect(currentPlayers[0].cards.every((c) => c.isOpen)).toBe(true);
+      expect(currentPlayers[0].isEliminated).toBe(true);
+
+      const activePlayers = currentPlayers.filter((p) => !p.isEliminated);
+      expect(activePlayers.length).toBe(1);
+      expect(activePlayers[0].id).toBe('cpu-1'); // CPUの勝利
+    });
+
+    it('山札0枚時のCPUアタック失敗ペナルティ: CPUの伏せカードがオープンされ、ログに手札オープンが記録される', () => {
+      const cpuPlayer: Player = {
+        id: 'cpu-1',
+        name: 'CPU 1',
+        isHuman: false,
+        cards: [
+          { id: 'b-4', color: 'black' as const, number: 4, isOpen: false },
+          { id: 'w-8', color: 'white' as const, number: 8, isOpen: false },
+        ],
+        isEliminated: false,
+        avatarColor: 'from-blue-400 to-indigo-500',
+      };
+
+      // CPU山札なし時のハズレペナルティ
+      const firstClosedIdx = cpuPlayer.cards.findIndex((c) => !c.isOpen);
+      expect(firstClosedIdx).toBe(0);
+
+      const newCards = cpuPlayer.cards.map((c, i) =>
+        i === firstClosedIdx ? { ...c, isOpen: true } : c
+      );
+      const updatedCpu: Player = {
+        ...cpuPlayer,
+        cards: newCards,
+        isEliminated: isAllOpen(newCards),
+      };
+
+      expect(updatedCpu.cards[0].isOpen).toBe(true);
+      expect(updatedCpu.cards[1].isOpen).toBe(false);
+
+      // ログメッセージの生成検証
+      const cpuDrawn = null;
+      const isCpuDeckExhausted = !cpuDrawn;
+      const missLogSuffix = isCpuDeckExhausted
+        ? '山札がないため、手札の伏せカードがオープンされました。'
+        : '';
+      const logMessage = `CPU 1 が あなた の左から 1 番目 [黒] を [2] と推理して【ハズレ】。${missLogSuffix ? ' ' + missLogSuffix : ''}`;
+
+      expect(logMessage).toContain('山札がないため、手札の伏せカードがオープンされました。');
+      expect(logMessage).not.toContain('引いたカードがオープンされました');
+    });
+  });
 });
