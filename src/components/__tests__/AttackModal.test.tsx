@@ -251,7 +251,7 @@ describe('AttackModal Component (SCR-004 & Issue #17: data-testid and a11y)', ()
 
       expect(html).toContain('data-testid="attack-failed-numbers-hint"');
       expect(html).toContain('過去の外れ宣言:');
-      expect(html).toContain('✕[3, 7]');
+      expect(html).toContain('✕3,7');
     });
 
     it('外れた数字ボタンに data-failed-guess="true", ✕ハズレ済バッジ, aria-label が付与される', () => {

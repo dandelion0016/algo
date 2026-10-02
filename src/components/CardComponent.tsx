@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Card, PublicCard } from '../types/game';
-import { formatFailedNumbersBadge } from '../lib/candidateAssist';
+import { formatFailedNumbersBadge, getFailedNumbersTooltip } from '../lib/candidateAssist';
 
 interface CardComponentProps {
   card: PublicCard | Card;
@@ -174,16 +174,16 @@ export const CardComponent: React.FC<CardComponentProps> = ({
         )}
       </div>
 
-      {/* 過去の外れ数字バッジ (Issue #43: ミスアタック再宣言防止) */}
+      {/* 過去の外れ数字バッジ (Issue #43, Issue #69: ミスアタック再宣言防止・幅超過防止) */}
       {failedGuesses && failedGuesses.length > 0 && !showNumber && (
         <div
           data-testid="failed-guesses-badge"
-          className={`px-1.5 py-0.5 rounded-full font-black tracking-tight border shadow-2xs whitespace-nowrap text-center ${
+          className={`px-1.5 py-0.5 rounded-full font-black tracking-tight border shadow-2xs whitespace-nowrap text-center max-w-[48px] truncate leading-none ${
             size === 'xs'
               ? 'text-[7px] sm:text-[8px] bg-rose-50 text-rose-700 border-rose-300'
               : 'text-[9px] sm:text-[10px] bg-rose-50 text-rose-700 border-rose-300'
           }`}
-          title={`過去の外れ数字: ${failedGuesses.join(', ')}`}
+          title={getFailedNumbersTooltip(failedGuesses)}
         >
           {formatFailedNumbersBadge(failedGuesses)}
         </div>

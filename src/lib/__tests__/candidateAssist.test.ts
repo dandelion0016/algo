@@ -7,6 +7,7 @@ import {
   formatCandidateRange,
   getFailedNumbersForCard,
   formatFailedNumbersBadge,
+  getFailedNumbersTooltip,
 } from '../candidateAssist';
 import { Card, Player, AttackLog } from '../../types/game';
 
@@ -333,7 +334,7 @@ describe('candidateAssist', () => {
     });
   });
 
-  describe('formatFailedNumbersBadge (Issue #43: 失敗数字バッジ文字列生成)', () => {
+  describe('formatFailedNumbersBadge (Issue #43, Issue #69: 失敗数字バッジ文字列生成)', () => {
     it('空配列なら空文字を返す', () => {
       expect(formatFailedNumbersBadge([])).toBe('');
     });
@@ -343,9 +344,30 @@ describe('candidateAssist', () => {
       expect(formatFailedNumbersBadge([11])).toBe('✕11');
     });
 
-    it('複数の失敗数字なら "✕[3, 7]" の形式で返す', () => {
-      expect(formatFailedNumbersBadge([3, 7])).toBe('✕[3, 7]');
-      expect(formatFailedNumbersBadge([2, 5, 8])).toBe('✕[2, 5, 8]');
+    it('2件の失敗数字なら角括弧なしのコンパクトな "✕3,7" の形式で返す', () => {
+      expect(formatFailedNumbersBadge([3, 7])).toBe('✕3,7');
+      expect(formatFailedNumbersBadge([0, 11])).toBe('✕0,11');
+    });
+
+    it('3件以上の失敗数字なら "✕n1,n2.." の省略形式でカード幅超過を防ぐ', () => {
+      expect(formatFailedNumbersBadge([2, 5, 8])).toBe('✕2,5..');
+      expect(formatFailedNumbersBadge([1, 3, 5, 7])).toBe('✕1,3..');
+      expect(formatFailedNumbersBadge([0, 2, 4, 6, 8, 10])).toBe('✕0,2..');
+    });
+  });
+
+  describe('getFailedNumbersTooltip (Issue #69: ツールチップ用全失敗数字文字列生成)', () => {
+    it('空配列または未指定なら空文字を返す', () => {
+      expect(getFailedNumbersTooltip([])).toBe('');
+    });
+
+    it('単一の失敗数字なら "過去の外れ数字: 3" を返す', () => {
+      expect(getFailedNumbersTooltip([3])).toBe('過去の外れ数字: 3');
+    });
+
+    it('複数件の失敗数字ならすべての数字をカンマ区切りで返す', () => {
+      expect(getFailedNumbersTooltip([3, 7])).toBe('過去の外れ数字: 3, 7');
+      expect(getFailedNumbersTooltip([1, 3, 5, 7])).toBe('過去の外れ数字: 1, 3, 5, 7');
     });
   });
 });
