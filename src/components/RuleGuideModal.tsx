@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { BookOpen, X, Award, CheckCircle2, AlertCircle } from 'lucide-react';
+import { getAppVersion } from '../lib/version';
 
 interface RuleGuideModalProps {
   isOpen: boolean;
@@ -156,6 +157,11 @@ export const RuleGuideModal: React.FC<RuleGuideModalProps> = ({ isOpen, onClose 
           >
             閉じる
           </button>
+          <div className="mt-2.5 text-center">
+            <span data-testid="rule-modal-version" className="text-[10px] sm:text-xs text-slate-400 font-mono">
+              アルゴ（algo）Web バージョン: {getAppVersion()}
+            </span>
+          </div>
         </div>
       </div>
     </div>

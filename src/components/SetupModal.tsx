@@ -95,6 +95,14 @@ export const SetupModal: React.FC<SetupModalProps> = ({
           alt="algo game banner"
           className="w-full h-full object-cover object-center"
         />
+        {/* バージョン表示バッジ (モバイルでも右上に一目で視認可能) */}
+        <div
+          data-testid="setup-banner-version-badge"
+          className="absolute top-2 right-2 sm:top-3.5 sm:right-3.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-slate-900/85 backdrop-blur-xs text-white text-[10px] sm:text-xs font-mono font-bold shadow-md z-10 flex items-center gap-1 border border-white/20"
+        >
+          <span className="text-[9px] text-slate-300 font-sans tracking-wide">Ver</span>
+          <span>{getAppVersion()}</span>
+        </div>
         <div className="absolute inset-0 bg-gradient-to-t from-white/95 via-white/25 to-transparent flex items-end p-2.5 sm:p-5 lg:p-6">
           <div className="flex items-center gap-2.5 sm:gap-3 w-full">
             <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl overflow-hidden shadow-md border-2 border-white bg-white shrink-0">
@@ -103,7 +111,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                 <h2 className="text-base sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-1.5">
-                  algo <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-algo-blue text-white font-bold">Web対戦</span> <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 font-bold">{getAppVersion()}</span>
+                  algo <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-algo-blue text-white font-bold">Web対戦</span>
                 </h2>
                 {/* ユーザーIDバッジ */}
                 <div
@@ -343,8 +351,8 @@ export const SetupModal: React.FC<SetupModalProps> = ({
         </div>
 
         {/* バージョン表記 (下部控えめ表示) */}
-        <div data-testid="setup-bottom-version" className="pt-1 sm:pt-2 text-center text-[10px] text-slate-400 font-mono">
-          algo {getAppVersion()}
+        <div data-testid="setup-bottom-version" className="pt-1 sm:pt-2 text-center text-[10px] sm:text-xs text-slate-400 font-mono">
+          アルゴ（algo）Web バージョン: {getAppVersion()}
         </div>
       </div>
     </div>

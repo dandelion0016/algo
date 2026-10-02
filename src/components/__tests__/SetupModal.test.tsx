@@ -207,5 +207,13 @@ describe('SetupModal Component', () => {
       expect(html).toContain('初級：気楽に推理');
       expect(html).toContain('無制限（じっくり思考）');
     });
+
+    it('モバイルでも視認可能なバナー右上バージョンバッジと下部バージョン表記が描画される', () => {
+      const html = renderToString(<SetupModal {...defaultProps} />);
+      expect(html).toContain('data-testid="setup-banner-version-badge"');
+      expect(html).toContain('data-testid="setup-bottom-version"');
+      expect(html).toContain('Ver');
+      expect(html).toContain('アルゴ（algo）Web バージョン:');
+    });
   });
 });
