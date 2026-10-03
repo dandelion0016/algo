@@ -80,7 +80,7 @@ export const CardComponent: React.FC<CardComponentProps> = ({
   const cardTestId = testId || `card-${card.color}-${showNumber ? card.number : 'hidden'}`;
 
   return (
-    <div className="flex flex-col items-center gap-1 select-none" data-testid="card-element">
+    <div className="flex flex-col items-center gap-1 select-none perspective-1000" data-testid="card-element">
       {label && <span className="text-[10px] sm:text-xs text-slate-500 font-semibold">{label}</span>}
       <div
         data-testid={cardTestId}
@@ -105,8 +105,19 @@ export const CardComponent: React.FC<CardComponentProps> = ({
               }
             : undefined
         }
-        className={`relative flex flex-col items-center justify-center ${sizeClasses} ${colorClasses} ${stateClasses}`}
+        className={`relative flex flex-col items-center justify-center preserve-3d ${sizeClasses} ${colorClasses} ${stateClasses} ${
+          card.isOpen || isAnswerRevealed ? 'animate-card-flip' : ''
+        }`}
       >
+        {/* オープン時光彩シャインエフェクト (Issue #73) */}
+        {(card.isOpen || isAnswerRevealed) && (
+          <div
+            data-testid="card-shimmer"
+            className="animate-card-shimmer"
+            aria-hidden="true"
+          />
+        )}
+
         {/* 新規挿入カードバッジ (Issue #66) */}
         {isNewlyInserted && !isHintTarget && (
           <div
@@ -120,7 +131,6 @@ export const CardComponent: React.FC<CardComponentProps> = ({
             NEW!
           </div>
         )}
-
         {/* ヒント対象バッジ */}
         {isHintTarget && (
           <div

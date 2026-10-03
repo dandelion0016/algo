@@ -45,3 +45,127 @@ body {
 .animate-attack-pulse {
   animation: attack-pulse 1.8s infinite;
 }
+
+/* 3D パースペクティブとカードフリップアニメーション (Issue #73) */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+@keyframes card-flip {
+  0% {
+    transform: rotateY(180deg) scale(0.95);
+  }
+  65% {
+    transform: rotateY(-8deg) scale(1.05);
+  }
+  100% {
+    transform: rotateY(0deg) scale(1);
+  }
+}
+
+.animate-card-flip {
+  animation: card-flip 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  transform-style: preserve-3d;
+}
+
+/* カードオープン時の光彩シャインエフェクト (CSS shimmer) (Issue #73) */
+@keyframes card-shimmer {
+  0% {
+    transform: translateX(-150%) skewX(-20deg);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateX(250%) skewX(-20deg);
+    opacity: 0;
+  }
+}
+
+.animate-card-shimmer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 15;
+}
+
+.animate-card-shimmer::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.65) 50%,
+    transparent 100%
+  );
+  animation: card-shimmer 0.75s ease-out 0.1s forwards;
+  pointer-events: none;
+}
+
+/* リーサルK.O. 画面揺れ (Screen Shake) (Issue #73) */
+@keyframes screen-shake {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  15% { transform: translate(-6px, 3px) rotate(-0.8deg); }
+  30% { transform: translate(5px, -3px) rotate(0.8deg); }
+  45% { transform: translate(-4px, 2px) rotate(-0.5deg); }
+  60% { transform: translate(3px, -2px) rotate(0.4deg); }
+  75% { transform: translate(-2px, 1px) rotate(-0.2deg); }
+  90% { transform: translate(1px, -1px) rotate(0.1deg); }
+}
+
+.animate-shake {
+  animation: screen-shake 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+/* リーサルK.O. カットイン バーストアニメーション (Issue #73) */
+@keyframes finish-burst {
+  0% {
+    transform: scale(0.3) rotate(-6deg);
+    opacity: 0;
+  }
+  40% {
+    transform: scale(1.15) rotate(2deg);
+    opacity: 1;
+  }
+  60% {
+    transform: scale(0.98) rotate(-1deg);
+    opacity: 1;
+  }
+  80% {
+    transform: scale(1.02) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+.animate-finish-burst {
+  animation: finish-burst 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* アクセシビリティ: prefers-reduced-motion によるアニメーション無効化/最小化 (Issue #73) */
+@media (prefers-reduced-motion: reduce) {
+  .animate-card-flip,
+  .animate-shake,
+  .animate-finish-burst,
+  .animate-card-shimmer::after,
+  .animate-attack-pulse,
+  .animate-card-draw {
+    animation: none !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}

@@ -3145,6 +3145,75 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
     });
   });
 
+  describe('Issue #73: リーサル（決着ヒット）ダイナミックK.O.演出と画面揺れ', () => {
+    it('プレイヤーが相手の最後の伏せカードを的中させた際、lethal-ko-cutin演出と画面揺れ（animate-shake）が発動すること', async () => {
+      vi.useFakeTimers();
+
+      const lethalPlayers = [
+        {
+          id: 'test_user_1',
+          name: 'あなた',
+          isHuman: true,
+          cards: [{ id: 'p1', color: 'black' as const, number: 2, isOpen: false }],
+        },
+        {
+          id: 'cpu_1',
+          name: 'CPU 1',
+          isHuman: false,
+          // 相手の最後の1枚
+          cards: [{ id: 'c1', color: 'white' as const, number: 7, isOpen: false }],
+        },
+      ];
+
+      render(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_GUESS_NUMBER',
+            players: lethalPlayers,
+            drawnCard: { id: 'p-drawn', color: 'black' as const, number: 4, isOpen: false },
+            selectedTarget: {
+              playerId: 'cpu_1',
+              cardIndex: 0,
+            },
+            timeLimit: 30,
+            remainingTime: 30,
+            playerCount: 2,
+            difficulty: 'normal',
+          }}
+        />
+      );
+
+      // 正解の「7」でアタックを確定
+      await act(async () => {
+        (window as any).__algoHandleConfirmGuess(7);
+      });
+
+      // 1. リーサルカットイン演出（💥 FINISH!!）が表示されていること
+      const cutIn = screen.getByTestId('lethal-ko-cutin');
+      expect(cutIn).not.toBeNull();
+      expect(cutIn.textContent).toContain('💥 FINISH!!');
+      expect(cutIn.textContent).toContain('あなた の完全勝利！');
+
+      // 2. 画面揺れアニメーション（animate-shake）が外側コンテナに適用されていること
+      const boardContainer = screen.getByTestId('board-outer-container') || cutIn.closest('div[class*="max-w-7xl"]');
+      expect(boardContainer?.className).toContain('animate-shake');
+
+      // 550ms 経過後、画面揺れが収束すること
+      act(() => {
+        vi.advanceTimersByTime(600);
+      });
+      expect(boardContainer?.className).not.toContain('animate-shake');
+
+      // 1200ms 経過後、カットインが自動消去されること
+      act(() => {
+        vi.advanceTimersByTime(700);
+      });
+      expect(screen.queryByTestId('lethal-ko-cutin')).toBeNull();
+
+      vi.useRealTimers();
+    });
+  });
+
   describe('通算戦績（Match Stats）およびアチーブメント（実績システム）(Issue #72)', () => {
     it('ヘッダーの「🏆 戦績」ボタンをクリックすると StatsModal が開き、戦績と実績を確認できること', () => {
       render(
