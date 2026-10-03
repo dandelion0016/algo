@@ -34,7 +34,7 @@ describe('DeckTracker Component', () => {
     render(<DeckTracker players={[]} />);
 
     expect(screen.getByTestId('deck-tracker')).toBeInTheDocument();
-    expect(screen.getByText('残弾デッキトラッカー')).toBeInTheDocument();
+    expect(screen.getByText('残弾トラッカー')).toBeInTheDocument();
 
     // 0..11 の黒カード
     for (let i = 0; i <= 11; i++) {
@@ -153,5 +153,13 @@ describe('DeckTracker Component', () => {
       'data-highlighted',
       'false'
     );
+  });
+
+  it('タイトルが「残弾トラッカー」として表示され、whitespace-nowrap が付与されていること (Issue #115)', () => {
+    render(<DeckTracker players={[]} />);
+
+    const titleElement = screen.getByRole('heading', { level: 3 });
+    expect(titleElement).toHaveTextContent('残弾トラッカー');
+    expect(titleElement.className).toContain('whitespace-nowrap');
   });
 });

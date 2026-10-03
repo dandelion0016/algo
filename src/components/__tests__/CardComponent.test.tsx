@@ -374,4 +374,27 @@ describe('CardComponent (Issue #43: failed-guesses-badge)', () => {
       expect(cardEl?.getAttribute('aria-label')).not.toContain('[新規挿入]');
     });
   });
+
+  describe('Issue #115: 4人対戦時の相手カード上部見切れ・ラベル余白最適化', () => {
+    it('label が渡された場合、card-label が leading-none と適切なサイズで描画されること', () => {
+      const { container } = render(
+        <CardComponent
+          card={hiddenCard}
+          isOwner={false}
+          size="xs"
+          label="#1"
+        />
+      );
+
+      const labelEl = container.querySelector('[data-testid="card-label"]');
+      expect(labelEl).not.toBeNull();
+      expect(labelEl?.textContent).toBe('#1');
+      expect(labelEl?.className).toContain('leading-none');
+      expect(labelEl?.className).toContain('text-[9px]');
+
+      const wrapper = container.querySelector('[data-testid="card-element"]');
+      expect(wrapper?.className).toContain('pt-0.5');
+      expect(wrapper?.className).toContain('gap-0.5');
+    });
+  });
 });

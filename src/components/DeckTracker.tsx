@@ -87,8 +87,8 @@ export const DeckTracker: React.FC<DeckTrackerProps> = ({
         <div className="flex items-center justify-between gap-1 mb-2">
           <div className="flex items-center gap-1.5 min-w-0">
             <Target className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-algo-blue shrink-0" />
-            <h3 className="text-xs sm:text-sm font-bold text-slate-800 truncate">
-              残弾デッキトラッカー
+            <h3 className="text-xs sm:text-sm font-bold text-slate-800 whitespace-nowrap">
+              残弾トラッカー
             </h3>
             {highlightedNumbers.length > 0 && (
               <span
@@ -106,7 +106,7 @@ export const DeckTracker: React.FC<DeckTrackerProps> = ({
             {/* サマリバッジ */}
             <div
               data-testid="tracker-summary"
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-slate-100 text-[10px] sm:text-xs font-semibold text-slate-700"
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-slate-100 text-[10px] sm:text-xs font-semibold text-slate-700 shrink-0"
               title={`未確定: 黒${summary.blackRemaining}枚 / 白${summary.whiteRemaining}枚 (確定: ${summary.totalConfirmed}枚)`}
             >
               <span>残弾:</span>
@@ -114,8 +114,8 @@ export const DeckTracker: React.FC<DeckTrackerProps> = ({
                 {summary.totalRemaining}
               </span>
               <span className="text-[9px] text-slate-400">/ 24</span>
-              <span className="hidden sm:inline text-slate-300">|</span>
-              <span className="hidden sm:inline font-mono text-[10px] text-slate-600">
+              <span className="hidden xl:inline text-slate-300">|</span>
+              <span className="hidden xl:inline font-mono text-[10px] text-slate-600">
                 黒{summary.blackRemaining} 白{summary.whiteRemaining}
               </span>
             </div>
