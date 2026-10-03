@@ -309,4 +309,116 @@ describe('ResultModal Component (SCR-006: 決着画面・祝祭演出・戦績�
       expect(onClose).not.toHaveBeenCalled();
     });
   });
+
+  describe('Issue #60: 🔍 手札の答え合わせ (Review Hands) セクション', () => {
+    it('リザルトモーダル内に手札の答え合わせセクション（hand-review-section）が表示される', () => {
+      render(<ResultModal {...defaultProps} />);
+
+      const reviewSection = screen.getByTestId('hand-review-section');
+      expect(reviewSection).toBeInTheDocument();
+      expect(reviewSection.textContent).toContain('手札の答え合わせ (Review Hands)');
+      expect(reviewSection.textContent).toContain('全プレイヤーの最終手札');
+    });
+
+    it('全プレイヤーの手札（人間・CPU）がプレイヤーごとに描画される', () => {
+      render(<ResultModal {...defaultProps} />);
+
+      // 1. 各プレイヤーコンテナ
+      const humanReview = screen.getByTestId('review-player-user_1');
+      const cpuReview = screen.getByTestId('review-player-cpu_1');
+      expect(humanReview).toBeInTheDocument();
+      expect(cpuReview).toBeInTheDocument();
+
+      // 2. プレイヤー名とラベル
+      expect(humanReview.textContent).toContain('あなた');
+      expect(humanReview.textContent).toContain('👑 勝者');
+      expect(cpuReview.textContent).toContain('CPU 1');
+      expect(cpuReview.textContent).toContain('脱落');
+    });
+
+    it('各プレイヤーの全手札の数字・色が完全に開示（Reveal）され、未オープンだったカードに「開示」バッジが表示される', () => {
+      render(<ResultModal {...defaultProps} />);
+
+      // 人間プレイヤーの手札4枚:
+      // card 0: b-1 (isOpen: false) -> 数字 1, 開示
+      // card 1: w-3 (isOpen: false) -> 数字 3, 開示
+      // card 2: b-5 (isOpen: true)  -> 数字 5, OPEN
+      // card 3: w-8 (isOpen: false) -> 数字 8, 開示
+      const humanCard0 = screen.getByTestId('review-card-user_1-0');
+      const humanCard1 = screen.getByTestId('review-card-user_1-1');
+      const humanCard2 = screen.getByTestId('review-card-user_1-2');
+      const humanCard3 = screen.getByTestId('review-card-user_1-3');
+
+      expect(humanCard0.textContent).toContain('1');
+      expect(humanCard0.textContent).toContain('開示');
+
+      expect(humanCard1.textContent).toContain('3');
+      expect(humanCard1.textContent).toContain('開示');
+
+      expect(humanCard2.textContent).toContain('5');
+      expect(humanCard2.textContent).toContain('OPEN');
+
+      expect(humanCard3.textContent).toContain('8');
+      expect(humanCard3.textContent).toContain('開示');
+
+      // CPUの手札2枚:
+      // card 0: b-2 (isOpen: true) -> 数字 2, OPEN
+      // card 1: w-4 (isOpen: true) -> 数字 4, OPEN
+      const cpuCard0 = screen.getByTestId('review-card-cpu_1-0');
+      const cpuCard1 = screen.getByTestId('review-card-cpu_1-1');
+
+      expect(cpuCard0.textContent).toContain('2');
+      expect(cpuCard0.textContent).toContain('OPEN');
+
+      expect(cpuCard1.textContent).toContain('4');
+      expect(cpuCard1.textContent).toContain('OPEN');
+    });
+
+    it('3〜4人対戦時でも全参加プレイヤーの手札が漏れなく描画される', () => {
+      const mock4Players: Player[] = [
+        mockHumanPlayer,
+        mockCpuPlayer,
+        {
+          id: 'cpu_2',
+          name: 'CPU 2',
+          isHuman: false,
+          avatarColor: 'from-purple-500 to-indigo-600',
+          isEliminated: true,
+          cards: [
+            { id: 'b-0', color: 'black', number: 0, isOpen: false },
+            { id: 'w-7', color: 'white', number: 7, isOpen: false },
+          ],
+        },
+        {
+          id: 'cpu_3',
+          name: 'CPU 3',
+          isHuman: false,
+          avatarColor: 'from-rose-500 to-pink-600',
+          isEliminated: false,
+          cards: [
+            { id: 'b-9', color: 'black', number: 9, isOpen: true },
+            { id: 'w-11', color: 'white', number: 11, isOpen: false },
+          ],
+        },
+      ];
+
+      render(
+        <ResultModal
+          {...defaultProps}
+          players={mock4Players}
+          playerCount={4}
+        />
+      );
+
+      expect(screen.getByTestId('review-player-user_1')).toBeInTheDocument();
+      expect(screen.getByTestId('review-player-cpu_1')).toBeInTheDocument();
+      expect(screen.getByTestId('review-player-cpu_2')).toBeInTheDocument();
+      expect(screen.getByTestId('review-player-cpu_3')).toBeInTheDocument();
+
+      // CPU 2 の未オープンカードが数字とともに開示されていること
+      const cpu2Card0 = screen.getByTestId('review-card-cpu_2-0');
+      expect(cpu2Card0.textContent).toContain('0');
+      expect(cpu2Card0.textContent).toContain('開示');
+    });
+  });
 });

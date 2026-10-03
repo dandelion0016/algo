@@ -10,6 +10,7 @@ interface CardComponentProps {
   isSelected?: boolean;
   isSelectable?: boolean;
   isHintTarget?: boolean; // AIヒント推薦対象カード（Issue #44）
+  isRevealed?: boolean; // ゲーム終了時などの答え合わせ開示フラグ (Issue #60)
   onClick?: () => void;
   size?: 'xs' | 'sm' | 'md' | 'lg';
   label?: string;
@@ -25,6 +26,7 @@ export const CardComponent: React.FC<CardComponentProps> = ({
   isSelected = false,
   isSelectable = false,
   isHintTarget = false,
+  isRevealed = false,
   onClick,
   size = 'md',
   label,
@@ -66,8 +68,9 @@ export const CardComponent: React.FC<CardComponentProps> = ({
 
   // 表示判定
   // Information Hiding: card.number が null の場合は一切数字を表示せず「?」を描画
-  const showNumber = card.number !== null && (card.isOpen || isOwner);
-  const isSecretToOpponent = card.number !== null && !card.isOpen && isOwner;
+  const showNumber = card.number !== null && (card.isOpen || isOwner || isRevealed);
+  const isSecretToOpponent = card.number !== null && !card.isOpen && isOwner && !isRevealed;
+  const isAnswerRevealed = Boolean(isRevealed && !card.isOpen);
 
   const isClickable = Boolean(isSelectable && !isEliminated && onClick);
   const cardTestId = testId || `card-${card.color}-${showNumber ? card.number : 'hidden'}`;
@@ -82,7 +85,7 @@ export const CardComponent: React.FC<CardComponentProps> = ({
         tabIndex={isClickable ? 0 : undefined}
         aria-label={`${isBlack ? '黒' : '白'}カード ${label || ''}${
           showNumber ? ` (数字: ${card.number})` : ' (伏せカード)'
-        }${card.isOpen ? ' [オープン]' : ''}${isHintTarget ? ' [AIヒント推奨]' : ''}`}
+        }${card.isOpen ? ' [オープン]' : isAnswerRevealed ? ' [開示]' : ''}${isHintTarget ? ' [AIヒント推奨]' : ''}`}
         aria-pressed={isSelected ? true : undefined}
         onClick={isClickable ? onClick : undefined}
         onKeyDown={
@@ -170,6 +173,20 @@ export const CardComponent: React.FC<CardComponentProps> = ({
             } bg-emerald-500/15 text-emerald-600 rounded`}
           >
             OPEN
+          </div>
+        )}
+
+        {/* 答え合わせ開示バッジ (Issue #60) */}
+        {isAnswerRevealed && (
+          <div
+            data-testid="reveal-badge"
+            className={`absolute font-bold border ${
+              size === 'xs'
+                ? 'bottom-0.5 right-0.5 text-[6px] px-0.5 border-amber-500/20'
+                : 'bottom-1 right-1 text-[8px] px-1 border-amber-500/30'
+            } bg-amber-500/20 text-amber-700 rounded`}
+          >
+            開示
           </div>
         )}
       </div>

@@ -1451,10 +1451,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   // 2. 対戦盤面
   const activePlayer = gameState.players[gameState.activePlayerIndex];
   const opponents = gameState.players.filter((p) => !p.isHuman);
+  const isGameOver = gameState.phase === 'GAME_OVER';
 
   const isHumanTurn = Boolean(
     activePlayer?.isHuman &&
-      gameState.phase !== 'GAME_OVER' &&
+      !isGameOver &&
       gameState.phase !== 'CPU_ACTING'
   );
   const isHintDisabled = !isHumanTurn || hintCount <= 0;
@@ -1638,6 +1639,19 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               <span>設定</span>
             </button>
 
+            {/* ゲーム終了時にリザルトモーダルを閉じた場合の再表示ボタン (Issue #60) */}
+            {isGameOver && !isResultModalOpen && (
+              <button
+                type="button"
+                data-testid="btn-reopen-result"
+                onClick={() => setIsResultModalOpen(true)}
+                className="flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-[10px] sm:text-xs font-black transition-all shadow-2xs whitespace-nowrap shrink-0"
+              >
+                <Trophy className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-950" />
+                <span>結果を見る</span>
+              </button>
+            )}
+
             {/* モバイル専用 ログ表示トグルボタン (lg未満で表示) */}
             <button
               type="button"
@@ -1680,6 +1694,28 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           >
             ✕
           </button>
+        </div>
+      )}
+
+      {/* ゲームオーバー時の全手札開示（答え合わせ）バナー (Issue #60) */}
+      {isGameOver && (
+        <div
+          data-testid="game-over-reveal-banner"
+          className="bg-amber-50 border border-amber-300 text-amber-900 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl sm:rounded-2xl shadow-xs flex items-center justify-between gap-2 shrink-0"
+        >
+          <div className="flex items-center gap-2 text-xs sm:text-sm font-bold">
+            <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>【ゲーム終了】全プレイヤーの手札の答え合わせが開示されています</span>
+          </div>
+          {!isResultModalOpen && (
+            <button
+              type="button"
+              onClick={() => setIsResultModalOpen(true)}
+              className="text-xs font-black text-amber-800 underline hover:text-amber-950 shrink-0 cursor-pointer"
+            >
+              結果をもう一度見る
+            </button>
+          )}
         </div>
       )}
 
@@ -1734,7 +1770,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                   <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-2 py-0.5 sm:py-1 min-h-12 sm:min-h-20 lg:min-h-24">
                     {opp.cards.map((card, idx) => {
                       const candidateHint =
-                        isAssistEnabled && !card.isOpen && !opp.isEliminated
+                        !isGameOver && isAssistEnabled && !card.isOpen && !opp.isEliminated
                           ? formatCandidateRange(
                               getPossibleNumbersForCard({
                                 targetIndex: idx,
@@ -1747,8 +1783,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                             )
                           : undefined;
 
-                      const failedNumbers = getFailedNumbersForCard(gameState.logs, opp.id, idx);
+                      const failedNumbers = !isGameOver ? getFailedNumbersForCard(gameState.logs, opp.id, idx) : undefined;
                       const isHintTarget = Boolean(
+                        !isGameOver &&
                         activeHint &&
                         activeHint.targetPlayerId === opp.id &&
                         activeHint.targetCardIndex === idx &&
@@ -1759,8 +1796,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                       return (
                         <CardComponent
                           key={card.id}
-                          card={maskCardForPlayer(card, false)}
+                          card={isGameOver ? card : maskCardForPlayer(card, false)}
                           isOwner={false}
+                          isRevealed={isGameOver}
                           size={opponents.length === 1 ? 'sm' : 'xs'}
                           label={`#${idx + 1}`}
                           testId={`opponent-card-${idx}`}
@@ -1769,12 +1807,14 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                           isEliminated={opp.isEliminated}
                           isHintTarget={isHintTarget}
                           isSelectable={
+                            !isGameOver &&
                             activePlayer?.isHuman &&
                             gameState.phase === 'PLAYER_SELECT_TARGET' &&
                             !opp.isEliminated &&
                             !card.isOpen
                           }
                           isSelected={
+                            !isGameOver &&
                             gameState.selectedTarget?.playerId === opp.id &&
                             gameState.selectedTarget?.cardIndex === idx
                           }
@@ -1841,7 +1881,12 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               <span className="text-[9px] sm:text-xs font-bold text-slate-500">引いたカード</span>
               {gameState.drawnCard ? (
                 <div className="scale-100 sm:scale-105 transition-transform animate-card-draw">
-                  <CardComponent card={maskCardForPlayer(gameState.drawnCard, true)} isOwner={true} size="sm" />
+                  <CardComponent
+                    card={isGameOver ? gameState.drawnCard : maskCardForPlayer(gameState.drawnCard, true)}
+                    isOwner={true}
+                    isRevealed={isGameOver}
+                    size="sm"
+                  />
                 </div>
               ) : (
                 <div className="w-10 h-16 sm:w-14 sm:h-22 lg:w-16 lg:h-24 rounded-lg sm:rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center text-[10px] sm:text-xs text-slate-400 font-semibold bg-slate-50/50">
@@ -1990,6 +2035,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     key={card.id}
                     card={maskCardForPlayer(card, true)}
                     isOwner={true}
+                    isRevealed={isGameOver}
                     size="sm"
                     label={`#${idx + 1}`}
                   />
