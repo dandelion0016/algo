@@ -2398,7 +2398,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           {/* Deck & Action Bar (自手札直上配置・コンパクトバー形式で中央のデッドスペースを解消) */}
           <section
             data-testid="deck-action-bar"
-            className="bg-white rounded-xl sm:rounded-2xl p-1 sm:px-3 sm:py-1.5 border border-slate-200 shadow-xs flex items-center justify-between gap-1.5 sm:gap-3 shrink-0"
+            className="bg-white rounded-xl sm:rounded-2xl p-1.5 sm:px-3 sm:py-2 border border-slate-200 shadow-xs flex items-center justify-between gap-1.5 sm:gap-3 shrink-0"
           >
             {/* 1. 山札 (Deck Pile) */}
             <div className="flex items-center gap-1 sm:gap-2 shrink-0">
@@ -2420,19 +2420,21 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     : undefined
                 }
                 onClick={gameState.phase === 'PLAYER_TURN_START' && gameState.deck.length > 0 ? handlePlayerDraw : undefined}
-                className={`relative w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-14 rounded-lg sm:rounded-xl border flex flex-col items-center justify-center select-none transition-all ${
+                className={`relative w-12 h-14 sm:w-14 sm:h-14 lg:w-16 lg:h-14 rounded-lg sm:rounded-xl border flex flex-col items-center justify-start pt-1 sm:pt-1.5 select-none transition-all ${
                   gameState.phase === 'PLAYER_TURN_START' && gameState.deck.length > 0
                     ? 'border-algo-yellow-dark bg-algo-yellow-light/80 shadow-md shadow-amber-200/50 cursor-pointer hover:scale-105 animate-bounce'
                     : 'border-slate-200 bg-slate-50 text-slate-400'
                 }`}
               >
-                <Layers className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-algo-blue mb-0.5" />
-                <span className="text-[7.5px] sm:text-[9px] font-bold text-slate-500 leading-none">山札</span>
-                <span className="text-[11px] sm:text-xs lg:text-sm font-black text-slate-900 leading-tight">
+                <div className="flex items-center gap-0.5 text-slate-500 leading-none mb-0.5">
+                  <Layers className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-algo-blue shrink-0" />
+                  <span className="text-[7.5px] sm:text-[9px] font-bold">山札</span>
+                </div>
+                <span className="text-[10.5px] sm:text-xs lg:text-sm font-black text-slate-900 leading-none">
                   {gameState.deck.length}枚
                 </span>
                 {gameState.phase === 'PLAYER_TURN_START' && gameState.deck.length > 0 && (
-                  <span className="absolute -bottom-1 px-1.5 py-0.2 rounded-full bg-algo-yellow text-slate-950 text-[7.5px] sm:text-[9px] font-black border border-amber-300 shadow-2xs">
+                  <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-1.5 py-0.2 rounded-full bg-algo-yellow text-slate-950 text-[7.5px] sm:text-[9px] font-black border border-amber-300 shadow-2xs whitespace-nowrap z-10">
                     引く
                   </span>
                 )}
