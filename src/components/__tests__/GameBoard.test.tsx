@@ -9,6 +9,7 @@ import {
   TIME_UP_MESSAGE,
   TIME_UP_AUTO_DRAW_MESSAGE,
   TIME_UP_NO_DECK_MESSAGE,
+  ELIMINATION_MESSAGE,
   getKnownNumbersForColor,
 } from '../GameBoard';
 import { render, screen, act, fireEvent } from '@testing-library/react';
@@ -3273,6 +3274,128 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       // c3（1番目のカード）には NEW! バッジが付与されていないこと
       const nonInsertedCardEl = cpuHand.querySelector('[data-testid="opponent-card-1"]');
       expect(nonInsertedCardEl?.getAttribute('data-newly-inserted')).toBeNull();
+    });
+  });
+
+  describe('3人・4人対戦におけるプレイヤー脱落時通知と観戦モード機能 (Issue #61 要求仕様)', () => {
+    const eliminated3PlayerState: GameState = {
+      playerCount: 3,
+      difficulty: 'normal',
+      timeLimit: 0,
+      remainingTime: 0,
+      deck: [{ id: 'd1', color: 'black', number: 0, isOpen: false }],
+      players: [
+        {
+          id: 'p1',
+          name: 'あなた',
+          isHuman: true,
+          avatarColor: 'from-blue-500 to-indigo-600',
+          isEliminated: true, // 脱落済み
+          cards: [
+            { id: 'c1', color: 'black', number: 1, isOpen: true },
+            { id: 'c2', color: 'white', number: 5, isOpen: true },
+          ],
+        },
+        {
+          id: 'cpu1',
+          name: 'CPU 1',
+          isHuman: false,
+          avatarColor: 'from-purple-500 to-indigo-600',
+          isEliminated: false,
+          cards: [{ id: 'cpu1-c1', color: 'black', number: 3, isOpen: false }],
+        },
+        {
+          id: 'cpu2',
+          name: 'CPU 2',
+          isHuman: false,
+          avatarColor: 'from-emerald-500 to-teal-600',
+          isEliminated: false,
+          cards: [{ id: 'cpu2-c1', color: 'white', number: 8, isOpen: false }],
+        },
+      ],
+      activePlayerIndex: 1,
+      drawnCard: null,
+      phase: 'CPU_ACTING',
+      selectedTarget: null,
+      logs: [],
+      winner: null,
+    };
+
+    it('3人・4人対戦で人間プレイヤー脱落時、脱落通知バナー（💥 手札がすべてオープンされ、脱落しました！観戦モードに移行します）が表示される', () => {
+      render(<GameBoard initialState={eliminated3PlayerState} />);
+
+      const banner = screen.getByTestId('elimination-banner');
+      expect(banner).toBeDefined();
+      expect(banner.textContent).toContain(ELIMINATION_MESSAGE);
+      expect(banner.textContent).toContain('自動観戦: ON');
+      expect(banner.textContent).toContain('決着までスキップ');
+    });
+
+    it('脱落通知バナーの「自動観戦」トグルをクリックすると、ON/OFFが正しく切り替わる', () => {
+      render(<GameBoard initialState={eliminated3PlayerState} />);
+
+      const toggleBtn = screen.getByTestId('banner-toggle-auto-advance');
+      expect(toggleBtn.textContent).toContain('自動観戦: ON');
+
+      // クリックして OFF に切り替え
+      act(() => {
+        fireEvent.click(toggleBtn);
+      });
+      expect(toggleBtn.textContent).toContain('自動観戦: OFF');
+
+      // 再度クリックして ON に切り替え
+      act(() => {
+        fireEvent.click(toggleBtn);
+      });
+      expect(toggleBtn.textContent).toContain('自動観戦: ON');
+    });
+
+    it('脱落通知バナーの閉じるボタン（✕）をクリックすると、バナーが非表示になる', () => {
+      render(<GameBoard initialState={eliminated3PlayerState} />);
+
+      expect(screen.queryByTestId('elimination-banner')).not.toBeNull();
+
+      const closeBtn = screen.getByTestId('close-elimination-banner');
+      act(() => {
+        fireEvent.click(closeBtn);
+      });
+
+      expect(screen.queryByTestId('elimination-banner')).toBeNull();
+    });
+
+    it('人間プレイヤーが生存している場合、脱落通知バナーは表示されない', () => {
+      const activeState: GameState = {
+        ...eliminated3PlayerState,
+        players: eliminated3PlayerState.players.map((p) =>
+          p.isHuman ? { ...p, isEliminated: false } : p
+        ),
+      };
+
+      render(<GameBoard initialState={activeState} />);
+      expect(screen.queryByTestId('elimination-banner')).toBeNull();
+    });
+
+    it('決着時（GAME_OVER）は脱落通知バナーは表示されない', () => {
+      const gameOverState: GameState = {
+        ...eliminated3PlayerState,
+        phase: 'GAME_OVER',
+        winner: eliminated3PlayerState.players[1],
+      };
+
+      render(<GameBoard initialState={gameOverState} />);
+      expect(screen.queryByTestId('elimination-banner')).toBeNull();
+    });
+
+    it('脱落通知バナーの「決着までスキップ」ボタンをクリックすると、スキップ処理が正常に実行される', () => {
+      render(<GameBoard initialState={eliminated3PlayerState} />);
+
+      const skipBtn = screen.getByTestId('banner-skip-to-result');
+      expect(skipBtn).toBeDefined();
+
+      act(() => {
+        fireEvent.click(skipBtn);
+      });
+      // エラーなくスキップ処理が完走すること
     });
   });
 });
