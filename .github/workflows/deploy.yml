@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -33,17 +35,36 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="v$(jq -r .version package.json)"
+          git fetch --tags origin 2>/dev/null || true
+          LATEST_TAG=$(git tag -l "v[0-9]*.[0-9]*.[0-9]*" --sort=-v:refname | head -n 1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No existing tags found. Initializing release version..."
+            PKG_VERSION=$(jq -r .version package.json 2>/dev/null || echo "0.1.0")
+            VERSION="v${PKG_VERSION}"
+          else
+            echo "Latest tag found: $LATEST_TAG"
+            VERSION_WITHOUT_V="${LATEST_TAG#v}"
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION_WITHOUT_V"
+            PATCH=$((PATCH + 1))
+            VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          fi
+
+          # 既存タグとの重複を回避して確実に一意なバージョンを決定
+          while git rev-parse "$VERSION" >/dev/null 2>&1 || git ls-remote --tags origin | grep -q "refs/tags/$VERSION"; do
+            echo "Tag $VERSION already exists. Incrementing patch version..."
+            PATCH=$((PATCH + 1))
+            VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          done
+
+          echo "Determined release version: $VERSION"
           echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
 
-          if ! git ls-remote --tags origin | grep -q "refs/tags/$VERSION"; then
-            echo "Tag $VERSION does not exist. Creating tag and release..."
-            git tag "$VERSION"
-            git push origin "$VERSION"
-            gh release create "$VERSION" --title "Release $VERSION" --generate-notes
-          else
-            echo "Tag $VERSION already exists. Skipping release creation."
-          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$VERSION"
+          git push origin "$VERSION"
+          gh release create "$VERSION" --title "Release $VERSION" --generate-notes
 
       - name: Next.js Static Export Build
         run: npm run build
