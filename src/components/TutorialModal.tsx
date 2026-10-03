@@ -13,6 +13,7 @@ import {
   HelpCircle,
   ShieldCheck,
   Zap,
+  AlertCircle,
 } from 'lucide-react';
 import { CardComponent } from './CardComponent';
 import { Card } from '../types/game';
@@ -22,6 +23,7 @@ export interface TutorialModalProps {
   onClose: () => void;
   onComplete?: () => void;
   initialStep?: number;
+  isTimedMatch?: boolean;
 }
 
 export const STORAGE_KEY_TUTORIAL_COMPLETED = 'algo_tutorial_completed';
@@ -31,6 +33,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
   onClose,
   onComplete,
   initialStep = 1,
+  isTimedMatch = false,
 }) => {
   // ステップ状態: 1〜5, または 6 (修了画面)
   const [step, setStep] = useState<number>(initialStep);
@@ -197,6 +200,17 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
 
         {/* モーダルコンテンツ本体 (スクロール可能) */}
         <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4 text-slate-800">
+          {/* 持ち時間対戦中のタイマー進行警告（Issue #86 タイマーストール防止） */}
+          {isTimedMatch && (
+            <div
+              data-testid="timed-match-warning"
+              className="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-2 text-amber-800 text-xs font-bold shrink-0 animate-in fade-in"
+            >
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>⚠️ 持ち時間対戦中のためタイマーは進行しています（タイマーストール防止）</span>
+            </div>
+          )}
+
           {/* STEP 1: 基本ルール（並び順） */}
           {step === 1 && (
             <div className="space-y-4 animate-in fade-in duration-200">
