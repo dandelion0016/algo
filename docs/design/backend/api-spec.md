@@ -1,6 +1,6 @@
 # バックエンド ＆ ゲームロジック API詳細仕様書: アルゴ（algo）Web対戦システム
 
-本仕様書は、「アルゴ（algo）Web対戦システム」におけるコアゲームエンジン、CPU推論AI、および将来拡張されるオンライン対戦用WebSocket/REST APIの設計・インターフェース規約を定義します。
+本仕様書は、「アルゴ（algo）Web対戦システム」におけるコアゲームエンジン、CPU推論AI、各種サポートライブラリ（推論補助、残弾トラッカー、AIヒント、音響、触覚、戦績・実績、バージョン管理）、およびオンライン対戦用WebSocket/REST APIの設計・インターフェース規約を定義します。
 
 ---
 
@@ -9,33 +9,40 @@
 本システムは、**単一責任の原則**と**純粋関数型アーキテクチャ**に基づき、ゲームルール・状態遷移ロジックをUIから完全に分離して設計されています。
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      UI Layer (React)                       │
-│  GameBoard / CardComponent / AttackModal / SetupModal / etc.│
-└──────────────────────────────┬──────────────────────────────┘
-                               │ State Action Dispatch
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                 Game Logic Layer (Headless)                 │
-│  ┌──────────────────────────────┐ ┌──────────────────────┐  │
-│  │    algoEngine (純粋関数)     │ │     cpuAI (推論)     │  │
-│  │  - createDeck / shuffleDeck  │ │  - getUnknownCards   │  │
-│  │  - compareCards / sortCards  │ │  - getPossibleNums   │  │
-│  │  - checkAttack / insertOrder │ │  - decideCpuAttack   │  │
-│  └──────────────────────────────┘ └──────────────────────┘  │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ 将来拡張 (Phase 2)
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│         Online Server Layer (AWS Serverless / WebSocket)    │
-│    API Gateway WebSocket + AWS Lambda + Amazon DynamoDB     │
-│       (サーバー権威型ゲームエンジン ＆ ステートマスキング)        │
-└─────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│                        UI Layer (React / Next.js)                      │
+│  GameBoard / CardComponent / AttackModal / SetupModal / DeckTracker / etc.│
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ State Action Dispatch
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                      Game Logic Layer (Headless)                       │
+│  ┌──────────────────────────────┐ ┌─────────────────────────────────┐  │
+│  │   algoEngine (コアエンジン)  │ │          cpuAI (推論AI)         │  │
+│  │  - createDeck / shuffleDeck  │ │  - getUnknownCards              │  │
+│  │  - compareCards / sortCards  │ │  - getPossibleNums              │  │
+│  │  - checkAttack / insertOrder │ │  - decideCpuAttack              │  │
+│  │  - insertCardInOrderWithIndex│ └─────────────────────────────────┘  │
+│  │  - setupGamePlayers          │ ┌─────────────────────────────────┐  │
+│  └──────────────────────────────┘ │      各種サポートモジュール       │  │
+│  ┌──────────────────────────────┐ │  - candidateAssist / hintAdvisor│  │
+│  │ stateReconciliation (不整合修復) │ │  - deckTracker / soundManager   │  │
+│  │  - validateAndReconcileState │ │  - haptics / statsManager       │  │
+│  │  - problemDetails (RFC 7807) │ │  - achievementManager / version │  │
+│  └──────────────────────────────┘ └─────────────────────────────────┘  │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ 将来拡張 (ADR-0002)
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│            Online Server Layer (AWS Serverless / WebSocket)            │
+│         API Gateway WebSocket + AWS Lambda + Amazon DynamoDB           │
+│           (サーバー権威型ゲームエンジン ＆ 不可逆ステートマスキング)            │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. コアゲームエンジン関数仕様 (Core Game Engine)
+## 2. コアゲームエンジン関数仕様 (`src/lib/algoEngine.ts`)
 
 `src/lib/algoEngine.ts` に実装される純粋関数群の仕様です。ゲーム状態の不変性を維持し、副作用を排除した設計となっています。
 
@@ -119,8 +126,6 @@ export interface GameState {
 
 ### 2.2 アルゴ基本ソートルール比較関数: `compareCards`
 
-アルゴの絶対ルールである手札の整列順序を定義します。
-
 ```typescript
 function compareCards(a: Card, b: Card): number
 ```
@@ -129,319 +134,205 @@ function compareCards(a: Card, b: Card): number
   2. 数字が同じ場合、「黒 (`black`)」が左、「白 (`white`)」が右。
   - 完全順序規則: `(0, black) < (0, white) < (1, black) < (1, white) < ... < (11, black) < (11, white)`
 - **戻り値**:
-  - `a < b` のとき負数（`-1`）
-  - `a > b` のとき正数（`1`）
+  - `a < b` のとき `-1`
+  - `a > b` のとき `1`
   - 同一カードのとき `0`
 
-### 2.3 手札ソート・挿入関数: `sortCards`, `insertCardInOrder`
+### 2.3 手札ソート・挿入関数: `sortCards`, `insertCardInOrder`, `insertCardInOrderWithIndex`
 
 ```typescript
 function sortCards(cards: Card[]): Card[]
 function insertCardInOrder(hand: Card[], newCard: Card): Card[]
+function insertCardInOrderWithIndex(hand: Card[], newCard: Card): { newHand: Card[]; insertedIndex: number }
 ```
 - **`sortCards`**: 指定されたカード配列を `compareCards` に従い昇順ソートした新たな配列を返却。
 - **`insertCardInOrder`**: 既存の手札 `hand` に `newCard` を加え、ルール通りの位置に挿入・整列した新たな配列を返却。
+- **`insertCardInOrderWithIndex`**: 手札挿入後の新配列 `newHand` に加え、新カードが挿入された正確な0-indexed位置 `insertedIndex` を返却（UIアニメーションやフォーカス制御用）。
 
-### 2.4 デッキ生成・シャッフル: `createDeck`, `shuffleDeck`
+### 2.4 デッキ生成・プレイヤー初期化: `createDeck`, `shuffleDeck`, `setupGamePlayers`
 
 ```typescript
 function createDeck(): Card[]
 function shuffleDeck(deck: Card[]): Card[]
+function setupGamePlayers(count: PlayerCount, humanPlayerId: string = 'human'): { players: Player[]; deck: Card[] }
 ```
-- **`createDeck`**:
-  - 黒 (0〜11) 12枚、白 (0〜11) 12枚の計24枚の `Card` 配列を生成。初期状態はすべて `isOpen: false`。
-- **`shuffleDeck`**:
-  - Fisher-Yates (Knuth) アルゴリズムを用いた偏りのない完全ランダムシャッフル。
+- **`createDeck`**: 黒0〜11（12枚）および白0〜11（12枚）の計24枚（`isOpen: false`）を生成。
+- **`shuffleDeck`**: Fisher-Yates アルゴリズムによる偏りのない完全ランダムシャッフル。
+- **`setupGamePlayers`**:
+  - プレイヤー数に応じた初期手札枚数（2人: 各4枚、3人: 各3枚、4人: 各3枚）を配分し、各プレイヤーの手札をルール通りにソート。
+  - 第一引数に対戦人数、第二引数に人間プレイヤーの識別子 `humanPlayerId`（ゲストUUID等）を受け取り、柔軟なプレイヤーID設定をサポート。
+  - 残ったカードを山札 `deck`（2人: 16枚、3人: 15枚、4人: 12枚）として返却。
 
-### 2.5 配札枚数判定: `getInitialCardCount`
-
-```typescript
-function getInitialCardCount(playerCount: PlayerCount): number
-```
-- **公式ルール準拠**:
-  - 2人対戦: 各 **4枚**（山札 16枚）
-  - 3人対戦: 各 **3枚**（山札 15枚）
-  - 4人対戦: 各 **3枚**（山札 12枚）
-
-### 2.6 ゲーム初期セットアップ: `setupGamePlayers`
-
-```typescript
-function setupGamePlayers(
-  deck: Card[],
-  playerCount: PlayerCount
-): {
-  players: Player[];
-  remainingDeck: Card[];
-}
-```
-- **処理フロー**:
-  1. デッキをシャッフル。
-  2. 人数に応じた枚数を各プレイヤー（人間1名＋CPU `playerCount - 1` 名）に配布。
-  3. 各プレイヤーの手札を `sortCards` で自動整列（初期状態は伏せ `isOpen: false`）。
-  4. 残ったカードを山札 `remainingDeck` として返却。
-
-### 2.7 アタック判定関数: `checkAttack`
+### 2.5 アタック判定: `checkAttack`
 
 ```typescript
 function checkAttack(targetCard: Card, guessedNumber: number): boolean
 ```
-- **仕様**: `targetCard.number === guessedNumber` の真偽値を返却。
+- `targetCard.number === guessedNumber` のとき `true`（的中）、不一致のとき `false`（ハズレ）。
 
-### 2.8 情報秘匿マスキング関数: `maskCardForPlayer`
-
-```typescript
-function maskCardForPlayer(card: Card, isOwner: boolean): PublicCard
-```
-- **仕様**:
-  - `card.isOpen === true` または `isOwner === true` の場合、元のカード情報をそのまま維持した `PublicCard` を返却。
-  - それ以外（相手の裏向きカード: `!card.isOpen && !isOwner`）の場合、`number` を `null` に置換した `PublicCard` を返却し、クライアントUI層での覗き見チートを機械的に防止。
-
-### 2.9 手番進行関数: `getNextActivePlayerIndex`
-
-```typescript
-function getNextActivePlayerIndex(currentIndex: number, players: Player[]): number
-```
-- **仕様**: 時計回りに次のインデックスを走査し、脱落（`isEliminated === true`）していない最も近いプレイヤーのインデックスを返却。
-
-### 2.10 サバイバル・ゲーム終了評価: `isAllOpen` / `evaluateGameState`
-
-```typescript
-function isAllOpen(cards: Card[]): boolean
-```
-- 手札の全カードが `isOpen === true` になったプレイヤーは `isEliminated = true` となる。
-- 未脱落（生存）プレイヤーが残り1名になった時点で即座に勝者が確定し、`phase = 'GAME_OVER'` へ遷移。
+### 2.6 山札枯渇時のゲームルール仕様
+- **山札0枚時の手番開始**:
+  - 手番開始時（`PLAYER_TURN_START`）に山札残数が0枚の場合、ドロー処理をスキップし、手札ドローなしのまま直ちにアタック対象選択（`PLAYER_SELECT_TARGET`）へ自動移行する。
+- **山札枯渇時のアタック的中・ステイ**:
+  - アタック成功後、ステイを選択した場合は新たに加えるドローカードが存在しないため、追加手札なしでそのまま次プレイヤーへ手番が移る。
+- **山札枯渇時のペナルティ**:
+  - 山札枯渇時にアタックを失敗した場合、あるいは持ち時間を超過した場合は、手札内の既存の裏向きカード（伏せカード）から1枚が強制的にオープン（`isOpen = true`）される。
 
 ---
 
-## 3. CPU推論AI仕様 (CPU Reasoning AI)
+## 3. サポートライブラリ詳細仕様 (`src/lib/`)
 
-アルゴの醍醐味である「情報開示と論理的消去法」をアルゴリズム化したCPU思考エンジンの仕様です（`src/lib/cpuAI.ts`）。
+### 3.1 推理候補アシスト (`src/lib/candidateAssist.ts`)
+プレイヤーおよびCPUがターゲットカードの数字を論理的に絞り込むための推論支援関数群。
 
-### 3.1 推論の基本概念（不完全情報ゲームにおける情報セット）
+- **`getPossibleNumbersForCard(params)`**:
+  ```typescript
+  export interface CandidateAssistParams {
+    targetPlayer: Player;
+    targetCardIndex: number;
+    targetColor: CardColor;
+    players?: Player[];
+    drawnCard?: Card | null;
+    playerHand?: (Card | PublicCard)[];
+    failedGuesses?: number[];
+  }
+  export function getPossibleNumbersForCard(params: CandidateAssistParams): number[]
+  ```
+  - アルゴの基本ソートルール（小さい順、同数は黒が先）と、両隣の確定カード（手札内のオープン済みカードや自手札）の境界値から、ターゲットカードが取り得る数字の最小値・最大値を数学的に算出。
+  - 既にオープンされたカード、自分の手札、引いたカード、および過去に外れた数字（`failedGuesses`）を除外し、有効な候補数字配列（昇順）を返却。
+- **`getFailedGuessNumbersForCard`**:
+  ```typescript
+  export function getFailedGuessNumbersForCard(
+    logs: AttackLog[],
+    targetPlayerId: string,
+    targetCardIndex: number,
+    targetColor: CardColor
+  ): number[]
+  ```
+  - 対戦ログ（`AttackLog[]`）を走査し、同一カードに対して過去に推理されて外れた数字を重複なく抽出。
 
-CPUは人間と同様に**「不正な覗き見（チート）」を行わず**、ゲーム盤面から得られる以下の公開・非公開情報のみを利用して推論を行います：
-1. **CPU自身の手札**（数字・色）
-2. **CPUがそのターンに引いたカード**（数字・色）
-3. **盤上の全プレイヤーの表向きカード（オープンカード）**
-4. **対象カードの左右にあるオープンカードの大小境界**
-5. **過去のアタック失敗履歴ログ**（Hard難易度のみ）
+### 3.2 AIヒントアドバイザー (`src/lib/hintAdvisor.ts`)
+1戦1回限定でプレイヤーに最善手・確定マスを助言するAI推論モジュール。
 
-### 3.2 未知カード集合の算出: `getAvailableUnknownCardsMulti`
+- **`getBestHint`**:
+  ```typescript
+  export interface HintResult {
+    targetPlayerId: string;
+    targetPlayerName: string;
+    targetCardIndex: number;
+    color: CardColor;
+    possibleNumbers: number[];
+    isDefinite: boolean;
+    adviceText: string;
+  }
+  export function getBestHint(
+    players: Player[],
+    humanId: string = 'human',
+    drawnCard?: Card | null,
+    logs?: AttackLog[]
+  ): HintResult | null
+  ```
+  - 全対戦相手の裏向きカードを走査し、`getPossibleNumbersForCard` を実行。
+  - **確定マス（候補数1）**: 候補が1つのカード（`isDefinite = true`）が存在すれば最優先で提案。
+  - **最善候補マス（候補数最小）**: 確定マスがない場合、候補数が最も少なく的中期待値が最も高いカードを抽出して提案。
 
-```typescript
-function getAvailableUnknownCardsMulti(
-  cpuPlayer: Player,
-  cpuDrawnCard: Card | null,
-  allPlayers: Player[]
-): { color: CardColor; number: number }[]
-```
-- **アルゴリズム**:
-  全24枚（黒12枚、白12枚）の集合から、以下を差分除外：
-  - CPU自身の手札（未公開カード含む）
-  - CPU自身が今引いたドローカード
-  - 他プレイヤーの既に表向きになっているカード
-- **出力**: 相手の手札または山札のどこかに眠っている「未知のカード集合」。
+### 3.3 残弾トラッカーHUD計算 (`src/lib/deckTracker.ts`)
+全24枚のカード残弾・開示ステータスを一括算出するHUD計算モジュール。
 
-### 3.3 相手カードの取りうる数字候補の絞り込み: `getPossibleNumbersForTarget`
+- **`calculateDeckTrackerState`**:
+  ```typescript
+  export interface TrackedCard {
+    color: CardColor;
+    number: number;
+    isConfirmed: boolean;
+    isHighlighted: boolean;
+  }
+  export interface DeckTrackerSummary {
+    totalRemaining: number;
+    blackRemaining: number;
+    whiteRemaining: number;
+    totalConfirmed: number;
+    blackConfirmed: number;
+    whiteConfirmed: number;
+  }
+  export interface DeckTrackerState {
+    blackCards: TrackedCard[];
+    whiteCards: TrackedCard[];
+    summary: DeckTrackerSummary;
+  }
+  export function calculateDeckTrackerState(options: DeckTrackerOptions): DeckTrackerState
+  ```
+  - Information Hiding 原則を厳守し、相手の裏向きカードや山札の伏せ数字は一切参照せず、人間の手札・全オープンカード・自ドローカードのみから確定状況を導出。
 
-```typescript
-function getPossibleNumbersForTarget(
-  targetIndex: number,
-  targetHand: Card[],
-  availableUnknownCards: { color: CardColor; number: number }[],
-  logs: AttackLog[] = [],
-  targetPlayerId: string = ''
-): number[]
-```
-対象カード $C_i$（色 $Color_i$）の候補数字集合を以下のステップで絞り込みます：
+### 3.4 音響 ＆ 触覚モジュール (`src/lib/soundManager.ts`, `src/lib/haptics.ts`)
+- **`SoundManager` (`soundManager.ts`)**:
+  - Web Audio API を活用したプログラマティック効果音シンセサイザー。
+  - 外部オーディオアセット不要で完全オフライン・ゼロレイテンシ動作。
+  - 主な発音メソッド: `playDraw()`, `playAttackHit()`, `playAttackMiss()`, `playLethal()`, `playVictory()`, `playDefeat()`, `playCardSelect()`, `playTimeWarning()`。
+  - サウンド有効/無効の永続化（LocalStorage: `algo_sound_enabled`）。
+- **触覚フィードバック (`haptics.ts`)**:
+  - Web Vibration API（`navigator.vibrate`）をラップしたモバイル向け触覚演出。
+  - `vibrateLight()` (15ms タップ/ドロー), `vibrateSuccess()` ([20, 50, 40]ms 的中/勝利), `vibratePenalty()` ([80, 50, 80]ms ハズレ/警告)。非対応環境では安全に無効化。
 
-1. **色フィルタリング**: 未知カード集合から同一色の数字を抽出。
-2. **左側境界（下限）の適用**:
-   - $C_i$ より左にある最も近いオープンカード $L$ を探索。
-   - アルゴのルールにより $L < C_i$ が成立。よって $compareCards(L, (candNum, Color_i)) < 0$ を満たさない数字を除外。
-3. **右側境界（上限）の適用**:
-   - $C_i$ より右にある最も近いオープンカード $R$ を探索。
-   - アルゴのルールにより $C_i < R$ が成立。よって $compareCards((candNum, Color_i), R) < 0$ を満たさない数字を除外。
-4. **過去ログ消去法（Hard難易度のみ）**:
-   - 過去に同一プレイヤーの同一カードインデックスに対して宣言しハズレた数字の履歴（`AttackLog`）を候補から除外。
+### 3.5 通算戦績 ＆ 実績マネージャー (`src/lib/statsManager.ts`, `src/lib/achievementManager.ts`)
+- **`statsManager.ts`**:
+  - クライアント側（LocalStorage: `algo_player_stats_v1`）での通算戦績永続化。
+  - データ項目: 試合数（`totalMatches`）、勝利数（`wins`）、勝率（`winRate`）、連勝数（`winStreak`）、最大連勝（`maxWinStreak`）、総アタック回数（`totalAttacks`）、的中回数（`successfulAttacks`）、的中率（`accuracy`）、難易度別勝敗。
+  - 関数: `loadStats()`, `saveStats()`, `updateStatsAfterMatch(winner, human, playerCount, diff, logs)`, `resetStats()`。
+- **`achievementManager.ts`**:
+  - 全10大実績トロフィーシステム（LocalStorage: `algo_achievements_v1`）。
+  - 実績リスト:
+    1. `first_win`: 初勝利
+    2. `perfect_win`: 完全試合（自手札1枚も開示されずに勝利）
+    3. `win_streak_3`: 3連勝達成
+    4. `fast_solver`: 電光石火（持ち時間15秒ルールで勝利）
+    5. `hard_conqueror`: 上級制覇（難易度「上級」CPUに勝利）
+    6. `guess_master`: 神速の推理（1試合で的中率75%以上・3回以上アタック）
+    7. `four_player_win`: バトロワ覇者（4人対戦で優勝）
+    8. `comeback_king`: 起死回生（手札残り1枚からの逆転勝利）
+    9. `speed_demon`: 秒撃（5秒以内の即断アタック成功）
+    10. `persistent_player`: 百戦錬磨（通算10試合プレイ）
+  - 関数: `loadAchievements()`, `checkAchievements(stats, matchContext)`, `resetAchievements()`。
 
-### 3.4 難易度別アタック決定ロジック: `decideMultiCpuAttack`
-
-```typescript
-export interface MultiCpuAttackDecision {
-  targetPlayerId: string;
-  targetCardIndex: number;
-  guessedNumber: number;
-}
-
-function decideMultiCpuAttack(
-  currentCpu: Player,
-  cpuDrawnCard: Card | null,
-  allPlayers: Player[],
-  difficulty: Difficulty,
-  logs: AttackLog[] = []
-): MultiCpuAttackDecision
-```
-
-| 難易度 | アタック対象カードの選定方針 | 推理数字の決定ロジック | 的中率・特徴 |
-| :--- | :--- | :--- | :--- |
-| **初級 (Easy)** | 生存している全対戦相手の伏せカードから**完全ランダム**に選択。 | 絞り込み後の候補から**一様ランダム**に1つ選択。 | プレッシャーが少なく、初心者でも快適に勝てる。 |
-| **中級 (Normal)** | 全相手の全伏せカードの候補数を計算し、**最も候補数が少ないカード（最も当たりやすいカード）**を選択。 | 絞り込み後の候補から**ランダム**に選択。 | ルール通りの範囲絞り込みを行う標準的強さ。 |
-| **上級 (Hard)** | 1. **確定マス（候補数1）が存在すれば最優先で選択**。<br>2. 確定マスがない場合、候補数最小のカードを選択。 | 過去ログ除外を適用した上で、**候補配列の中央値（期待値・確率が最も高いゾーン）**を選択。 | 確定牌を絶対に逃さず、論理的消去法を駆使する本格派。 |
-
-### 3.5 的中後の継続/ステイ判定ロジック: `decideMultiCpuContinue`
-
-```typescript
-function decideMultiCpuContinue(
-  currentCpu: Player,
-  cpuDrawnCard: Card | null,
-  allPlayers: Player[],
-  difficulty: Difficulty
-): boolean
-```
-- **初級 (Easy)**: 確率 $40\%$ でアタック継続、残り $60\%$ で安全にステイ。
-- **中級 (Normal)**:
-  - 盤面に**確定マス（候補数1）が存在すれば $100\%$ 継続**。
-  - それ以外は $75\%$ の高確率で安全にステイ（引いたカードを伏せたまま保持）。
-- **上級 (Hard)**:
-  - 盤面に**候補数2以下の高確率マスが存在すれば果敢に継続**。
-  - 候補が3つ以上残っている不確実な局面では、確実にステイして引いたカードを裏向きで確保する合理的リスク管理。
+### 3.6 アプリケーションバージョン管理 (`src/lib/version.ts`)
+- **`getAppVersion()`**:
+  - 優先度順にバージョン文字列を返却：
+    1. 環境変数 `NEXT_PUBLIC_APP_VERSION`（CI/CDビルド時にGitタグ/コミットハッシュから動的注入）
+    2. `package.json` の `version`（プレフィックス `v` 付与）
+    3. デフォルトフォールバック（`v0.1.0`）
 
 ---
 
-## 4. 将来拡張: オンライン対戦用 API仕様 (WebSocket & REST API)
+## 4. オンライン対戦用 WebSocket API仕様 (ADR-0002 準拠)
 
-Phase 2で導入予定のサーバーレス・リアルタイムオンライン対戦機能のためのAPI仕様です。
-
-### 4.1 REST API エンドポイント（ルーム管理）
-
-ベースURL: `/api/v1`
-
-| メソッド | パス | 概要 | 認証 |
-| :--- | :--- | :--- | :---: |
-| `POST` | `/rooms` | 新規対戦ルーム作成 | 要 (JWT) |
-| `GET` | `/rooms/{roomId}` | ルーム状態・参加者一覧取得 | 要 (JWT) |
-| `POST` | `/rooms/{roomId}/join`| ルームへの参加リクエスト | 要 (JWT) |
-| `DELETE`| `/rooms/{roomId}` | ルーム解散（ホストのみ） | 要 (JWT) |
-
-#### ルーム作成リクエスト例 (`POST /api/v1/rooms`)
-```json
-{
-  "playerCount": 2,
-  "difficulty": "normal",
-  "timeLimit": 30,
-  "isPrivate": true
-}
-```
-
-#### ルーム作成レスポンス例 (`201 Created`)
-```json
-{
-  "roomId": "room_algo_98234",
-  "hostUserId": "usr_abc123",
-  "playerCount": 2,
-  "timeLimit": 30,
-  "status": "WAITING_FOR_PLAYERS",
-  "wsEndpoint": "wss://ws.algo-game.example.com/live?roomId=room_algo_98234",
-  "createdAt": "2026-09-28T12:00:00Z"
-}
-```
+### 4.1 接続確立と認証
+- **エンドポイント**: `wss://ws.algo.example.com`
+- **クエリパラメータ**: `?userId=usr_xxx&nickname=xxx&roomCode=xxxx`
 
 ### 4.2 WebSocket 双方向リアルタイムプロトコル
 
-- **エンドポイント**: `wss://ws.algo-game.example.com/live`
-- **認証**: クエリパラメータ `?token=<JWT>&roomId=<ID>`
-
 #### クライアント送信イベント (Client -> Server)
-
-1. **ドロー要求 (`action:draw`)**
+1. **ルーム作成 (`room:create`)**: 4桁ルームコード発行とホスト登録。
+2. **ルーム参加 (`room:join`)**: ルームコード指定でのロビー参加。
+3. **ゲーム開始 (`game:start`)**: ホストによる対戦開始指示。
+4. **ドロー要求 (`game:draw`)**: 手番プレイヤーのカード引き要求。
+5. **アタック宣言 (`game:attack`)**:
    ```json
    {
-     "action": "action:draw",
-     "roomId": "room_algo_98234"
-   }
-   ```
-2. **アタック宣言 (`action:attack`)**
-   ```json
-   {
-     "action": "action:attack",
-     "roomId": "room_algo_98234",
+     "action": "game:attack",
      "targetPlayerId": "usr_xyz789",
      "targetCardIndex": 2,
      "guessedNumber": 7
    }
    ```
-3. **継続/ステイ選択 (`action:continue` / `action:stay`)**
-   ```json
-   {
-     "action": "action:stay",
-     "roomId": "room_algo_98234"
-   }
-   ```
+6. **ステイ宣言 (`game:stay`)**: 的中後の手番終了指示。
 
-#### サーバー配信イベント (Server -> Broadcast)
+#### サーバー配信イベント (Server -> Broadcast / Unicast)
+1. **初期ステート配信 (`game:state_sync`)**: 各プレイヤー向けに不可逆マスキングされた個別ステート。
+2. **個別ドロー通知 (`game:draw_private`)**: 引いた本人にのみカード数字を開示。他プレイヤーへは色のみ通知。
+3. **アタック結果通知 (`game:attack_result`)**: 的中/ハズレ判定、開示カード情報、次フェーズ指示。
+4. **決着通知 (`game:game_over`)**: 勝者情報、最終戦績。
 
-1. **ターン開始通知 (`game:turn_start`)**
-   ```json
-   {
-     "event": "game:turn_start",
-     "activePlayerId": "usr_abc123",
-     "remainingTime": 30,
-     "deckRemaining": 15
-   }
-   ```
-2. **ドロー結果通知 (個別配信 `game:draw_private`)**
-   ※引いた本人にのみ数字を開示。他プレイヤーへは「カードが引かれたこと（色のみ）」をブロードキャスト。
-   ```json
-   {
-     "event": "game:draw_private",
-     "card": { "id": "b-7", "color": "black", "number": 7, "isOpen": false }
-   }
-   ```
-3. **アタック結果通知 (`game:attack_result`)**
-   ```json
-   {
-     "event": "game:attack_result",
-     "attackerId": "usr_abc123",
-     "targetPlayerId": "usr_xyz789",
-     "targetCardIndex": 2,
-     "guessedNumber": 7,
-     "isHit": true,
-     "revealedCard": { "id": "b-7", "color": "black", "number": 7, "isOpen": true },
-     "isTargetEliminated": false,
-     "nextPhase": "PLAYER_DECIDE_NEXT"
-   }
-   ```
-4. **決着・サバイバル勝者通知 (`game:game_over`)**
-   ```json
-   {
-     "event": "game:game_over",
-     "winnerId": "usr_abc123",
-     "winnerName": "Alice",
-     "reason": "ALL_OPPONENTS_ELIMINATED"
-   }
-   ```
-
-### 4.3 チート防止（Anti-Cheat）とサーバー権威型マスキング規約
-
-クライアント側のブラウザメモリ・通信キャプチャによる相手の手札透視を完全に防止するため、**サーバー権威型（Server-Authoritative）設計**を機械的に強制します：
-
-1. **ステートマスキング（State Masking）**:
-   - サーバーは完全なカード情報（数字含む）を保持する。
-   - クライアントへ配信するステートシリアライズ処理において、**「自プレイヤーのカード」または「表向き（`isOpen === true`）のカード」以外の `number` プロパティをサーバー側で削除（`null` または省略）**する。
-   ```typescript
-   // サーバー側シリアライズ処理例
-   function maskCardForPlayer(card: Card, viewingPlayerId: string, cardOwnerId: string): MaskedCard {
-     if (card.isOpen || viewingPlayerId === cardOwnerId) {
-       return card; // 数字を開示
-     }
-     return {
-       id: card.id,
-       color: card.color,
-       isOpen: false,
-       // number は一切含めない（通信ペイロードから秘匿）
-     };
-   }
-   ```
-2. **サーバーサイド厳格バリデーション**:
-   - クライアントからのアクションは、手番判定、フェーズ判定、対象カード存在判定、0〜11の数値範囲判定をサーバー上で再検証し、不正なリクエストは即座に遮断（拒絶）する。
+### 4.3 不可逆ステートマスキングによるチート防止
+- クライアント通信から相手の伏せカードの `number` 属性を完全に削除（`number: null`）。
+- ブラウザ側DevToolsやパケット傍受による透視チートを数学的・物理的に不可能にするゼロトラスト権威サーバーモデルを強制。
