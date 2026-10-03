@@ -193,4 +193,28 @@ describe('StatsModal', () => {
     fireEvent.click(screen.getByTestId('btn-confirm-reset-stats'));
     expect(onResetStats).toHaveBeenCalledTimes(1);
   });
+
+  it('renders achievement titles without truncate class to allow full text display on mobile (Issue #124)', () => {
+    render(
+      <StatsModal
+        isOpen={true}
+        onClose={vi.fn()}
+        stats={dummyStats}
+        achievements={dummyAchievements}
+        onResetStats={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('tab-achievements'));
+
+    const logicMasterItem = screen.getByTestId('achievement-item-logic_master');
+    const titleHeading = logicMasterItem.querySelector('h4');
+    expect(titleHeading).not.toBeNull();
+    // truncate クラスが付与されていないことを検証
+    expect(titleHeading?.className).not.toContain('truncate');
+    // flex-wrap を持ち、完全なタイトルと英名が表示されることを検証
+    expect(titleHeading?.className).toContain('flex-wrap');
+    expect(titleHeading).toHaveTextContent('論理の支配者');
+    expect(titleHeading).toHaveTextContent('(Logic Master)');
+  });
 });
