@@ -307,14 +307,15 @@ test.describe('アルゴ（algo / NumLogic）QA自律ゲームプレイ実機検
     const attackModal = page.locator('[data-testid="attack-modal"]');
     await expect(attackModal).toBeVisible();
 
-    // 1. 数字キー "5" を押下
-    console.log('[Keyboard] キーボード "5" を入力');
-    await page.keyboard.press('Digit5');
+    // 1. 選択可能な数字を見つけてキーボード押下
+    const enabledNumBtn = attackModal.locator('button[data-testid^="btn-guess-num-"]:not([aria-label*="確認済"]):not([aria-label*="ハズレ済"])').first();
+    const numText = (await enabledNumBtn.locator('span').first().innerText()).trim();
+    console.log(`[Keyboard] キーボードで数字 "${numText}" を入力`);
+    await page.keyboard.press(`Digit${numText}`);
     await page.waitForTimeout(200);
 
-    const btn5 = page.locator('[data-testid="btn-guess-num-5"]');
-    const isSelected = await btn5.getAttribute('class');
-    console.log(`[Keyboard] ボタン5のclass: ${isSelected}`);
+    const isSelected = await enabledNumBtn.getAttribute('class');
+    console.log(`[Keyboard] ボタン${numText}のclass: ${isSelected}`);
     expect(isSelected).toContain('border-algo-yellow-dark');
 
     // 2. 10を入力しようと "1" "0" を順に入力

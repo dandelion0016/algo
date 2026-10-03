@@ -298,14 +298,14 @@ export const StatsModal: React.FC<StatsModalProps> = ({
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-1">
+                        <div className="flex items-start justify-between gap-2">
                           <h4
-                            className={`font-black text-sm truncate ${
+                            className={`font-black text-sm leading-snug flex flex-wrap items-baseline gap-x-1.5 ${
                               isUnlocked ? 'text-slate-900' : 'text-slate-600'
                             }`}
                           >
-                            {item.title}{' '}
-                            <span className="text-[11px] font-normal text-slate-500">
+                            <span>{item.title}</span>
+                            <span className="text-[11px] font-normal text-slate-500 whitespace-nowrap">
                               ({item.nameEn})
                             </span>
                           </h4>

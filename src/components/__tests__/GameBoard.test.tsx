@@ -3520,7 +3520,10 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
             id: 'p2',
             name: 'CPU 1',
             isHuman: false,
-            cards: [{ id: 'c-target', color: 'black', number: 7, isOpen: false }],
+            cards: [
+              { id: 'c-target', color: 'black', number: 7, isOpen: false },
+              { id: 'c-other', color: 'white', number: 11, isOpen: false },
+            ],
             isEliminated: false,
             avatarColor: 'emerald',
           },
@@ -4667,6 +4670,130 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(humanCardsContainer.className).toContain('justify-center');
       expect(cpu1CardsContainer.className).toContain('gap-1 sm:gap-2');
       expect(humanCardsContainer.className).toContain('gap-1 sm:gap-2');
+    });
+  });
+
+  describe('【Issue #119】リーサルK.O.演出と推理結果確認モーダル（AttackResultModal）の干渉解消', () => {
+    it('プレイヤーのリーサルヒット時、AttackResultModalをスキップして直接ResultModalおよびLethalCutInに遷移すること', async () => {
+      const mockInitialState: GameState = {
+        playerCount: 2,
+        difficulty: 'normal',
+        timeLimit: 0,
+        remainingTime: 0,
+        deck: [],
+        players: [
+          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false, avatarColor: 'indigo' },
+          {
+            id: 'p2',
+            name: 'CPU 1',
+            isHuman: false,
+            cards: [{ id: 'c-target', color: 'black', number: 7, isOpen: false }],
+            isEliminated: false,
+            avatarColor: 'emerald',
+          },
+        ],
+        activePlayerIndex: 0,
+        drawnCard: { id: 'c-drawn', color: 'white', number: 2, isOpen: false },
+        phase: 'PLAYER_GUESS_NUMBER',
+        selectedTarget: { playerId: 'p2', cardIndex: 0 },
+        logs: [],
+        winner: null,
+      };
+
+      render(<GameBoard initialState={mockInitialState} />);
+
+      // 数字7を選択して推理確定（これがリーサルヒットとなる）
+      const numButton = screen.getByTestId('btn-guess-num-7');
+      fireEvent.click(numButton);
+      const confirmButton = screen.getByTestId('btn-confirm-attack');
+      await act(async () => {
+        fireEvent.click(confirmButton);
+      });
+
+      // AttackResultModal はスキップされ、画面上に表示されないこと
+      expect(screen.queryByTestId('attack-result-modal')).not.toBeInTheDocument();
+
+      // 直接決着（ResultModal）が表示されること
+      expect(screen.getByTestId('result-modal')).toBeInTheDocument();
+
+      // LethalCutIn のダイナミックK.O.演出がアクティブであること
+      expect(screen.getByTestId('lethal-ko-cutin')).toBeInTheDocument();
+    });
+  });
+
+  describe('【Issue #120】スマートフォン画面における残弾デッキトラッカーおよび対戦ログのアクセス性向上', () => {
+    it('モバイル表示用FAB（mobile-quick-fab）が描画され、ワンタップで残弾ドロワー・ログドロワーが開くこと', () => {
+      const mockInitialState: GameState = {
+        playerCount: 2,
+        difficulty: 'normal',
+        timeLimit: 0,
+        remainingTime: 0,
+        deck: [{ id: 'd1', color: 'black', number: 0, isOpen: false }],
+        players: [
+          {
+            id: 'p1',
+            name: 'あなた',
+            isHuman: true,
+            cards: [{ id: 'c1', color: 'white', number: 3, isOpen: false }],
+            isEliminated: false,
+            avatarColor: 'indigo',
+          },
+          {
+            id: 'p2',
+            name: 'CPU 1',
+            isHuman: false,
+            cards: [{ id: 'c2', color: 'black', number: 7, isOpen: false }],
+            isEliminated: false,
+            avatarColor: 'emerald',
+          },
+        ],
+        activePlayerIndex: 0,
+        drawnCard: null,
+        phase: 'PLAYER_TURN_START',
+        selectedTarget: null,
+        logs: [
+          {
+            id: 'log-1',
+            attackerId: 'p1',
+            attackerName: 'あなた',
+            targetPlayerId: 'p2',
+            targetPlayerName: 'CPU 1',
+            targetCardIndex: 0,
+            targetColor: 'black',
+            guessedNumber: 7,
+            isHit: true,
+            timestamp: Date.now(),
+            message: 'あなた の推理が的中！',
+          },
+        ],
+        winner: null,
+      };
+
+      render(<GameBoard initialState={mockInitialState} />);
+
+      // FABコンテナが存在すること
+      const fabContainer = screen.getByTestId('mobile-quick-fab');
+      expect(fabContainer).toBeInTheDocument();
+      expect(fabContainer.className).toContain('fixed bottom-4 right-4');
+      expect(fabContainer.className).toContain('lg:hidden');
+
+      // FAB内の残弾ボタンをクリックすると残弾ドロワーが開く
+      const trackerFab = screen.getByTestId('btn-open-deck-tracker-mobile');
+      fireEvent.click(trackerFab);
+      expect(screen.getByTestId('mobile-tracker-drawer')).toBeInTheDocument();
+
+      // 閉じる
+      fireEvent.click(screen.getByTestId('btn-close-deck-tracker-mobile'));
+      expect(screen.queryByTestId('mobile-tracker-drawer')).not.toBeInTheDocument();
+
+      // FAB内のログボタンをクリックするとログドロワーが開く
+      const logFab = screen.getByTestId('btn-toggle-log');
+      fireEvent.click(logFab);
+      expect(screen.getByTestId('mobile-log-drawer')).toBeInTheDocument();
+
+      // 閉じる
+      fireEvent.click(screen.getByTestId('btn-close-mobile-log'));
+      expect(screen.queryByTestId('mobile-log-drawer')).not.toBeInTheDocument();
     });
   });
 });

@@ -891,38 +891,37 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       const activePlayers = updatedPlayers.filter((p) => !p.isEliminated);
       const isGameOver = activePlayers.length === 1;
 
-      // 決着時（リーサルヒット）のダイナミックK.O.演出発動 (Issue #73)
+      // 決着時（リーサルヒット）のダイナミックK.O.演出発動 (Issue #73, #119)
       if (isGameOver) {
         triggerLethalKo(humanPlayer?.name || 'あなた');
-      }
-
-      // 盤面の被弾カードを即座に開示しログを追記
-      setGameState((prev) => ({
-        ...prev,
-        players: updatedPlayers,
-        logs: [log, ...prev.logs],
-      }));
-
-      // 推理結果確認モーダルを表示してOKを待機 (Issue #56)
-      await waitForAttackOk({
-        attackerName: humanPlayer?.name || 'あなた',
-        isHuman: true,
-        targetPlayerName: targetPlayer.name,
-        targetCardIndex: cardIndex,
-        targetColor: targetCard.color,
-        guessedNumber,
-        isHit: true,
-        actualNumber: targetCard.number,
-        nextAction: isGameOver ? 'GAME_OVER' : 'CONTINUE',
-      });
-
-      if (isGameOver) {
         setGameState((prev) => ({
           ...prev,
+          players: updatedPlayers,
+          logs: [log, ...prev.logs],
           winner: activePlayers[0],
           phase: 'GAME_OVER',
         }));
       } else {
+        // 盤面の被弾カードを即座に開示しログを追記
+        setGameState((prev) => ({
+          ...prev,
+          players: updatedPlayers,
+          logs: [log, ...prev.logs],
+        }));
+
+        // 推理結果確認モーダルを表示してOKを待機 (Issue #56)
+        await waitForAttackOk({
+          attackerName: humanPlayer?.name || 'あなた',
+          isHuman: true,
+          targetPlayerName: targetPlayer.name,
+          targetCardIndex: cardIndex,
+          targetColor: targetCard.color,
+          guessedNumber,
+          isHit: true,
+          actualNumber: targetCard.number,
+          nextAction: 'CONTINUE',
+        });
+
         setGameState((prev) => ({
           ...prev,
           selectedTarget: null,
@@ -1379,17 +1378,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
           const activePlayers = currentPlayers.filter((p) => !p.isEliminated);
           if (activePlayers.length === 1) {
+            // 決着時（リーサルヒット）のダイナミックK.O.演出発動 (Issue #73, #119)
+            // 通常の確認モーダルはスキップして直接GAME_OVERへ遷移
             triggerLethalKo(currentCpu.name);
-            await waitForCpuAttackOk({
-              attackerName: currentCpu.name,
-              targetPlayerName: targetPlayer.name,
-              targetCardIndex: decision.targetCardIndex,
-              targetColor: targetCard.color,
-              guessedNumber: decision.guessedNumber,
-              isHit: true,
-              actualNumber: targetCard.number,
-              nextAction: 'GAME_OVER',
-            });
             if (!isMounted) return;
 
             setGameState((prev) => ({
@@ -2110,37 +2101,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               </button>
             )}
 
-            {/* モバイル専用 残弾トラッカー表示トグルボタン (lg未満で表示) (Issue #65, Issue #116) */}
-            <button
-              type="button"
-              data-testid="btn-open-deck-tracker-mobile"
-              onClick={() => setIsMobileTrackerOpen((prev) => !prev)}
-              className="flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-[10px] sm:text-xs font-bold transition-all shadow-2xs lg:hidden relative whitespace-nowrap shrink-0"
-              aria-label={`残弾トラッカーを開く (残弾 ${trackerState.summary.totalRemaining}/24枚)`}
-            >
-              <Target className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-algo-blue shrink-0" />
-              <span>残弾</span>
-              <span className="ml-0.5 px-1 py-0.2 rounded-full bg-algo-blue/15 text-algo-blue text-[9px] font-black">
-                {trackerState.summary.totalRemaining}/24
-              </span>
-            </button>
 
-            {/* モバイル専用 ログ表示トグルボタン (lg未満で表示) */}
-            <button
-              type="button"
-              data-testid="btn-toggle-log"
-              onClick={() => setIsMobileLogOpen((prev) => !prev)}
-              className="flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-[10px] sm:text-xs font-bold transition-all shadow-2xs lg:hidden relative whitespace-nowrap shrink-0"
-              aria-label={`対戦ログを開く (${gameState.logs.length}件)`}
-            >
-              <ScrollText className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-algo-blue" />
-              <span>ログ</span>
-              {gameState.logs.length > 0 && (
-                <span className="ml-0.5 px-1 py-0.2 rounded-full bg-algo-blue/15 text-algo-blue text-[9px] font-black">
-                  {gameState.logs.length}
-                </span>
-              )}
-            </button>
 
             {/* モバイル専用 「☰ メニュー」ボタン (lg未満で表示) (Issue #118) */}
             <button
@@ -2661,6 +2622,44 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         </div>
       </div>
 
+      {/* モバイル専用 フローティングクイックアクション（FAB）: 残弾トラッカー ＆ 対戦ログ (Issue #120) */}
+      <div
+        data-testid="mobile-quick-fab"
+        className="fixed bottom-4 right-4 z-40 flex items-center gap-2 lg:hidden pointer-events-auto shadow-lg bg-white/95 backdrop-blur-md p-1.5 rounded-full border border-slate-200"
+      >
+        {/* 残弾トラッカー FAB */}
+        <button
+          type="button"
+          data-testid="btn-open-deck-tracker-mobile"
+          onClick={() => setIsMobileTrackerOpen((prev) => !prev)}
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-algo-blue/10 hover:bg-algo-blue/20 text-algo-navy text-[11px] font-black transition-all active:scale-95 whitespace-nowrap shrink-0 shadow-2xs"
+          aria-label={`残弾トラッカーを開く (残弾 ${trackerState.summary.totalRemaining}/24枚)`}
+        >
+          <Target className="w-3.5 h-3.5 text-algo-blue shrink-0" />
+          <span>残弾</span>
+          <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-algo-blue text-white text-[9px] font-black">
+            {trackerState.summary.totalRemaining}/24
+          </span>
+        </button>
+
+        {/* 対戦ログ FAB */}
+        <button
+          type="button"
+          data-testid="btn-toggle-log"
+          onClick={() => setIsMobileLogOpen((prev) => !prev)}
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-black transition-all active:scale-95 whitespace-nowrap shrink-0 shadow-2xs"
+          aria-label={`対戦ログを開く (${gameState.logs.length}件)`}
+        >
+          <ScrollText className="w-3.5 h-3.5 text-algo-blue shrink-0" />
+          <span>ログ</span>
+          {gameState.logs.length > 0 && (
+            <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-algo-blue/15 text-algo-blue text-[9px] font-black">
+              {gameState.logs.length}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* Mobile Deck Tracker Drawer / Bottom Sheet (Issue #65, Issue #116) */}
       {isMobileTrackerOpen && (
         <div
@@ -2736,7 +2735,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               </div>
               <button
                 type="button"
-                data-testid="close-mobile-log"
+                data-testid="btn-close-mobile-log"
                 onClick={() => setIsMobileLogOpen(false)}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
                 aria-label="ログを閉じる"
