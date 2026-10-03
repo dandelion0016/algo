@@ -31,6 +31,7 @@ import {
   CpuAttackResultData,
 } from './CpuAttackModal';
 import { HintModal } from './HintModal';
+import { StatsModal } from './StatsModal';
 import { DeckTracker } from './DeckTracker';
 import { calculateDeckTrackerState } from '../lib/deckTracker';
 import { getBestHint, HintResult } from '../lib/hintAdvisor';
@@ -38,6 +39,17 @@ import { useUserSession } from '../hooks/useUserSession';
 import { auditLogger } from '../lib/auditLogger';
 import { soundManager } from '../lib/soundManager';
 import { haptics } from '../lib/haptics';
+import {
+  getStoredStats,
+  recordMatchResult,
+  resetStats,
+  PlayerStats,
+} from '../lib/statsManager';
+import {
+  getStoredAchievements,
+  checkAndUnlockAchievements,
+  Achievement,
+} from '../lib/achievementManager';
 import {
   Layers,
   Sparkles,
@@ -212,6 +224,25 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const [isTutorialPromptOpen, setIsTutorialPromptOpen] = useState(false);
   const [isResultModalOpen, setIsResultModalOpen] = useState(true);
   const [isManualPaused, setIsManualPaused] = useState(false);
+  const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
+
+  const [playerStats, setPlayerStats] = useState<PlayerStats>(() => getStoredStats());
+  const [playerAchievements, setPlayerAchievements] = useState<Achievement[]>(() =>
+    getStoredAchievements()
+  );
+  const [newlyUnlockedToast, setNewlyUnlockedToast] = useState<Achievement | null>(null);
+
+  const playerTurnsCountRef = useRef<number>(0);
+  const wasInClutchRef = useRef<boolean>(false);
+  const consecutiveHitsInTurnRef = useRef<number>(0);
+  const maxConsecutiveHitsInTurnRef = useRef<number>(0);
+  const hasRecordedGameOverRef = useRef<boolean>(false);
+  const hasTurnStartedForHumanRef = useRef<boolean>(false);
+
+  const handleResetStats = useCallback(() => {
+    const freshStats = resetStats();
+    setPlayerStats(freshStats);
+  }, []);
 
   const handleConfirmGuessRef = useRef<(num: number) => Promise<void>>((() => {}) as any);
 
@@ -385,6 +416,12 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       setHintCount(3);
       setActiveHint(null);
       setIsHintModalOpen(false);
+      playerTurnsCountRef.current = 0;
+      wasInClutchRef.current = false;
+      consecutiveHitsInTurnRef.current = 0;
+      maxConsecutiveHitsInTurnRef.current = 0;
+      hasRecordedGameOverRef.current = false;
+      hasTurnStartedForHumanRef.current = false;
       setRecentlyInsertedCard(null);
       // 観戦・スキップ状態のリセット (Issue #61)
       setIsSkippingToResult(false);
@@ -394,19 +431,107 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     [gameState.playerCount, gameState.difficulty, gameState.timeLimit, userId]
   );
 
-  // GAME_OVER 遷移時に決着モーダルを自動オープン ＆ 勝敗SE・ハプティクス再生 (Issue #63, #71)
+  // GAME_OVER 遷移時に決着モーダルを自動オープン ＆ 通算戦績・アチーブメントの自動記録 ＆ 勝敗SE・ハプティクス再生 (Issue #63, #71, #72)
   useEffect(() => {
-    if (gameState.phase === 'GAME_OVER') {
+    if (gameState.phase === 'GAME_OVER' && gameState.winner) {
       setIsResultModalOpen(true);
-      if (gameState.winner?.isHuman) {
-        soundManager.playVictorySound();
-        haptics.vibrateSuccess();
-      } else if (gameState.winner && !gameState.winner.isHuman) {
-        soundManager.playDefeatSound();
-        haptics.vibrateFailure();
+
+      if (!hasRecordedGameOverRef.current) {
+        hasRecordedGameOverRef.current = true;
+
+        if (gameState.winner.isHuman) {
+          soundManager.playVictorySound();
+          haptics.vibrateSuccess();
+        } else {
+          soundManager.playDefeatSound();
+          haptics.vibrateFailure();
+        }
+
+        const humanPlayer = gameState.players.find((p) => p.isHuman);
+        const isHumanWin = Boolean(humanPlayer && gameState.winner.id === humanPlayer.id);
+
+        const humanAttacks = gameState.logs.filter((l) => l.attackerId === humanPlayer?.id);
+        const attacksCount = humanAttacks.length;
+        const hitsCount = humanAttacks.filter((l) => l.isHit).length;
+        const missesCount = humanAttacks.filter((l) => !l.isHit).length;
+
+        // 1. 通算戦績の記録
+        const updatedStats = recordMatchResult({
+          isWin: isHumanWin,
+          difficulty: gameState.difficulty,
+          turns: playerTurnsCountRef.current,
+          attacks: attacksCount,
+          hits: hitsCount,
+        });
+        setPlayerStats(updatedStats);
+
+        // 2. アチーブメント判定
+        const { updatedAchievements, newlyUnlocked } = checkAndUnlockAchievements({
+          isWin: isHumanWin,
+          difficulty: gameState.difficulty,
+          timeLimit: gameState.timeLimit,
+          turns: playerTurnsCountRef.current,
+          playerAttacks: attacksCount,
+          playerHits: hitsCount,
+          playerMisses: missesCount,
+          maxConsecutiveHitsInSingleTurn: maxConsecutiveHitsInTurnRef.current,
+          wasInClutch: wasInClutchRef.current,
+          stats: updatedStats,
+        });
+        setPlayerAchievements(updatedAchievements);
+        if (newlyUnlocked.length > 0) {
+          setNewlyUnlockedToast(newlyUnlocked[0]);
+        }
       }
     }
-  }, [gameState.phase, gameState.winner]);
+  }, [
+    gameState.phase,
+    gameState.winner,
+    gameState.players,
+    gameState.difficulty,
+    gameState.timeLimit,
+    gameState.logs,
+  ]);
+
+  // アチーブメント解除トーストの自動消去（6秒後）
+  useEffect(() => {
+    if (newlyUnlockedToast) {
+      const timer = setTimeout(() => {
+        setNewlyUnlockedToast(null);
+      }, 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [newlyUnlockedToast]);
+
+  // 人間プレイヤーの手番開始（ターン数カウント）の監視
+  useEffect(() => {
+    if (
+      gameState.phase === 'PLAYER_TURN_START' ||
+      (gameState.deck.length === 0 &&
+        gameState.phase === 'PLAYER_SELECT_TARGET' &&
+        gameState.activePlayerIndex === 0)
+    ) {
+      if (!hasTurnStartedForHumanRef.current) {
+        hasTurnStartedForHumanRef.current = true;
+        playerTurnsCountRef.current += 1;
+        consecutiveHitsInTurnRef.current = 0;
+      }
+    } else if (gameState.phase === 'CPU_ACTING') {
+      hasTurnStartedForHumanRef.current = false;
+      consecutiveHitsInTurnRef.current = 0;
+    }
+  }, [gameState.phase, gameState.activePlayerIndex, gameState.deck.length]);
+
+  // 人間プレイヤーの残り手札が1枚（ピンチ状態）になったかどうかの監視
+  useEffect(() => {
+    const human = gameState.players.find((p) => p.isHuman);
+    if (human && !human.isEliminated) {
+      const unrevealed = human.cards.filter((c) => !c.isOpen);
+      if (unrevealed.length === 1) {
+        wasInClutchRef.current = true;
+      }
+    }
+  }, [gameState.players]);
 
   // タイムアップ警告バナーの自動消去タイマー（6秒後に消去）
   useEffect(() => {
@@ -688,6 +813,28 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     };
 
     if (isHit) {
+      consecutiveHitsInTurnRef.current += 1;
+      if (consecutiveHitsInTurnRef.current > maxConsecutiveHitsInTurnRef.current) {
+        maxConsecutiveHitsInTurnRef.current = consecutiveHitsInTurnRef.current;
+      }
+      if (consecutiveHitsInTurnRef.current >= 3) {
+        const { updatedAchievements, newlyUnlocked } = checkAndUnlockAchievements({
+          isWin: false,
+          difficulty: gameState.difficulty,
+          timeLimit: gameState.timeLimit,
+          turns: playerTurnsCountRef.current,
+          playerAttacks: 0,
+          playerHits: 0,
+          playerMisses: 0,
+          maxConsecutiveHitsInSingleTurn: maxConsecutiveHitsInTurnRef.current,
+          wasInClutch: false,
+          stats: playerStats,
+        });
+        setPlayerAchievements(updatedAchievements);
+        if (newlyUnlocked.length > 0) {
+          setNewlyUnlockedToast(newlyUnlocked[0]);
+        }
+      }
       soundManager.playHitSound();
       haptics.vibrateSuccess();
 
@@ -738,9 +885,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         }));
       }
     } else {
+      consecutiveHitsInTurnRef.current = 0;
       soundManager.playMissSound();
       haptics.vibrateFailure();
-
       const playerIdx = gameState.players.findIndex((p) => p.isHuman);
       const isDeckExhausted = !gameState.drawnCard;
 
@@ -883,6 +1030,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const handlePlayerStay = () => {
     setIsManualPaused(false);
     setActiveHint(null);
+    consecutiveHitsInTurnRef.current = 0;
     const playerIdx = gameState.players.findIndex((p) => p.isHuman);
     const updatedPlayers = [...gameState.players];
     if (gameState.drawnCard) {
@@ -1603,6 +1751,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           }
           onOpenRules={() => setIsRuleModalOpen(true)}
           onOpenTutorial={() => setIsTutorialOpen(true)}
+          onOpenStats={() => setIsStatsModalOpen(true)}
         />
         <RuleGuideModal
           isOpen={isRuleModalOpen}
@@ -1623,6 +1772,13 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           onComplete={() => setIsTutorialOpen(false)}
           isTimedMatch={isTimedMatch}
         />
+        <StatsModal
+          isOpen={isStatsModalOpen}
+          onClose={() => setIsStatsModalOpen(false)}
+          stats={playerStats}
+          achievements={playerAchievements}
+          onResetStats={handleResetStats}
+        />
       </div>
     );
   }
@@ -1641,6 +1797,42 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
   return (
     <div className="max-w-7xl mx-auto px-1.5 sm:px-4 lg:px-6 py-1 sm:py-3 lg:py-4 h-[100dvh] max-h-[100dvh] lg:h-auto lg:max-h-none flex flex-col justify-between overflow-hidden lg:overflow-visible lg:space-y-4">
+      {/* 新規アチーブメント解除トースト通知 */}
+      {newlyUnlockedToast && (
+        <div
+          data-testid="achievement-toast"
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 bg-slate-900/95 text-white border-2 border-amber-400 rounded-2xl shadow-2xl backdrop-blur-md animate-in slide-in-from-top-4 duration-200 max-w-sm w-full mx-auto"
+        >
+          <div className="w-10 h-10 rounded-xl bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-2xl shrink-0">
+            {newlyUnlockedToast.icon}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 text-[10px] text-amber-400 font-bold uppercase tracking-wider">
+              <Trophy className="w-3.5 h-3.5 text-amber-400" />
+              <span>実績解除！</span>
+            </div>
+            <p className="text-xs sm:text-sm font-black truncate">
+              {newlyUnlockedToast.title}{' '}
+              <span className="font-normal text-[11px] text-slate-400">
+                ({newlyUnlockedToast.nameEn})
+              </span>
+            </p>
+            <p className="text-[11px] text-slate-300 truncate">
+              {newlyUnlockedToast.description}
+            </p>
+          </div>
+          <button
+            type="button"
+            data-testid="close-achievement-toast"
+            aria-label="閉じる"
+            onClick={() => setNewlyUnlockedToast(null)}
+            className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Top Header */}
       <header className="bg-white border border-slate-200 rounded-xl sm:rounded-3xl shadow-sm overflow-hidden shrink-0">
         <div className="w-full h-1 sm:h-3.5 algo-diamond-pattern border-b border-slate-100" />
@@ -1820,6 +2012,17 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             >
               <BookOpen className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-algo-blue" />
               <span>ルール</span>
+            </button>
+
+            <button
+              type="button"
+              data-testid="btn-open-stats"
+              onClick={() => setIsStatsModalOpen(true)}
+              className="flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-900 text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0"
+              title="通算戦績・アチーブメントを表示"
+            >
+              <Trophy className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600" />
+              <span>戦績</span>
             </button>
 
             <button
@@ -2534,6 +2737,15 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           handleSelectTargetCard(targetPlayerId, cardIndex);
         }}
         isTimedMatch={isTimedMatch}
+      />
+
+      {/* 通算戦績＆アチーブメントモーダル (Issue #72) */}
+      <StatsModal
+        isOpen={isStatsModalOpen}
+        onClose={() => setIsStatsModalOpen(false)}
+        stats={playerStats}
+        achievements={playerAchievements}
+        onResetStats={handleResetStats}
       />
     </div>
   );

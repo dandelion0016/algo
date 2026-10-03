@@ -3145,6 +3145,94 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
     });
   });
 
+  describe('通算戦績（Match Stats）およびアチーブメント（実績システム）(Issue #72)', () => {
+    it('ヘッダーの「🏆 戦績」ボタンをクリックすると StatsModal が開き、戦績と実績を確認できること', () => {
+      render(
+        <GameBoard
+          initialIsRuleModalOpen={false}
+          initialState={{
+            phase: 'PLAYER_TURN_START',
+            players: [
+              {
+                id: 'player-1',
+                name: 'あなた',
+                isHuman: true,
+                avatarColor: 'from-blue-500 to-indigo-600',
+                isEliminated: false,
+                cards: [],
+              },
+            ],
+            activePlayerIndex: 0,
+          }}
+        />
+      );
+
+      const statsBtn = screen.getByTestId('btn-open-stats');
+      expect(statsBtn).toBeInTheDocument();
+
+      // 初期状態ではモーダルは非表示
+      expect(screen.queryByTestId('stats-modal')).not.toBeInTheDocument();
+
+      // クリックでオープン
+      fireEvent.click(statsBtn);
+      expect(screen.getByTestId('stats-modal')).toBeInTheDocument();
+      expect(screen.getByTestId('stat-total-games')).toBeInTheDocument();
+
+      // 閉じるボタンで閉じる
+      fireEvent.click(screen.getByTestId('close-stats-modal'));
+      expect(screen.queryByTestId('stats-modal')).not.toBeInTheDocument();
+    });
+
+    it('GAME_OVER 時に通算戦績が localStorage に自動更新されること', () => {
+      localStorage.clear();
+      render(
+        <GameBoard
+          initialIsRuleModalOpen={false}
+          initialState={{
+            phase: 'GAME_OVER',
+            difficulty: 'normal',
+            timeLimit: 15,
+            players: [
+              {
+                id: 'player-1',
+                name: 'あなた',
+                isHuman: true,
+                avatarColor: 'from-blue-500 to-indigo-600',
+                isEliminated: false,
+                cards: [{ id: 'b-1', color: 'black', number: 1, isOpen: true }],
+              },
+              {
+                id: 'cpu-1',
+                name: 'CPU 1',
+                isHuman: false,
+                avatarColor: 'from-amber-500 to-orange-600',
+                isEliminated: true,
+                cards: [{ id: 'w-2', color: 'white', number: 2, isOpen: true }],
+              },
+            ],
+            winner: {
+              id: 'player-1',
+              name: 'あなた',
+              isHuman: true,
+              avatarColor: 'from-blue-500 to-indigo-600',
+              isEliminated: false,
+              cards: [{ id: 'b-1', color: 'black', number: 1, isOpen: true }],
+            },
+            logs: [],
+          }}
+        />
+      );
+
+      const savedStatsRaw = localStorage.getItem('algo_player_stats');
+      expect(savedStatsRaw).not.toBeNull();
+      const savedStats = JSON.parse(savedStatsRaw!);
+      expect(savedStats.totalGames).toBe(1);
+      expect(savedStats.totalWins).toBe(1);
+      expect(savedStats.winRate).toBe(100);
+      expect(savedStats.byDifficulty.normal.wins).toBe(1);
+    });
+  });
+
   describe('Sound Effects & Mobile Haptics Integration (Issue #63, #71)', () => {
     beforeEach(() => {
       localStorage.clear();
