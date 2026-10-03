@@ -1,7 +1,19 @@
 'use client';
 
-import React, { useEffect } from 'react';
-import { Bot, User, CheckCircle2, XCircle, ArrowRight, ShieldAlert, Sparkles } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Bot,
+  User,
+  CheckCircle2,
+  XCircle,
+  ArrowRight,
+  ShieldAlert,
+  Sparkles,
+  Eye,
+  FastForward,
+  Play,
+  Pause,
+} from 'lucide-react';
 
 export type AttackNextAction = 'CONTINUE' | 'STAY' | 'TURN_END' | 'GAME_OVER';
 export type CpuAttackNextAction = AttackNextAction;
@@ -25,6 +37,16 @@ export interface AttackResultModalProps {
   isOpen: boolean;
   data: AttackResultData | null;
   onConfirm: () => void;
+  /** 3人・4人対戦で人間プレイヤー脱落後の観戦モードフラグ (Issue #61) */
+  isSpectating?: boolean;
+  /** 自動観戦（一定時間で自動的に次へ進む）フラグ (Issue #61) */
+  isAutoAdvance?: boolean;
+  /** 自動観戦ON/OFF切り替えハンドラ */
+  onToggleAutoAdvance?: () => void;
+  /** 決着まで一括スキップハンドラ */
+  onSkipToResult?: () => void;
+  /** 自動進行ディレイ時間（ms, デフォルト1500ms） */
+  autoAdvanceDelayMs?: number;
 }
 export type CpuAttackModalProps = AttackResultModalProps;
 
@@ -83,6 +105,11 @@ export const AttackResultModal: React.FC<AttackResultModalProps> = ({
   isOpen,
   data,
   onConfirm,
+  isSpectating = false,
+  isAutoAdvance = false,
+  onToggleAutoAdvance,
+  onSkipToResult,
+  autoAdvanceDelayMs = 1500,
 }) => {
   useEffect(() => {
     if (!isOpen || !data) return;
@@ -97,6 +124,17 @@ export const AttackResultModal: React.FC<AttackResultModalProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, data, onConfirm]);
+
+  // 観戦モード時の自動進行タイマー (Issue #61)
+  useEffect(() => {
+    if (!isOpen || !data || !isSpectating || !isAutoAdvance) return;
+
+    const timer = setTimeout(() => {
+      onConfirm();
+    }, autoAdvanceDelayMs);
+
+    return () => clearTimeout(timer);
+  }, [isOpen, data, isSpectating, isAutoAdvance, autoAdvanceDelayMs, onConfirm]);
 
   if (!isOpen || !data) return null;
 
@@ -128,22 +166,33 @@ export const AttackResultModal: React.FC<AttackResultModalProps> = ({
         <div className="h-2.5 w-full bg-gradient-to-r from-[#FCF97A] via-[#7BA6EF] to-[#FCF97A] shrink-0" />
 
         <div className="p-4 sm:p-6 flex flex-col items-center text-center overflow-y-auto max-h-full">
-          {/* アタッカー表示 */}
-          <div
-            data-testid="attack-result-badge"
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#7BA6EF]/15 border border-[#7BA6EF]/30 text-algo-navy text-xs font-black mb-2"
-          >
-            {isHumanPlayer ? (
-              <>
-                <User className="w-3.5 h-3.5 text-[#355ea7]" />
-                <span>あなたのアタック</span>
-              </>
-            ) : (
-              <>
-                <Bot className="w-3.5 h-3.5 text-[#355ea7]" />
-                <span>{`${data.attackerName} のアタック`}</span>
-              </>
+          {/* アタッカー表示＆観戦中バッジ */}
+          <div className="flex items-center gap-2 mb-2 flex-wrap justify-center">
+            {isSpectating && (
+              <div
+                data-testid="spectator-badge"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-100 border border-purple-300 text-purple-800 text-xs font-black animate-pulse"
+              >
+                <Eye className="w-3.5 h-3.5 text-purple-600" />
+                <span>観戦モード</span>
+              </div>
             )}
+            <div
+              data-testid="attack-result-badge"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#7BA6EF]/15 border border-[#7BA6EF]/30 text-algo-navy text-xs font-black"
+            >
+              {isHumanPlayer ? (
+                <>
+                  <User className="w-3.5 h-3.5 text-[#355ea7]" />
+                  <span>あなたのアタック</span>
+                </>
+              ) : (
+                <>
+                  <Bot className="w-3.5 h-3.5 text-[#355ea7]" />
+                  <span>{`${data.attackerName} のアタック`}</span>
+                </>
+              )}
+            </div>
           </div>
 
           <h2
@@ -260,15 +309,60 @@ export const AttackResultModal: React.FC<AttackResultModalProps> = ({
             <span>{nextActionMessage}</span>
           </div>
 
+          {/* 観戦モード用コントロール (自動進行トグル & スキップ) (Issue #61) */}
+          {isSpectating && (
+            <div
+              data-testid="spectate-controls"
+              className="w-full flex items-center justify-between gap-2 mb-3 bg-purple-50/80 border border-purple-200/80 rounded-xl p-2"
+            >
+              {onToggleAutoAdvance ? (
+                <button
+                  type="button"
+                  data-testid="toggle-auto-advance"
+                  onClick={onToggleAutoAdvance}
+                  className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    isAutoAdvance
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  {isAutoAdvance ? (
+                    <>
+                      <Play className="w-3.5 h-3.5 fill-current" />
+                      <span>自動観戦: ON</span>
+                    </>
+                  ) : (
+                    <>
+                      <Pause className="w-3.5 h-3.5 text-slate-500" />
+                      <span>自動観戦: OFF</span>
+                    </>
+                  )}
+                </button>
+              ) : null}
+
+              {onSkipToResult ? (
+                <button
+                  type="button"
+                  data-testid="btn-skip-to-result"
+                  onClick={onSkipToResult}
+                  className="flex-1 py-1.5 px-2.5 rounded-lg text-xs font-black bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-xs flex items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer"
+                >
+                  <FastForward className="w-3.5 h-3.5" />
+                  <span>決着までスキップ</span>
+                </button>
+              ) : null}
+            </div>
+          )}
+
           {/* OKボタン */}
           <button
             type="button"
             data-testid="btn-attack-result-ok"
             onClick={onConfirm}
-            className="w-full py-3 px-4 rounded-xl font-black text-sm sm:text-base text-white bg-[#7BA6EF] hover:bg-[#6894dd] active:scale-[0.98] shadow-md shadow-[#7BA6EF]/25 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-[#7BA6EF] focus:ring-offset-2"
+            className="w-full py-3 px-4 rounded-xl font-black text-sm sm:text-base text-white bg-[#7BA6EF] hover:bg-[#6894dd] active:scale-[0.98] shadow-md shadow-[#7BA6EF]/25 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-[#7BA6EF] focus:ring-offset-2 relative overflow-hidden"
           >
             <span data-testid="btn-cpu-attack-ok" className="sr-only" aria-hidden="true" />
-            <span>OK (次へ)</span>
+            <span>{isSpectating && isAutoAdvance ? 'OK (自動進行中...)' : 'OK (次へ)'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
