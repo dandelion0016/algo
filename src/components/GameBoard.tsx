@@ -36,6 +36,8 @@ import { calculateDeckTrackerState } from '../lib/deckTracker';
 import { getBestHint, HintResult } from '../lib/hintAdvisor';
 import { useUserSession } from '../hooks/useUserSession';
 import { auditLogger } from '../lib/auditLogger';
+import { soundManager } from '../lib/soundManager';
+import { haptics } from '../lib/haptics';
 import {
   Layers,
   Sparkles,
@@ -52,6 +54,8 @@ import {
   ScrollText,
   X,
   Lightbulb,
+  Volume2,
+  VolumeX,
   Target,
   Eye,
   FastForward,
@@ -247,6 +251,21 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     });
   }, []);
 
+  // 効果音・サウンドの有効状態（Issue #63, #71: デフォルト true）
+  const [isSoundEnabled, setIsSoundEnabled] = useState<boolean>(() => soundManager.isSoundEnabled());
+
+  useEffect(() => {
+    const unsubscribe = soundManager.subscribe((enabled) => {
+      setIsSoundEnabled(enabled);
+    });
+    return unsubscribe;
+  }, []);
+
+  const handleToggleSound = useCallback(() => {
+    soundManager.unlockAudio();
+    soundManager.toggleSound();
+  }, []);
+
   // 観戦モード・自動観戦・スキップ状態 (Issue #61)
   const [isAutoSpectate, setIsAutoSpectate] = useState<boolean>(true);
   const [isSkippingToResult, setIsSkippingToResult] = useState<boolean>(false);
@@ -375,12 +394,19 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     [gameState.playerCount, gameState.difficulty, gameState.timeLimit, userId]
   );
 
-  // GAME_OVER 遷移時に決着モーダルを自動オープン
+  // GAME_OVER 遷移時に決着モーダルを自動オープン ＆ 勝敗SE・ハプティクス再生 (Issue #63, #71)
   useEffect(() => {
     if (gameState.phase === 'GAME_OVER') {
       setIsResultModalOpen(true);
+      if (gameState.winner?.isHuman) {
+        soundManager.playVictorySound();
+        haptics.vibrateSuccess();
+      } else if (gameState.winner && !gameState.winner.isHuman) {
+        soundManager.playDefeatSound();
+        haptics.vibrateFailure();
+      }
     }
-  }, [gameState.phase]);
+  }, [gameState.phase, gameState.winner]);
 
   // タイムアップ警告バナーの自動消去タイマー（6秒後に消去）
   useEffect(() => {
@@ -531,6 +557,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     const drawn = gameState.deck[0];
     const nextDeck = gameState.deck.slice(1);
 
+    soundManager.playDrawSound();
+    haptics.vibrateLight();
+
     setGameState((prev) => ({
       ...prev,
       deck: nextDeck,
@@ -637,6 +666,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
     const isHit = checkAttack(targetCard, guessedNumber);
 
+    soundManager.playAttackSound();
+    haptics.vibrateLight();
+
     const log: AttackLog = {
       id: `log-${Date.now()}`,
       attackerId: currentUserId,
@@ -656,6 +688,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     };
 
     if (isHit) {
+      soundManager.playHitSound();
+      haptics.vibrateSuccess();
+
       const updatedPlayers = gameState.players.map((p) => {
         if (p.id !== playerId) return p;
         const newCards = p.cards.map((c, i) => (i === cardIndex ? { ...c, isOpen: true } : c));
@@ -703,6 +738,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         }));
       }
     } else {
+      soundManager.playMissSound();
+      haptics.vibrateFailure();
+
       const playerIdx = gameState.players.findIndex((p) => p.isHuman);
       const isDeckExhausted = !gameState.drawnCard;
 
@@ -888,6 +926,12 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       setGameState((prev) => {
         const nextRemainingTime = prev.remainingTime - 1;
 
+        // 制限時間5秒以下の警告音・ハプティクス (Issue #63, #71)
+        if (nextRemainingTime <= 5 && nextRemainingTime > 0) {
+          soundManager.playTimeWarningSound();
+          haptics.vibrateWarning();
+        }
+
         if (nextRemainingTime <= 0) {
           // 時間切れ（0秒到達）強制オープンペナルティ処理
           clearInterval(interval);
@@ -1030,6 +1074,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       if (currentDeck.length > 0) {
         cpuDrawn = currentDeck[0];
         currentDeck = currentDeck.slice(1);
+        soundManager.playDrawSound();
         setGameState((prev) => ({
           ...prev,
           deck: currentDeck,
@@ -1086,6 +1131,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         }
 
         const isHit = checkAttack(targetCard, decision.guessedNumber);
+        soundManager.playAttackSound();
 
         const isCpuDeckExhausted = !cpuDrawn;
         const missLogSuffix = isCpuDeckExhausted
@@ -1113,6 +1159,10 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         currentLogs = [log, ...currentLogs];
 
         if (isHit) {
+          soundManager.playHitSound();
+          if (targetPlayer.isHuman) {
+            haptics.vibrateWarning();
+          }
           // 的中処理: 被弾カードを開示し脱落判定
           currentPlayers = currentPlayers.map((p) => {
             if (p.id !== targetPlayer.id) return p;
@@ -1292,6 +1342,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           }
         } else {
           // ハズレ (isHit === false)
+          soundManager.playMissSound();
           const cpuIdx = currentPlayers.findIndex((p) => p.id === currentCpu.id);
           let insertedIdx = -1;
           if (cpuDrawn && cpuIdx !== -1) {
@@ -1729,6 +1780,28 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             >
               <span className="text-xs" aria-hidden="true">🔰</span>
               <span>アシスト {isAssistEnabled ? 'ON' : 'OFF'}</span>
+            </button>
+
+            {/* サウンドON/OFFトグルボタン (Issue #63, #71) */}
+            <button
+              type="button"
+              data-testid="btn-sound-toggle"
+              onClick={handleToggleSound}
+              aria-label={`サウンド効果音: ${isSoundEnabled ? 'ON' : 'OFF'}`}
+              aria-pressed={isSoundEnabled}
+              className={`flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0 ${
+                isSoundEnabled
+                  ? 'border-algo-blue/40 bg-algo-blue-light/30 text-algo-navy hover:bg-algo-blue-light/50 ring-1 ring-algo-blue/20'
+                  : 'border-slate-200 bg-slate-50 text-slate-400 hover:bg-slate-100'
+              }`}
+              title={isSoundEnabled ? 'サウンドON（クリックでミュート）' : 'サウンドOFF（クリックでON）'}
+            >
+              {isSoundEnabled ? (
+                <Volume2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-algo-blue" />
+              ) : (
+                <VolumeX className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400" />
+              )}
+              <span>サウンド {isSoundEnabled ? 'ON' : 'OFF'}</span>
             </button>
 
             <button
