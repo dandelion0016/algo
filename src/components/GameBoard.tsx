@@ -30,6 +30,7 @@ import {
   CpuAttackResultData,
 } from './CpuAttackModal';
 import { HintModal } from './HintModal';
+import { LethalCutIn } from './LethalCutIn';
 import { getBestHint, HintResult } from '../lib/hintAdvisor';
 import { useUserSession } from '../hooks/useUserSession';
 import { auditLogger } from '../lib/auditLogger';
@@ -227,6 +228,26 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     });
   }, []);
 
+  // リーサル（決着ヒット）ダイナミックK.O.演出ステート (Issue #73)
+  const [isLethalCutInActive, setIsLethalCutInActive] = useState(false);
+  const [isScreenShaking, setIsScreenShaking] = useState(false);
+  const [lethalWinnerName, setLethalWinnerName] = useState<string>('');
+
+  const triggerLethalKo = useCallback((winnerName: string) => {
+    setIsScreenShaking(true);
+    setLethalWinnerName(winnerName);
+    setIsLethalCutInActive(true);
+
+    // 画面揺れは 550ms で収束
+    setTimeout(() => {
+      setIsScreenShaking(false);
+    }, 550);
+  }, []);
+
+  const handleLethalCutInComplete = useCallback(() => {
+    setIsLethalCutInActive(false);
+  }, []);
+
   // 推理結果確認モーダル用状態と非同期リゾルバ (CPU & プレイヤー)
   const [attackResult, setAttackResult] = useState<AttackResultData | null>(null);
   const attackResolverRef = useRef<(() => void) | null>(null);
@@ -322,6 +343,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       setIsManualPaused(false);
       setTimeUpBanner(null);
       setIsResultModalOpen(true);
+      setIsLethalCutInActive(false);
+      setIsScreenShaking(false);
       setHintCount(3);
       setActiveHint(null);
       setIsHintModalOpen(false);
@@ -612,6 +635,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
       const activePlayers = updatedPlayers.filter((p) => !p.isEliminated);
       const isGameOver = activePlayers.length === 1;
+
+      // 決着時（リーサルヒット）のダイナミックK.O.演出発動 (Issue #73)
+      if (isGameOver) {
+        triggerLethalKo(humanPlayer?.name || 'あなた');
+      }
 
       // 盤面の被弾カードを即座に開示しログを追記
       setGameState((prev) => ({
@@ -1073,6 +1101,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
           const activePlayers = currentPlayers.filter((p) => !p.isEliminated);
           if (activePlayers.length === 1) {
+            triggerLethalKo(currentCpu.name);
             await waitForCpuAttackOk({
               attackerName: currentCpu.name,
               targetPlayerName: targetPlayer.name,
@@ -1461,7 +1490,12 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const isHintDisabled = !isHumanTurn || hintCount <= 0;
 
   return (
-    <div className="max-w-7xl mx-auto px-1.5 sm:px-4 lg:px-6 py-1 sm:py-3 lg:py-4 h-[100dvh] max-h-[100dvh] lg:h-auto lg:max-h-none flex flex-col justify-between overflow-hidden lg:overflow-visible lg:space-y-4">
+    <div
+      data-testid="board-outer-container"
+      className={`max-w-7xl mx-auto px-1.5 sm:px-4 lg:px-6 py-1 sm:py-3 lg:py-4 h-[100dvh] max-h-[100dvh] lg:h-auto lg:max-h-none flex flex-col justify-between overflow-hidden lg:overflow-visible lg:space-y-4 ${
+        isScreenShaking ? 'animate-shake' : ''
+      }`}
+    >
       {/* Top Header */}
       <header className="bg-white border border-slate-200 rounded-xl sm:rounded-3xl shadow-sm overflow-hidden shrink-0">
         <div className="w-full h-1 sm:h-3.5 algo-diamond-pattern border-b border-slate-100" />
@@ -2197,6 +2231,13 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           handleSelectTargetCard(targetPlayerId, cardIndex);
         }}
         isTimedMatch={isTimedMatch}
+      />
+
+      {/* リーサル（決着ヒット）ダイナミックK.O.演出 (Issue #73) */}
+      <LethalCutIn
+        isActive={isLethalCutInActive}
+        winnerName={lethalWinnerName}
+        onComplete={handleLethalCutInComplete}
       />
     </div>
   );

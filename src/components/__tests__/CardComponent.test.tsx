@@ -244,4 +244,90 @@ describe('CardComponent (Issue #43: failed-guesses-badge)', () => {
       expect(container.querySelector('[data-testid="reveal-badge"]')).toBeNull();
     });
   });
+
+  describe('Issue #73: カードめくり3Dフリップアニメーション ＆ シャイン光彩エフェクト', () => {
+    const hiddenCard: PublicCard = {
+      id: 'b-hidden-73',
+      color: 'black',
+      number: null,
+      isOpen: false,
+    };
+
+    const openCard: PublicCard = {
+      id: 'w-5-73',
+      color: 'white',
+      number: 5,
+      isOpen: true,
+    };
+
+    it('カード外枠コンテナに 3D パースペクティブクラス（perspective-1000）が付与されている', () => {
+      const { container } = render(
+        <CardComponent
+          card={hiddenCard}
+          isOwner={false}
+        />
+      );
+
+      const cardElement = container.querySelector('[data-testid="card-element"]');
+      expect(cardElement).not.toBeNull();
+      expect(cardElement?.className).toContain('perspective-1000');
+    });
+
+    it('オープンされたカード（isOpen: true）の場合、animate-card-flip が適用され card-shimmer 要素が描画される', () => {
+      const { container } = render(
+        <CardComponent
+          card={openCard}
+          isOwner={false}
+        />
+      );
+
+      const cardEl = container.querySelector('[data-testid="card-white-5"]');
+      expect(cardEl).not.toBeNull();
+      expect(cardEl?.className).toContain('animate-card-flip');
+      expect(cardEl?.className).toContain('preserve-3d');
+
+      const shimmerEl = container.querySelector('[data-testid="card-shimmer"]');
+      expect(shimmerEl).not.toBeNull();
+      expect(shimmerEl?.className).toContain('animate-card-shimmer');
+      expect(shimmerEl?.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    it('答え合わせ開示カード（isRevealed: true）の場合も、animate-card-flip と card-shimmer が適用される', () => {
+      const secretCard = {
+        id: 'b-9-secret',
+        color: 'black' as const,
+        number: 9,
+        isOpen: false,
+      };
+
+      const { container } = render(
+        <CardComponent
+          card={secretCard}
+          isOwner={false}
+          isRevealed={true}
+        />
+      );
+
+      const cardEl = container.querySelector('[data-testid="card-black-9"]');
+      expect(cardEl?.className).toContain('animate-card-flip');
+
+      const shimmerEl = container.querySelector('[data-testid="card-shimmer"]');
+      expect(shimmerEl).not.toBeNull();
+    });
+
+    it('相手の伏せカード（isOpen: false, isRevealed: false）の場合、animate-card-flip は適用されず card-shimmer も描画されない', () => {
+      const { container } = render(
+        <CardComponent
+          card={hiddenCard}
+          isOwner={false}
+        />
+      );
+
+      const cardEl = container.querySelector('[data-testid="card-black-hidden"]');
+      expect(cardEl?.className).not.toContain('animate-card-flip');
+
+      const shimmerEl = container.querySelector('[data-testid="card-shimmer"]');
+      expect(shimmerEl).toBeNull();
+    });
+  });
 });
