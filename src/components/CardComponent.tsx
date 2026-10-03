@@ -13,7 +13,7 @@ interface CardComponentProps {
   isRevealed?: boolean; // ゲーム終了時などの答え合わせ開示フラグ (Issue #60)
   isNewlyInserted?: boolean; // CPUが手札に挿入した直後のカードハイライト (Issue #66)
   onClick?: () => void;
-  size?: 'xs' | 'sm' | 'md' | 'lg';
+  size?: '2xs' | 'xs' | 'sm' | 'md' | 'lg';
   label?: string;
   candidateHint?: string; // 候補数字範囲ヒント (Issue #42)
   failedGuesses?: number[]; // 過去に外れた数字リスト (Issue #43)
@@ -41,6 +41,7 @@ export const CardComponent: React.FC<CardComponentProps> = ({
 
   // サイズクラス
   const sizeClasses = {
+    '2xs': 'w-7 h-10 sm:w-8 sm:h-12 lg:w-9 lg:h-14 text-[10px] sm:text-xs font-bold rounded-md',
     xs: 'w-8 h-12 sm:w-9 sm:h-14 text-xs font-bold rounded-md',
     sm: 'w-10 h-16 sm:w-12 sm:h-20 text-sm sm:text-base font-bold rounded-lg',
     md: 'w-14 h-22 sm:w-16 sm:h-26 md:w-20 md:h-30 text-lg sm:text-xl md:text-2xl font-black rounded-xl',
@@ -85,7 +86,11 @@ export const CardComponent: React.FC<CardComponentProps> = ({
         <span
           data-testid="card-label"
           className={`${
-            size === 'xs' ? 'text-[9px] sm:text-[10px]' : 'text-[10px] sm:text-xs'
+            size === '2xs'
+              ? 'text-[8px] sm:text-[9px]'
+              : size === 'xs'
+              ? 'text-[9px] sm:text-[10px]'
+              : 'text-[10px] sm:text-xs'
           } text-slate-500 font-semibold leading-none`}
         >
           {label}
@@ -132,7 +137,9 @@ export const CardComponent: React.FC<CardComponentProps> = ({
           <div
             data-testid="newly-inserted-badge"
             className={`absolute z-20 flex items-center justify-center rounded-full bg-amber-400 text-slate-950 font-black shadow-md border border-amber-300 animate-pulse ${
-              size === 'xs'
+              size === '2xs'
+                ? '-top-1.5 -left-1 text-[6.5px] px-0.5 py-0.2'
+                : size === 'xs'
                 ? '-top-2 -left-1 text-[7px] px-1 py-0.2'
                 : '-top-2.5 -left-1.5 text-[9px] px-1.5 py-0.5'
             }`}
@@ -145,7 +152,9 @@ export const CardComponent: React.FC<CardComponentProps> = ({
           <div
             data-testid="hint-target-badge"
             className={`absolute z-20 flex items-center justify-center rounded-full bg-amber-400 text-slate-950 font-black shadow-md border border-amber-300 animate-bounce ${
-              size === 'xs'
+              size === '2xs'
+                ? '-top-1.5 -right-1 text-[6.5px] px-0.5 py-0.2'
+                : size === 'xs'
                 ? '-top-2 -right-1 text-[7px] px-1 py-0.2'
                 : '-top-2.5 -right-2 text-[9px] px-1.5 py-0.5'
             }`}
@@ -158,7 +167,11 @@ export const CardComponent: React.FC<CardComponentProps> = ({
         {/* 左上の色識別丸インジケータ */}
         <div
           className={`absolute rounded-full border ${
-            size === 'xs' ? 'top-1 left-1 w-1.5 h-1.5' : 'top-1.5 left-1.5 w-2 h-2'
+            size === '2xs'
+              ? 'top-0.5 left-0.5 w-1.5 h-1.5 sm:top-1 sm:left-1'
+              : size === 'xs'
+              ? 'top-1 left-1 w-1.5 h-1.5'
+              : 'top-1.5 left-1.5 w-2 h-2'
           } ${
             isBlack
               ? 'bg-zinc-700 border-zinc-500'
@@ -169,7 +182,11 @@ export const CardComponent: React.FC<CardComponentProps> = ({
         {/* 右上の小さな装飾 */}
         <div
           className={`absolute font-bold opacity-60 ${
-            size === 'xs' ? 'top-0.5 right-1 text-[7px]' : 'top-1.5 right-1.5 text-[8px]'
+            size === '2xs'
+              ? 'top-0.5 right-0.5 text-[6px] sm:text-[7px]'
+              : size === 'xs'
+              ? 'top-0.5 right-1 text-[7px]'
+              : 'top-1.5 right-1.5 text-[8px]'
           } ${
             isBlack ? 'text-zinc-400' : 'text-slate-400'
           }`}
@@ -181,11 +198,17 @@ export const CardComponent: React.FC<CardComponentProps> = ({
         <div className="flex items-center justify-center">
           {showNumber ? (
             <div className="flex flex-col items-center justify-center">
-              <span className="tracking-tight">{card.number}</span>
+              <span className={`tracking-tight ${size === '2xs' ? 'text-xs sm:text-sm font-black' : ''}`}>
+                {card.number}
+              </span>
               {isSecretToOpponent && (
                 <span
                   className={`${
-                    size === 'xs' ? 'text-[7px] px-0.5' : 'text-[8px] sm:text-[9px] px-1'
+                    size === '2xs'
+                      ? 'text-[6px] sm:text-[7px] px-0.5'
+                      : size === 'xs'
+                      ? 'text-[7px] px-0.5'
+                      : 'text-[8px] sm:text-[9px] px-1'
                   } py-0.2 rounded bg-amber-400/20 text-amber-600 font-medium tracking-tight`}
                 >
                   伏せ中
@@ -195,7 +218,11 @@ export const CardComponent: React.FC<CardComponentProps> = ({
           ) : (
             <span
               className={`text-slate-400 font-serif ${
-                size === 'xs' ? 'text-sm font-semibold' : 'text-xl sm:text-2xl font-normal'
+                size === '2xs'
+                  ? 'text-xs sm:text-sm font-semibold'
+                  : size === 'xs'
+                  ? 'text-sm font-semibold'
+                  : 'text-xl sm:text-2xl font-normal'
               } opacity-70`}
             >
               ?
@@ -207,7 +234,9 @@ export const CardComponent: React.FC<CardComponentProps> = ({
         {card.isOpen && (
           <div
             className={`absolute font-bold border ${
-              size === 'xs'
+              size === '2xs'
+                ? 'bottom-0.5 right-0.5 text-[5.5px] sm:text-[6px] px-0.5 border-emerald-500/10'
+                : size === 'xs'
                 ? 'bottom-0.5 right-0.5 text-[6px] px-0.5 border-emerald-500/10'
                 : 'bottom-1 right-1 text-[8px] px-1 border-emerald-500/20'
             } bg-emerald-500/15 text-emerald-600 rounded`}
@@ -221,7 +250,9 @@ export const CardComponent: React.FC<CardComponentProps> = ({
           <div
             data-testid="reveal-badge"
             className={`absolute font-bold border ${
-              size === 'xs'
+              size === '2xs'
+                ? 'bottom-0.5 right-0.5 text-[5.5px] sm:text-[6px] px-0.5 border-amber-500/20'
+                : size === 'xs'
                 ? 'bottom-0.5 right-0.5 text-[6px] px-0.5 border-amber-500/20'
                 : 'bottom-1 right-1 text-[8px] px-1 border-amber-500/30'
             } bg-amber-500/20 text-amber-700 rounded`}
@@ -235,10 +266,12 @@ export const CardComponent: React.FC<CardComponentProps> = ({
       {failedGuesses && failedGuesses.length > 0 && !showNumber && (
         <div
           data-testid="failed-guesses-badge"
-          className={`px-1.5 py-0.5 rounded-full font-black tracking-tight border shadow-2xs whitespace-nowrap text-center max-w-[48px] truncate leading-none ${
-            size === 'xs'
-              ? 'text-[7px] sm:text-[8px] bg-rose-50 text-rose-700 border-rose-300'
-              : 'text-[9px] sm:text-[10px] bg-rose-50 text-rose-700 border-rose-300'
+          className={`rounded-full font-black tracking-tight border shadow-2xs whitespace-nowrap text-center truncate leading-none ${
+            size === '2xs'
+              ? 'px-1 py-0.2 max-w-[36px] text-[7px] bg-rose-50 text-rose-700 border-rose-300'
+              : size === 'xs'
+              ? 'px-1.5 py-0.5 max-w-[48px] text-[7px] sm:text-[8px] bg-rose-50 text-rose-700 border-rose-300'
+              : 'px-1.5 py-0.5 max-w-[48px] text-[9px] sm:text-[10px] bg-rose-50 text-rose-700 border-rose-300'
           }`}
           title={getFailedNumbersTooltip(failedGuesses)}
         >
@@ -246,18 +279,29 @@ export const CardComponent: React.FC<CardComponentProps> = ({
         </div>
       )}
 
-      {/* 推理候補範囲バッジ (Issue #42) */}
+      {/* 推理候補範囲バッジ (Issue #42, Issue #117: 4人対戦時の横幅超過折り返し防止) */}
       {candidateHint && !showNumber && (
         <div
           data-testid="candidate-range-badge"
-          className={`px-1.5 py-0.5 rounded-full font-bold tracking-tight border shadow-2xs whitespace-nowrap text-center ${
-            size === 'xs'
-              ? 'text-[7px] sm:text-[8px] bg-amber-50 text-amber-800 border-amber-300'
-              : 'text-[9px] sm:text-[10px] bg-amber-50 text-amber-800 border-amber-300'
+          className={`rounded-full font-bold tracking-tight border shadow-2xs whitespace-nowrap text-center ${
+            size === '2xs'
+              ? 'px-1 py-0.2 text-[7px] sm:text-[8px] bg-amber-50 text-amber-800 border-amber-300'
+              : size === 'xs'
+              ? 'px-1.5 py-0.5 text-[7px] sm:text-[8px] bg-amber-50 text-amber-800 border-amber-300'
+              : 'px-1.5 py-0.5 text-[9px] sm:text-[10px] bg-amber-50 text-amber-800 border-amber-300'
           }`}
           title={`候補数字: ${candidateHint}`}
         >
-          {candidateHint.startsWith('候補:') ? candidateHint : `候補: ${candidateHint}`}
+          {size === '2xs' ? (
+            <>
+              <span className="hidden sm:inline">候補: </span>
+              <span>{candidateHint.replace(/^候補:\s*/, '')}</span>
+            </>
+          ) : candidateHint.startsWith('候補:') ? (
+            candidateHint
+          ) : (
+            `候補: ${candidateHint}`
+          )}
         </div>
       )}
     </div>

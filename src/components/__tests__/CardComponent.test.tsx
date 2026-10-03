@@ -397,4 +397,93 @@ describe('CardComponent (Issue #43: failed-guesses-badge)', () => {
       expect(wrapper?.className).toContain('gap-0.5');
     });
   });
+
+  describe('Issue #117: 4人対戦スマホ表示向け 2xs コンパクトカード＆バッジ最適化', () => {
+    const hiddenCard: PublicCard = {
+      id: 'b-hidden-4p',
+      color: 'black',
+      number: null,
+      isOpen: false,
+    };
+
+    const openCard: PublicCard = {
+      id: 'w-7-4p',
+      color: 'white',
+      number: 7,
+      isOpen: true,
+    };
+
+    it('size="2xs" の場合、w-7 h-10 などのコンパクトサイズクラスが適用されること', () => {
+      const { container } = render(
+        <CardComponent
+          card={hiddenCard}
+          isOwner={false}
+          size="2xs"
+          label="#2"
+        />
+      );
+
+      const cardEl = container.querySelector('[data-testid="card-black-hidden"]');
+      expect(cardEl).not.toBeNull();
+      expect(cardEl?.className).toContain('w-7');
+      expect(cardEl?.className).toContain('h-10');
+      expect(cardEl?.className).toContain('sm:w-8');
+      expect(cardEl?.className).toContain('sm:h-12');
+
+      const labelEl = container.querySelector('[data-testid="card-label"]');
+      expect(labelEl?.className).toContain('text-[8px]');
+    });
+
+    it('size="2xs" かつ candidateHint がある場合、コンパクトなパディングとフォントで描画されること', () => {
+      const { container } = render(
+        <CardComponent
+          card={hiddenCard}
+          isOwner={false}
+          size="2xs"
+          candidateHint="3〜6"
+        />
+      );
+
+      const badge = container.querySelector('[data-testid="candidate-range-badge"]');
+      expect(badge).not.toBeNull();
+      expect(badge?.className).toContain('text-[7px]');
+      expect(badge?.className).toContain('px-1');
+      expect(badge?.className).toContain('py-0.2');
+      expect(badge?.textContent).toContain('3〜6');
+      expect(badge?.getAttribute('title')).toBe('候補数字: 3〜6');
+    });
+
+    it('size="2xs" かつ failedGuesses がある場合、max-w-[36px] のコンパクトスタイルが適用されること', () => {
+      const { container } = render(
+        <CardComponent
+          card={hiddenCard}
+          isOwner={false}
+          size="2xs"
+          failedGuesses={[3, 5]}
+        />
+      );
+
+      const badge = container.querySelector('[data-testid="failed-guesses-badge"]');
+      expect(badge).not.toBeNull();
+      expect(badge?.className).toContain('max-w-[36px]');
+      expect(badge?.className).toContain('text-[7px]');
+      expect(badge?.className).toContain('px-1');
+      expect(badge?.className).toContain('py-0.2');
+    });
+
+    it('size="2xs" のオープンカードで数字が適切に表示されること', () => {
+      const { container } = render(
+        <CardComponent
+          card={openCard}
+          isOwner={false}
+          size="2xs"
+        />
+      );
+
+      const cardEl = container.querySelector('[data-testid="card-white-7"]');
+      expect(cardEl).not.toBeNull();
+      expect(cardEl?.textContent).toContain('7');
+      expect(cardEl?.textContent).toContain('OPEN');
+    });
+  });
 });

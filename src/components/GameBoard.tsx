@@ -2258,7 +2258,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                   data-testid={`player-hand-${opp.id}`}
                   className={`bg-white rounded-xl sm:rounded-2xl lg:rounded-3xl border transition-all relative ${
                     opponents.length >= 3
-                      ? 'min-w-[125px] flex-1 sm:min-w-0 shrink-0 sm:shrink p-1.5 sm:p-2.5 lg:p-3'
+                      ? 'min-w-[115px] flex-1 sm:min-w-0 shrink-0 sm:shrink p-1.5 sm:p-2.5 lg:p-3'
                       : 'p-2 sm:p-3 lg:p-4'
                   } ${
                     opp.isEliminated
@@ -2269,32 +2269,39 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1 sm:mb-2">
-                    <div className="flex items-center gap-1.5 sm:gap-2">
+                    <div className="flex items-center gap-1 sm:gap-2">
                       <div
-                        className={`w-5 h-5 sm:w-7 sm:h-7 rounded-lg sm:rounded-xl bg-gradient-to-br ${opp.avatarColor} text-white flex items-center justify-center font-bold text-xs shadow-2xs`}
+                        className={`w-5 h-5 sm:w-7 sm:h-7 rounded-lg sm:rounded-xl bg-gradient-to-br ${opp.avatarColor} text-white flex items-center justify-center font-bold text-xs shadow-2xs shrink-0`}
                       >
                         <Bot className="w-3 h-3 sm:w-4 sm:h-4" />
                       </div>
-                      <div>
-                        <span className="font-black text-[11px] sm:text-xs text-slate-900 block leading-tight">{opp.name}</span>
-                        <span className="text-[9px] sm:text-[10px] text-slate-400 font-semibold">
+                      <div className="min-w-0">
+                        <span className="font-black text-[10px] sm:text-xs text-slate-900 block leading-tight truncate">{opp.name}</span>
+                        <span className="text-[8.5px] sm:text-[10px] text-slate-400 font-semibold block leading-none">
                           ({openCount}/{opp.cards.length} 枚OPEN)
                         </span>
                       </div>
                     </div>
 
                     {opp.isEliminated ? (
-                      <span className="text-[9px] sm:text-[10px] px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-rose-100 text-rose-700 font-bold">
+                      <span className="text-[8px] sm:text-[10px] px-1 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-rose-100 text-rose-700 font-bold shrink-0">
                         脱落
                       </span>
                     ) : isCurrentTurn ? (
-                      <span className="text-[9px] sm:text-[10px] px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-algo-blue text-white font-bold animate-pulse">
+                      <span className="text-[8px] sm:text-[10px] px-1 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-algo-blue text-white font-bold animate-pulse shrink-0">
                         思考中
                       </span>
                     ) : null}
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-2 pt-1 sm:pt-1.5 pb-0.5 sm:pb-1 min-h-12 sm:min-h-20 lg:min-h-24">
+                  <div
+                    data-testid={`cards-container-${opp.id}`}
+                    className={`items-center pt-1 sm:pt-1.5 pb-0.5 sm:pb-1 min-h-12 sm:min-h-20 lg:min-h-24 ${
+                      opponents.length >= 3
+                        ? 'flex flex-nowrap overflow-x-auto no-scrollbar justify-center gap-0.5 sm:gap-1.5 max-w-full'
+                        : 'flex flex-wrap items-center justify-center gap-1 sm:gap-2'
+                    }`}
+                  >
                     {opp.cards.map((card, idx) => {
                       const candidateHint =
                         !isGameOver && isAssistEnabled && !card.isOpen && !opp.isEliminated
@@ -2326,7 +2333,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                           card={isGameOver ? card : maskCardForPlayer(card, false)}
                           isOwner={false}
                           isRevealed={isGameOver}
-                          size={opponents.length === 1 ? 'sm' : 'xs'}
+                          size={opponents.length >= 3 ? '2xs' : opponents.length === 2 ? 'xs' : 'sm'}
                           label={`#${idx + 1}`}
                           testId={`opponent-card-${idx}`}
                           candidateHint={candidateHint}
