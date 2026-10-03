@@ -89,34 +89,34 @@ export const SetupModal: React.FC<SetupModalProps> = ({
   const { players: rosterPlayers, deckCount } = getPlayerRoster(playerCount);
 
   return (
-    <div className="w-full max-w-lg sm:max-w-2xl mx-auto bg-white rounded-2xl sm:rounded-3xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div className="w-full max-w-lg sm:max-w-2xl mx-auto bg-white rounded-2xl sm:rounded-3xl shadow-xl border border-slate-200 overflow-hidden flex flex-col max-h-full my-auto animate-in fade-in zoom-in-95 duration-200">
       {/* Hero Banner Header (New realistic algo banner) */}
-      <div className="relative w-full h-22 sm:h-44 lg:h-52 bg-slate-100 overflow-hidden border-b border-slate-200 shrink-0">
+      <div className="relative w-full h-18 sm:h-40 lg:h-48 bg-slate-100 overflow-hidden border-b border-slate-200 shrink-0">
         <img
           src="/hero-banner.jpg"
           alt="algo game banner"
           className="w-full h-full object-cover object-center"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-white/95 via-white/25 to-transparent flex items-end p-2.5 sm:p-5 lg:p-6">
-          <div className="flex items-center gap-2.5 sm:gap-3 w-full">
-            <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl overflow-hidden shadow-md border-2 border-white bg-white shrink-0">
+        <div className="absolute inset-0 bg-gradient-to-t from-white/95 via-white/25 to-transparent flex items-end p-2 sm:p-5 lg:p-6">
+          <div className="flex items-center gap-2 sm:gap-3 w-full">
+            <div className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl overflow-hidden shadow-md border-2 border-white bg-white shrink-0">
               <img src="/app-icon.jpg" alt="algo icon" className="w-full h-full object-cover" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                <h2 className="text-base sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-1.5">
-                  algo <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-algo-blue text-white font-bold">Web対戦</span> <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 font-bold">{getAppVersion()}</span>
+              <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                <h2 className="text-sm sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-1 sm:gap-1.5">
+                  algo <span className="text-[9px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full bg-algo-blue text-white font-bold">Web対戦</span> <span className="text-[9px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 font-bold">{getAppVersion()}</span>
                 </h2>
                 {/* ユーザーIDバッジ */}
                 <div
                   data-testid="user-id-badge"
-                  className="bg-sky-50 border border-sky-200 text-sky-800 text-[10px] sm:text-xs font-mono px-2 py-0.5 rounded-full inline-flex items-center gap-1 shadow-2xs"
+                  className="bg-sky-50 border border-sky-200 text-sky-800 text-[9px] sm:text-xs font-mono px-1.5 sm:px-2 py-0.5 rounded-full inline-flex items-center gap-1 shadow-2xs"
                 >
-                  <span className="text-xs">👤</span>
+                  <span className="text-[10px] sm:text-xs">👤</span>
                   <span>{`ゲストID: ${displayUserId}`}</span>
                 </div>
               </div>
-              <p className="mt-0.5 text-[10px] sm:text-xs text-slate-600 font-medium truncate sm:whitespace-normal">
+              <p className="mt-0.5 text-[9px] sm:text-xs text-slate-600 font-medium truncate sm:whitespace-normal">
                 白と黒の数字を推理する、東大数学科・ピーターフランクル氏考案の頭脳派ゲーム
               </p>
             </div>
@@ -124,8 +124,8 @@ export const SetupModal: React.FC<SetupModalProps> = ({
         </div>
       </div>
 
-      {/* Settings Form */}
-      <div className="p-3 sm:p-6 space-y-2 sm:space-y-4">
+      {/* Settings Form - scrollable if viewport is tiny */}
+      <div className="p-2.5 sm:p-6 space-y-2 sm:space-y-4 overflow-y-auto overscroll-contain flex-1">
         {/* 1. 対戦人数選択 (2〜4人) */}
         <div className="space-y-1.5 sm:space-y-2">
           <div className="flex items-center justify-between">

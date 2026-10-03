@@ -92,9 +92,13 @@ test.describe('アルゴ（algo）Web対戦システム E2E シナリオ検証',
     await expect(attackModal).toBeVisible();
     await page.screenshot({ path: 'e2e/screenshots/05-attack-modal-opened.png' });
 
-    // 5. 推理数字（利用可能な最初の数字ボタン）を選択
-    const guessBtn = page.locator('[data-testid^="btn-guess-num-"]').first();
-    await guessBtn.click();
+    // 5. 推理数字（候補外でない利用可能な数字ボタン）を選択
+    const validGuessBtn = page.locator('[data-testid^="btn-guess-num-"]:not([data-candidate-out="true"])').first();
+    if (await validGuessBtn.isVisible()) {
+      await validGuessBtn.click();
+    } else {
+      await page.locator('[data-testid^="btn-guess-num-"]').first().click();
+    }
 
     // 6. アタック実行
     const confirmAttackBtn = page.locator('[data-testid="btn-confirm-attack"]');
