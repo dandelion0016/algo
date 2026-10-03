@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { PlayerCount, Difficulty, TimeLimit } from '../types/game';
-import { Users, Brain, Timer, BookOpen, ArrowRight, Sparkles, GraduationCap } from 'lucide-react';
+import { Users, Brain, Timer, BookOpen, ArrowRight, Sparkles, GraduationCap, Trophy } from 'lucide-react';
 import { useUserSession } from '../hooks/useUserSession';
 import { getAppVersion } from '../lib/version';
 
@@ -16,6 +16,7 @@ export interface SetupModalProps {
   onStartGame: () => void;
   onOpenRules: () => void;
   onOpenTutorial?: () => void;
+  onOpenStats?: () => void;
   userId?: string;
 }
 
@@ -80,6 +81,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({
   onStartGame,
   onOpenRules,
   onOpenTutorial,
+  onOpenStats,
   userId: propUserId,
 }) => {
   const session = useUserSession();
@@ -327,6 +329,18 @@ export const SetupModal: React.FC<SetupModalProps> = ({
               >
                 <GraduationCap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-algo-blue shrink-0" />
                 <span>チュートリアル</span>
+              </button>
+            )}
+
+            {onOpenStats && (
+              <button
+                type="button"
+                data-testid="btn-setup-stats"
+                onClick={onOpenStats}
+                className="py-2 sm:py-3 px-2 sm:px-3.5 rounded-xl sm:rounded-2xl border border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 font-bold text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-1.5 transition-all shadow-2xs whitespace-nowrap"
+              >
+                <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600 shrink-0" />
+                <span>戦績・実績</span>
               </button>
             )}
           </div>
