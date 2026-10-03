@@ -7,18 +7,21 @@ GitHub Actions と **AWS IAM OIDC（OpenID Connect）キーレス認証** を採
 
 ## 1. CI/CD 基本方針 ＆ ブランチ戦略
 
-1. **GitHub Flow 準拠**:
+1. **GitHub Flow ＆ ブランチ命名プレフィックス規約**:
    - `main` ブランチへの直接コミット・直接プッシュは厳禁。
-   - 機能追加・修正はトピックブランチ（`feature/*`, `fix/*`, `docs/*`）からPull Requestを作成して実施。
+   - トピックブランチは `feature/*`, `fix/*`, `chore/*` の3種類に限定し、それ以外は機械的ガード（Git Hook & CI）で禁止。
+     - **`feature/*`**: 機能追加。**ADR起票必須** (`docs/adr/`)、**設計書同時更新必須** (`docs/design/`)。
+     - **`fix/*`**: 軽微な修正。ADR不要。設計変更を伴わない内部バグ修正は `[skip-doc-sync]` 許容。
+     - **`chore/*`**: ガバナンス・CI/CD・依存更新・環境整備。ADR不要。必要に応じて設計書更新。
 2. **ゼロクレデンシャル（AWS OIDC）**:
    - 長期アクセスキー（AWS Access Key / Secret Key）をリポジトリSecretsに一切保存しない。
    - GitHub Actions実行時のみ、OIDCトークンによって最小権限IAMロールを引き受ける。
 3. **テスト完全性・骨抜き防止の機械的強制 (Test Integrity)**:
    - コミット前およびCI実行時に `npm run test:integrity`（`scripts/verify-test-integrity.js`）を実行。
    - 既存テストの改ざん、ダミー検証（`expect(true).toBe(true)`）、無効化（`.skip`）を機械的に検知・ブロック。
-4. **ドキュメント整合性・アトミック更新の機械的強制 (Doc Integrity)**:
+4. **ドキュメント整合性・アトミック更新の機械的強制 (Doc Integrity & Diff Guard)**:
    - コミット前およびCI実行時に `npm run test:doc-integrity`（`scripts/verify-doc-integrity.js`）を実行。
-   - UIコンポーネント、コアモジュール、監査イベント、永続化キーの設計書追従漏れ（Documentation Drift）を機械的に検知・ブロック。
+   - CIにて `src/` 変更時の `docs/` 同期ガード（Atomic Doc-Code Diff Guard）を実行し、未同期PRを機械的にブロック（`[skip-doc-sync]` 例外対応）。
 5. **実機E2E ＆ スナップショットギャラリー自動検証**:
    - Playwright による主要対戦シナリオ（セットアップ、ドロー、アタック、決着）の自動E2E検証。
    - 実行時の実機画面スナップショットをアーティファクト保存し、PRコメントへ画像付きエビデンスを自動投稿。
@@ -35,7 +38,10 @@ GitHub Actions と **AWS IAM OIDC（OpenID Connect）キーレス認証** を採
 ```mermaid
 flowchart TD
     subgraph PullRequest["Pull Request イベント (CI: ci.yml)"]
-        PR["PR作成 / 更新コミットPush"] --> Step1["1. Lint & Format<br>(ESLint / Prettier)"]
+        PR["PR作成 / 更新コミットPush"] --> Step0a["0a. Branch Naming Guard<br>(feature/fix/chore 検査)"]
+        Step0a --> Step0b["0b. ADR Requirement Guard<br>(featureブランチ ADR必須検査)"]
+        Step0b --> Step0c["0c. Atomic Doc Diff Guard<br>(src/変更時 docs/同期検査)"]
+        Step0c --> Step1["1. Lint & Format<br>(ESLint / Prettier)"]
         Step1 --> Step2["2. TypeCheck<br>(tsc --noEmit)"]
         Step2 --> Step3["3. Test Integrity Verification<br>(npm run test:integrity)"]
         Step3 --> Step3b["3b. Doc Integrity Verification<br>(npm run test:doc-integrity)"]
@@ -64,6 +70,9 @@ flowchart TD
 
 | ステージ名 | トリガー | 主な実行内容 | 使用コマンド / アクション | 失敗時の挙動 |
 | :--- | :--- | :--- | :--- | :--- |
+| **Branch Naming Guard** | PR | ブランチ名プレフィックス規約（`feature/*`, `fix/*`, `chore/*`）検証 | シェル検証スクリプト | PRマージをブロック |
+| **ADR Requirement Guard** | PR (featureブランチ) | `feature/*` ブランチにおける `docs/adr/` 新規/更新ADRの存在検証 | `git diff origin/main...HEAD` | PRマージをブロック |
+| **Atomic Doc Diff Guard** | PR | `src/` コード変更時の `docs/` 同期検証（`[skip-doc-sync]` 対応） | `git diff origin/main...HEAD` | PRマージをブロック |
 | **Lint & Format** | PR / Push | ソースコード構文・フォーマット検証 | `npm run lint` | PRマージをブロック |
 | **TypeCheck** | PR / Push | TypeScript型の厳格チェック | `npx tsc --noEmit` | PRマージをブロック |
 | **Test Integrity** | PR / Push | テスト改ざん・骨抜き防止自動監査 | `npm run test:integrity` | PRマージをブロック |
@@ -83,6 +92,37 @@ flowchart TD
 ## 4. GitHub Actions ワークフロー定義
 
 ### 4.1 CI ワークフロー (`.github/workflows/ci.yml` 抜粋)
+- **ブランチ命名規約・ADR起票・Doc差分同期ガード**:
+  ```yaml
+  - name: Branch Naming Guard
+    if: github.event_name == 'pull_request'
+    run: |
+      case "${{ github.head_ref }}" in
+        feature/*|fix/*|chore/*) echo "✅ Compliant" ;;
+        *) echo "❌ Invalid branch name"; exit 1 ;;
+      esac
+
+  - name: ADR Requirement Guard (feature branches)
+    if: github.event_name == 'pull_request'
+    run: |
+      if [[ "${{ github.head_ref }}" =~ ^feature/ ]]; then
+        ADR_CHANGES=$(git diff --name-only origin/main...HEAD | grep '^docs/adr/' || true)
+        if [ -z "${ADR_CHANGES}" ]; then
+          echo "❌ featureブランチには docs/adr/ へのADR起票が必須です"; exit 1
+        fi
+      fi
+
+  - name: Atomic Doc-Code Diff Guard
+    if: github.event_name == 'pull_request'
+    run: |
+      SRC_CHANGES=$(git diff --name-only origin/main...HEAD | grep '^src/' || true)
+      DOCS_CHANGES=$(git diff --name-only origin/main...HEAD | grep '^docs/' || true)
+      if [ -n "${SRC_CHANGES}" ] && [ -z "${DOCS_CHANGES}" ]; then
+        if ! echo "${PR_BODY} ${COMMIT_LOGS}" | grep -Fq "[skip-doc-sync]"; then
+          echo "❌ src/ にコード変更がありますが、docs/ 配下の設計書更新が含まれていません"; exit 1
+        fi
+      fi
+  ```
 - **テスト完全性・ドキュメント整合性監査の組み込み**:
   ```yaml
   - name: Run Test Integrity Verification

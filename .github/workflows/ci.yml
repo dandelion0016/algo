@@ -16,6 +16,63 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Branch Naming Guard
+        if: github.event_name == 'pull_request'
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          echo "Checking branch name: ${BRANCH_NAME}"
+          case "${BRANCH_NAME}" in
+            feature/*|fix/*|chore/*)
+              echo "✅ Branch name '${BRANCH_NAME}' complies with branch convention."
+              ;;
+            *)
+              echo "❌ [Branch Naming Guard] ブランチ名 '${BRANCH_NAME}' は規約違反です。"
+              echo "💡 トピックブランチは feature/*, fix/*, chore/* のいずれかで開始してください。"
+              exit 1
+              ;;
+          esac
+
+      - name: ADR Requirement Guard (feature branches)
+        if: github.event_name == 'pull_request'
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          if [[ "${BRANCH_NAME}" =~ ^feature/ ]]; then
+            echo "Checking mandatory ADR in docs/adr/ for feature branch..."
+            ADR_CHANGES=$(git diff --name-only origin/main...HEAD | grep '^docs/adr/' || true)
+            if [ -z "${ADR_CHANGES}" ]; then
+              echo "❌ featureブランチには docs/adr/ へのADR起票が必須です"
+              exit 1
+            else
+              echo "✅ ADR changes detected:"
+              echo "${ADR_CHANGES}"
+            fi
+          else
+            echo "⏩ Skip ADR check for non-feature branch (${BRANCH_NAME})"
+          fi
+
+      - name: Atomic Doc-Code Diff Guard
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          SRC_CHANGES=$(git diff --name-only origin/main...HEAD | grep '^src/' || true)
+          DOCS_CHANGES=$(git diff --name-only origin/main...HEAD | grep '^docs/' || true)
+
+          if [ -n "${SRC_CHANGES}" ] && [ -z "${DOCS_CHANGES}" ]; then
+            COMMIT_LOGS=$(git log origin/main...HEAD --format=%B)
+            if echo "${PR_BODY} ${COMMIT_LOGS}" | grep -Fq "[skip-doc-sync]"; then
+              echo "⚠️ [skip-doc-sync] が指定されているため、docs同期チェックをスキップします。"
+            else
+              echo "❌ src/ にコード変更がありますが、docs/ 配下の設計書更新が含まれていません。設計書を同一PR内で更新してください"
+              echo "💡 軽微なバグ修正で設計変更を伴わない場合は、PR本文またはコミットメッセージに [skip-doc-sync] を付与してください。"
+              exit 1
+            fi
+          else
+            echo "✅ Doc-Code diff guard passed (SRC: $(echo "${SRC_CHANGES}" | grep -c '^src/' || true), DOCS: $(echo "${DOCS_CHANGES}" | grep -c '^docs/' || true))."
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -83,6 +140,9 @@ jobs:
 
             | 検証領域 | テスト種別 | ステータス | 備考 |
             | :--- | :--- | :---: | :--- |
+            | **ブランチ規約** | Branch Naming Guard (feature/fix/chore) | ✅ PASS | 命名規則準拠 |
+            | **ADR起票検証** | ADR Requirement Guard (featureのみ必須) | ✅ PASS | docs/adr/ 整合性確認 |
+            | **ドキュメント差分** | Doc-Code Diff Guard ([skip-doc-sync]対応) | ✅ PASS | src/変更とdocs/同期整合 |
             | **コード品質** | ESLint / Formatter | ✅ PASS | コーディング規約準拠 |
             | **型安全性** | TypeScript TypeCheck | ✅ PASS | 型エラー 0件 |
             | **テスト完全性** | Test Integrity (改ざん・骨抜き防止) | ✅ PASS | スキップ・ダミー検証 0件 |
