@@ -5,6 +5,7 @@ import {
   compareCards,
   sortCards,
   insertCardInOrder,
+  insertCardInOrderWithIndex,
   getInitialCardCount,
   setupGamePlayers,
   isAllOpen,
@@ -205,6 +206,40 @@ describe('algoEngine', () => {
       const result = insertCardInOrder(baseHand, newCard);
 
       expect(result.map((c) => c.id)).toEqual(['b-2', 'b-4', 'w-4', 'b-7']);
+    });
+  });
+
+  describe('insertCardInOrderWithIndex (Issue #66)', () => {
+    const baseHand: Card[] = [
+      { id: 'b-2', color: 'black', number: 2, isOpen: false },
+      { id: 'w-4', color: 'white', number: 4, isOpen: false },
+      { id: 'b-7', color: 'black', number: 7, isOpen: false },
+    ];
+
+    it('returns insertedIndex 0 when card is placed at the beginning', () => {
+      const newCard: Card = { id: 'b-0', color: 'black', number: 0, isOpen: false };
+      const { newHand, insertedIndex } = insertCardInOrderWithIndex(baseHand, newCard);
+
+      expect(insertedIndex).toBe(0);
+      expect(newHand[0].id).toBe('b-0');
+      expect(newHand).toHaveLength(4);
+    });
+
+    it('returns insertedIndex at the end when card is placed last', () => {
+      const newCard: Card = { id: 'w-10', color: 'white', number: 10, isOpen: false };
+      const { newHand, insertedIndex } = insertCardInOrderWithIndex(baseHand, newCard);
+
+      expect(insertedIndex).toBe(3);
+      expect(newHand[3].id).toBe('w-10');
+    });
+
+    it('returns correct insertedIndex when card is placed in the middle', () => {
+      const newCard: Card = { id: 'b-5', color: 'black', number: 5, isOpen: false };
+      const { newHand, insertedIndex } = insertCardInOrderWithIndex(baseHand, newCard);
+
+      expect(insertedIndex).toBe(2);
+      expect(newHand[2].id).toBe('b-5');
+      expect(newHand.map((c) => c.id)).toEqual(['b-2', 'w-4', 'b-5', 'b-7']);
     });
   });
 

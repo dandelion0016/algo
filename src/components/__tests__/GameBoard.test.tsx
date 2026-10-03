@@ -9,6 +9,7 @@ import {
   TIME_UP_MESSAGE,
   TIME_UP_AUTO_DRAW_MESSAGE,
   TIME_UP_NO_DECK_MESSAGE,
+  ELIMINATION_MESSAGE,
   getKnownNumbersForColor,
 } from '../GameBoard';
 import { render, screen, act, fireEvent } from '@testing-library/react';
@@ -17,6 +18,8 @@ import { createDeck, setupGamePlayers, insertCardInOrder, isAllOpen, getNextActi
 import { getNextActionMessage } from '../CpuAttackModal';
 import { Card, GameState, AttackLog, Player } from '../../types/game';
 import { getAuditLogs, clearAuditLogs, auditLogger } from '../../lib/auditLogger';
+import { soundManager } from '../../lib/soundManager';
+import { haptics } from '../../lib/haptics';
 
 // useUserSession フックのモック化
 vi.mock('../../hooks/useUserSession', () => ({
@@ -1261,6 +1264,7 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(html).toMatch(/data-testid="btn-open-rules"[^>]*whitespace-nowrap[^>]*shrink-0/);
       expect(html).toMatch(/data-testid="btn-restart-game"[^>]*whitespace-nowrap[^>]*shrink-0/);
       expect(html).toMatch(/data-testid="btn-open-settings"[^>]*whitespace-nowrap[^>]*shrink-0/);
+      expect(html).toMatch(/data-testid="btn-sound-toggle"[^>]*whitespace-nowrap[^>]*shrink-0/);
       expect(html).toMatch(/data-testid="btn-toggle-log"[^>]*whitespace-nowrap[^>]*shrink-0/);
     });
 
@@ -3226,6 +3230,628 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(savedStats.totalWins).toBe(1);
       expect(savedStats.winRate).toBe(100);
       expect(savedStats.byDifficulty.normal.wins).toBe(1);
+    });
+  });
+
+  describe('Sound Effects & Mobile Haptics Integration (Issue #63, #71)', () => {
+    beforeEach(() => {
+      localStorage.clear();
+      soundManager.resetContextForTesting();
+      soundManager.setSoundEnabled(true);
+      vi.clearAllMocks();
+    });
+
+    it('ヘッダーにサウンドON/OFFボタンが表示され、クリックでトグルおよびlocalStorage永続化される', () => {
+      const mockInitialState: GameState = {
+        playerCount: 2,
+        difficulty: 'NORMAL',
+        timeLimit: 0,
+        remainingTime: 0,
+        deck: [],
+        players: [
+          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false },
+          { id: 'p2', name: 'CPU 1', isHuman: false, cards: [], isEliminated: false },
+        ],
+        activePlayerIndex: 0,
+        drawnCard: null,
+        phase: 'PLAYER_TURN_START',
+        selectedTarget: null,
+        logs: [],
+        winner: null,
+      };
+
+      render(<GameBoard initialState={mockInitialState} />);
+
+      const soundBtn = screen.getByTestId('btn-sound-toggle');
+      expect(soundBtn).toBeInTheDocument();
+      expect(soundBtn.textContent).toContain('サウンド ON');
+      expect(soundManager.isSoundEnabled()).toBe(true);
+
+      // クリックしてミュートにトグル
+      fireEvent.click(soundBtn);
+      expect(soundBtn.textContent).toContain('サウンド OFF');
+      expect(soundManager.isSoundEnabled()).toBe(false);
+      expect(localStorage.getItem('algo_sound_enabled')).toBe('false');
+
+      // 再度クリックしてONに戻す
+      fireEvent.click(soundBtn);
+      expect(soundBtn.textContent).toContain('サウンド ON');
+      expect(soundManager.isSoundEnabled()).toBe(true);
+      expect(localStorage.getItem('algo_sound_enabled')).toBe('true');
+    });
+
+    it('プレイヤーが山札からドローした際に playDrawSound と vibrateLight が呼び出される', () => {
+      const playDrawSoundSpy = vi.spyOn(soundManager, 'playDrawSound');
+      const vibrateLightSpy = vi.spyOn(haptics, 'vibrateLight');
+
+      const mockInitialState: GameState = {
+        playerCount: 2,
+        difficulty: 'NORMAL',
+        timeLimit: 0,
+        remainingTime: 0,
+        deck: [{ id: 'card-1', color: 'black', number: 5, isOpen: false }],
+        players: [
+          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false },
+          { id: 'p2', name: 'CPU 1', isHuman: false, cards: [], isEliminated: false },
+        ],
+        activePlayerIndex: 0,
+        drawnCard: null,
+        phase: 'PLAYER_TURN_START',
+        selectedTarget: null,
+        logs: [],
+        winner: null,
+      };
+
+      render(<GameBoard initialState={mockInitialState} />);
+
+      const drawBtn = screen.getByTestId('btn-draw-card');
+      fireEvent.click(drawBtn);
+
+      expect(playDrawSoundSpy).toHaveBeenCalledTimes(1);
+      expect(vibrateLightSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('プレイヤーの推理的中時に playAttackSound, playHitSound, vibrateSuccess が呼び出される', async () => {
+      const playAttackSoundSpy = vi.spyOn(soundManager, 'playAttackSound');
+      const playHitSoundSpy = vi.spyOn(soundManager, 'playHitSound');
+      const vibrateSuccessSpy = vi.spyOn(haptics, 'vibrateSuccess');
+
+      const mockInitialState: GameState = {
+        playerCount: 2,
+        difficulty: 'NORMAL',
+        timeLimit: 0,
+        remainingTime: 0,
+        deck: [],
+        players: [
+          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false },
+          {
+            id: 'p2',
+            name: 'CPU 1',
+            isHuman: false,
+            cards: [{ id: 'c-target', color: 'black', number: 7, isOpen: false }],
+            isEliminated: false,
+          },
+        ],
+        activePlayerIndex: 0,
+        drawnCard: { id: 'c-drawn', color: 'white', number: 2, isOpen: false },
+        phase: 'PLAYER_GUESS_NUMBER',
+        selectedTarget: { playerId: 'p2', cardIndex: 0 },
+        logs: [],
+        winner: null,
+      };
+
+      render(<GameBoard initialState={mockInitialState} />);
+
+      // 数字7を選択して推理確定
+      const numButton = screen.getByTestId('btn-guess-num-7');
+      fireEvent.click(numButton);
+      const confirmButton = screen.getByTestId('btn-confirm-attack');
+      await act(async () => {
+        fireEvent.click(confirmButton);
+      });
+
+      expect(playAttackSoundSpy).toHaveBeenCalledTimes(1);
+      expect(playHitSoundSpy).toHaveBeenCalledTimes(1);
+      expect(vibrateSuccessSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('プレイヤーの推理ハズレ時に playAttackSound, playMissSound, vibrateFailure が呼び出される', async () => {
+      const playAttackSoundSpy = vi.spyOn(soundManager, 'playAttackSound');
+      const playMissSoundSpy = vi.spyOn(soundManager, 'playMissSound');
+      const vibrateFailureSpy = vi.spyOn(haptics, 'vibrateFailure');
+
+      const mockInitialState: GameState = {
+        playerCount: 2,
+        difficulty: 'NORMAL',
+        timeLimit: 0,
+        remainingTime: 0,
+        deck: [],
+        players: [
+          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false },
+          {
+            id: 'p2',
+            name: 'CPU 1',
+            isHuman: false,
+            cards: [{ id: 'c-target', color: 'black', number: 7, isOpen: false }],
+            isEliminated: false,
+          },
+        ],
+        activePlayerIndex: 0,
+        drawnCard: { id: 'c-drawn', color: 'white', number: 2, isOpen: false },
+        phase: 'PLAYER_GUESS_NUMBER',
+        selectedTarget: { playerId: 'p2', cardIndex: 0 },
+        logs: [],
+        winner: null,
+      };
+
+      render(<GameBoard initialState={mockInitialState} />);
+
+      // 数字3を選択してハズレ
+      const numButton = screen.getByTestId('btn-guess-num-3');
+      fireEvent.click(numButton);
+      const confirmButton = screen.getByTestId('btn-confirm-attack');
+      await act(async () => {
+        fireEvent.click(confirmButton);
+      });
+
+      expect(playAttackSoundSpy).toHaveBeenCalledTimes(1);
+      expect(playMissSoundSpy).toHaveBeenCalledTimes(1);
+      expect(vibrateFailureSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('タイマーの残り時間5秒以下で playTimeWarningSound と vibrateWarning が呼び出される', () => {
+      vi.useFakeTimers();
+      const warningSoundSpy = vi.spyOn(soundManager, 'playTimeWarningSound');
+      const warningHapticsSpy = vi.spyOn(haptics, 'vibrateWarning');
+
+      const mockInitialState: GameState = {
+        playerCount: 2,
+        difficulty: 'NORMAL',
+        timeLimit: 30,
+        remainingTime: 6,
+        deck: [{ id: 'c1', color: 'black', number: 1, isOpen: false }],
+        players: [
+          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false },
+          { id: 'p2', name: 'CPU 1', isHuman: false, cards: [], isEliminated: false },
+        ],
+        activePlayerIndex: 0,
+        drawnCard: null,
+        phase: 'PLAYER_TURN_START',
+        selectedTarget: null,
+        logs: [],
+        winner: null,
+      };
+
+      render(<GameBoard initialState={mockInitialState} />);
+
+      // 1秒進めて残り5秒に到達
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      expect(warningSoundSpy).toHaveBeenCalledTimes(1);
+      expect(warningHapticsSpy).toHaveBeenCalledTimes(1);
+
+      // さらに1秒進めて残り4秒
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      expect(warningSoundSpy).toHaveBeenCalledTimes(2);
+      expect(warningHapticsSpy).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
+    });
+
+    it('ゲームオーバー時に勝者が人間の場合は playVictorySound が再生される', () => {
+      const victorySpy = vi.spyOn(soundManager, 'playVictorySound');
+      const defeatSpy = vi.spyOn(soundManager, 'playDefeatSound');
+
+      const humanPlayer = { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false };
+      const mockInitialState: GameState = {
+        playerCount: 2,
+        difficulty: 'NORMAL',
+        timeLimit: 0,
+        remainingTime: 0,
+        deck: [],
+        players: [
+          humanPlayer,
+          { id: 'p2', name: 'CPU 1', isHuman: false, cards: [], isEliminated: true },
+        ],
+        activePlayerIndex: 0,
+        drawnCard: null,
+        phase: 'GAME_OVER',
+        selectedTarget: null,
+        logs: [],
+        winner: humanPlayer,
+      };
+
+      render(<GameBoard initialState={mockInitialState} />);
+
+      expect(victorySpy).toHaveBeenCalledTimes(1);
+      expect(defeatSpy).not.toHaveBeenCalled();
+    });
+
+    it('ゲームオーバー時に勝者がCPUの場合は playDefeatSound が再生される', () => {
+      const victorySpy = vi.spyOn(soundManager, 'playVictorySound');
+      const defeatSpy = vi.spyOn(soundManager, 'playDefeatSound');
+
+      const cpuPlayer = { id: 'p2', name: 'CPU 1', isHuman: false, cards: [], isEliminated: false };
+      const mockInitialState: GameState = {
+        playerCount: 2,
+        difficulty: 'NORMAL',
+        timeLimit: 0,
+        remainingTime: 0,
+        deck: [],
+        players: [
+          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: true },
+          cpuPlayer,
+        ],
+        activePlayerIndex: 1,
+        drawnCard: null,
+        phase: 'GAME_OVER',
+        selectedTarget: null,
+        logs: [],
+        winner: cpuPlayer,
+      };
+
+      render(<GameBoard initialState={mockInitialState} />);
+
+      expect(defeatSpy).toHaveBeenCalledTimes(1);
+      expect(victorySpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('【Issue #66】相手（CPU）ドローカードの色表示と手札挿入位置ハイライト', () => {
+    const cpuDrawState: Partial<GameState> = {
+      playerCount: 2,
+      difficulty: 'easy',
+      timeLimit: 0,
+      phase: 'CPU_ACTING',
+      activePlayerIndex: 1,
+      players: [
+        {
+          id: 'player',
+          name: 'あなた',
+          isHuman: true,
+          cards: [{ id: 'c1', color: 'black', number: 3, isOpen: false }],
+          isEliminated: false,
+          avatarColor: 'from-blue-500 to-indigo-600',
+        },
+        {
+          id: 'cpu-1',
+          name: 'CPU アル',
+          isHuman: false,
+          cards: [
+            { id: 'c2', color: 'black', number: 2, isOpen: false },
+            { id: 'c3', color: 'white', number: 8, isOpen: false },
+          ],
+          isEliminated: false,
+          avatarColor: 'from-amber-500 to-orange-600',
+        },
+      ],
+      deck: [{ id: 'd2', color: 'white', number: 10, isOpen: false }],
+      drawnCard: { id: 'd1', color: 'black', number: 5, isOpen: false },
+      winner: null,
+      logs: [],
+    };
+
+    it('CPUドロー時に中央エリアに引いたカードの色（黒）とバッジが表示され、数字はマスキング（?）される（Information Hiding）', () => {
+      const { container } = render(<GameBoard initialState={cpuDrawState} />);
+
+      // 中央の引いたカードエリア
+      const drawnArea = screen.getByTestId('drawn-card-area');
+      expect(drawnArea).toBeDefined();
+
+      // CPUドローカードのバッジが表示されること
+      const badge = screen.getByTestId('cpu-drawn-card-badge');
+      expect(badge.textContent).toBe('CPU アル が引いたカード [黒]');
+
+      // Information Hiding: 数字の「5」は画面上に表示されず、「?」として描画されること
+      expect(drawnArea.textContent).toContain('?');
+      expect(drawnArea.textContent).not.toContain('5');
+
+      // カード要素自体の属性やアクセシビリティ表示の確認
+      const drawnCardEl = screen.getByTestId('drawn-card');
+      expect(drawnCardEl.getAttribute('aria-label')).toContain('黒カード');
+      expect(drawnCardEl.getAttribute('aria-label')).toContain('伏せカード');
+      expect(drawnCardEl.getAttribute('aria-label')).not.toContain('5');
+    });
+
+    it('CPUが白カードを引いた場合、バッジに [白] と表示され、数字はマスキングされる', () => {
+      const whiteCardState: Partial<GameState> = {
+        ...cpuDrawState,
+        drawnCard: { id: 'd3', color: 'white', number: 7, isOpen: false },
+      };
+
+      const { container } = render(<GameBoard initialState={whiteCardState} />);
+
+      const badge = screen.getByTestId('cpu-drawn-card-badge');
+      expect(badge.textContent).toBe('CPU アル が引いたカード [白]');
+
+      const drawnArea = screen.getByTestId('drawn-card-area');
+      expect(drawnArea.textContent).toContain('?');
+      expect(drawnArea.textContent).not.toContain('7');
+    });
+
+    it('対戦ログに「CPU {名前} が山札から [{黒/白}] を引き、左から {N} 番目に挿入しました」が記録されること', () => {
+      const stateWithLog: Partial<GameState> = {
+        ...cpuDrawState,
+        phase: 'PLAYER_TURN_START',
+        activePlayerIndex: 0,
+        logs: [
+          {
+            id: 'log-1',
+            attackerId: 'cpu-1',
+            attackerName: 'CPU アル',
+            targetPlayerId: '',
+            targetPlayerName: '',
+            targetCardIndex: 0,
+            targetColor: 'black',
+            guessedNumber: 0,
+            isHit: true,
+            timestamp: Date.now(),
+            message: 'CPU アル が山札から [黒] を引き、左から 2 番目に挿入しました。',
+          },
+        ],
+      };
+
+      render(<GameBoard initialState={stateWithLog} />);
+
+      // デスクトップログエリアに対戦ログが明記されていること
+      const logText = screen.getByText('CPU アル が山札から [黒] を引き、左から 2 番目に挿入しました。');
+      expect(logText).toBeDefined();
+    });
+
+    it('相手の手札に新たに挿入されたカードに NEW! バッジとハイライトが付与されること', () => {
+      const stateForHighlight: Partial<GameState> = {
+        ...cpuDrawState,
+        phase: 'PLAYER_TURN_START',
+        activePlayerIndex: 0,
+      };
+
+      const { container } = render(
+        <GameBoard
+          initialState={stateForHighlight}
+          initialRecentlyInsertedCard={{ playerId: 'cpu-1', cardId: 'c2' }}
+        />
+      );
+
+      // CPUの手札エリアを取得
+      const cpuHand = screen.getByTestId('player-hand-cpu-1');
+      expect(cpuHand).toBeDefined();
+
+      // c2（0番目のカード）に NEW! バッジが表示されていること
+      const newBadge = cpuHand.querySelector('[data-testid="newly-inserted-badge"]');
+      expect(newBadge).not.toBeNull();
+      expect(newBadge?.textContent).toBe('NEW!');
+
+      // c2 のカード要素に data-newly-inserted="true" が付与されていること
+      const insertedCardEl = cpuHand.querySelector('[data-testid="opponent-card-0"]');
+      expect(insertedCardEl?.getAttribute('data-newly-inserted')).toBe('true');
+      expect(insertedCardEl?.className).toContain('ring-amber-400');
+
+      // c3（1番目のカード）には NEW! バッジが付与されていないこと
+      const nonInsertedCardEl = cpuHand.querySelector('[data-testid="opponent-card-1"]');
+      expect(nonInsertedCardEl?.getAttribute('data-newly-inserted')).toBeNull();
+    });
+  });
+
+  describe('3人・4人対戦におけるプレイヤー脱落時通知と観戦モード機能 (Issue #61 要求仕様)', () => {
+    const eliminated3PlayerState: GameState = {
+      playerCount: 3,
+      difficulty: 'normal',
+      timeLimit: 0,
+      remainingTime: 0,
+      deck: [{ id: 'd1', color: 'black', number: 0, isOpen: false }],
+      players: [
+        {
+          id: 'p1',
+          name: 'あなた',
+          isHuman: true,
+          avatarColor: 'from-blue-500 to-indigo-600',
+          isEliminated: true, // 脱落済み
+          cards: [
+            { id: 'c1', color: 'black', number: 1, isOpen: true },
+            { id: 'c2', color: 'white', number: 5, isOpen: true },
+          ],
+        },
+        {
+          id: 'cpu1',
+          name: 'CPU 1',
+          isHuman: false,
+          avatarColor: 'from-purple-500 to-indigo-600',
+          isEliminated: false,
+          cards: [{ id: 'cpu1-c1', color: 'black', number: 3, isOpen: false }],
+        },
+        {
+          id: 'cpu2',
+          name: 'CPU 2',
+          isHuman: false,
+          avatarColor: 'from-emerald-500 to-teal-600',
+          isEliminated: false,
+          cards: [{ id: 'cpu2-c1', color: 'white', number: 8, isOpen: false }],
+        },
+      ],
+      activePlayerIndex: 1,
+      drawnCard: null,
+      phase: 'CPU_ACTING',
+      selectedTarget: null,
+      logs: [],
+      winner: null,
+    };
+
+    it('3人・4人対戦で人間プレイヤー脱落時、脱落通知バナー（💥 手札がすべてオープンされ、脱落しました！観戦モードに移行します）が表示される', () => {
+      render(<GameBoard initialState={eliminated3PlayerState} />);
+
+      const banner = screen.getByTestId('elimination-banner');
+      expect(banner).toBeDefined();
+      expect(banner.textContent).toContain(ELIMINATION_MESSAGE);
+      expect(banner.textContent).toContain('自動観戦: ON');
+      expect(banner.textContent).toContain('決着までスキップ');
+    });
+
+    it('脱落通知バナーの「自動観戦」トグルをクリックすると、ON/OFFが正しく切り替わる', () => {
+      render(<GameBoard initialState={eliminated3PlayerState} />);
+
+      const toggleBtn = screen.getByTestId('banner-toggle-auto-advance');
+      expect(toggleBtn.textContent).toContain('自動観戦: ON');
+
+      // クリックして OFF に切り替え
+      act(() => {
+        fireEvent.click(toggleBtn);
+      });
+      expect(toggleBtn.textContent).toContain('自動観戦: OFF');
+
+      // 再度クリックして ON に切り替え
+      act(() => {
+        fireEvent.click(toggleBtn);
+      });
+      expect(toggleBtn.textContent).toContain('自動観戦: ON');
+    });
+
+    it('脱落通知バナーの閉じるボタン（✕）をクリックすると、バナーが非表示になる', () => {
+      render(<GameBoard initialState={eliminated3PlayerState} />);
+
+      expect(screen.queryByTestId('elimination-banner')).not.toBeNull();
+
+      const closeBtn = screen.getByTestId('close-elimination-banner');
+      act(() => {
+        fireEvent.click(closeBtn);
+      });
+
+      expect(screen.queryByTestId('elimination-banner')).toBeNull();
+    });
+
+    it('人間プレイヤーが生存している場合、脱落通知バナーは表示されない', () => {
+      const activeState: GameState = {
+        ...eliminated3PlayerState,
+        players: eliminated3PlayerState.players.map((p) =>
+          p.isHuman ? { ...p, isEliminated: false } : p
+        ),
+      };
+
+      render(<GameBoard initialState={activeState} />);
+      expect(screen.queryByTestId('elimination-banner')).toBeNull();
+    });
+
+    it('決着時（GAME_OVER）は脱落通知バナーは表示されない', () => {
+      const gameOverState: GameState = {
+        ...eliminated3PlayerState,
+        phase: 'GAME_OVER',
+        winner: eliminated3PlayerState.players[1],
+      };
+
+      render(<GameBoard initialState={gameOverState} />);
+      expect(screen.queryByTestId('elimination-banner')).toBeNull();
+    });
+
+    it('脱落通知バナーの「決着までスキップ」ボタンをクリックすると、スキップ処理が正常に実行される', () => {
+      render(<GameBoard initialState={eliminated3PlayerState} />);
+
+      const skipBtn = screen.getByTestId('banner-skip-to-result');
+      expect(skipBtn).toBeDefined();
+
+      act(() => {
+        fireEvent.click(skipBtn);
+      });
+      // エラーなくスキップ処理が完走すること
+    });
+  });
+
+  describe('残弾デッキトラッカー (Deck Tracker) HUD (Issue #65)', () => {
+    const baseGameState: GameState = {
+      playerCount: 2,
+      difficulty: 'easy',
+      timeLimit: 0,
+      remainingTime: 0,
+      deck: [{ id: 'd-1', color: 'black', number: 8, isOpen: false }],
+      players: [
+        {
+          id: 'p1',
+          name: 'あなた',
+          isHuman: true,
+          avatarColor: 'from-blue-500 to-indigo-600',
+          isEliminated: false,
+          cards: [
+            { id: 'c1', color: 'black', number: 2, isOpen: false },
+            { id: 'c2', color: 'white', number: 5, isOpen: true },
+          ],
+        },
+        {
+          id: 'cpu1',
+          name: 'CPU 1',
+          isHuman: false,
+          avatarColor: 'from-purple-500 to-indigo-600',
+          isEliminated: false,
+          cards: [
+            { id: 'c3', color: 'black', number: 7, isOpen: false },
+            { id: 'c4', color: 'white', number: 10, isOpen: true },
+          ],
+        },
+      ],
+      activePlayerIndex: 0,
+      drawnCard: { id: 'd-drawn', color: 'black', number: 0, isOpen: false },
+      phase: 'PLAYER_SELECT_TARGET',
+      selectedTarget: null,
+      logs: [],
+      winner: null,
+    };
+
+    it('プレイ画面にDeckTrackerが表示され、確定・未確定が反映されること', () => {
+      render(<GameBoard initialState={baseGameState} />);
+
+      // デスクトップのトラッカーが表示されていること
+      const tracker = screen.getByTestId('deck-tracker');
+      expect(tracker).toBeInTheDocument();
+
+      // 確定カード（自分の黒2、自分の白5、相手オープン白10、ドロー黒0）
+      expect(screen.getByTestId('tracker-card-black-2')).toHaveAttribute('data-status', 'confirmed');
+      expect(screen.getByTestId('tracker-card-white-5')).toHaveAttribute('data-status', 'confirmed');
+      expect(screen.getByTestId('tracker-card-white-10')).toHaveAttribute('data-status', 'confirmed');
+      expect(screen.getByTestId('tracker-card-black-0')).toHaveAttribute('data-status', 'confirmed');
+
+      // 相手の伏せカード（黒7）は未確定（remaining）
+      expect(screen.getByTestId('tracker-card-black-7')).toHaveAttribute('data-status', 'remaining');
+
+      // サマリ確認: 確定4枚、残弾20枚
+      const summary = screen.getByTestId('tracker-summary');
+      expect(summary.textContent).toContain('20');
+    });
+
+    it('モバイルトグルボタンをクリックするとモバイルトラッカードロワーが開閉できること', () => {
+      render(<GameBoard initialState={baseGameState} />);
+
+      // 初期状態ではモバイルドロワーは非表示
+      expect(screen.queryByTestId('mobile-tracker-drawer')).not.toBeInTheDocument();
+
+      // トグルボタンをクリックしてドロワーを開く
+      const toggleBtn = screen.getByTestId('btn-toggle-tracker');
+      expect(toggleBtn).toBeInTheDocument();
+      fireEvent.click(toggleBtn);
+
+      // モバイルドロワーが表示されること
+      expect(screen.getByTestId('mobile-tracker-drawer')).toBeInTheDocument();
+
+      // ドロワー内の閉じるボタンをクリック
+      const closeBtn = screen.getByTestId('close-mobile-tracker');
+      fireEvent.click(closeBtn);
+
+      // ドロワーが閉じること
+      expect(screen.queryByTestId('mobile-tracker-drawer')).not.toBeInTheDocument();
+    });
+
+    it('相手伏せカード選択時に候補数字ハイライトが連動すること', () => {
+      const targetState: GameState = {
+        ...baseGameState,
+        phase: 'PLAYER_GUESS_NUMBER',
+        selectedTarget: { playerId: 'cpu1', cardIndex: 0 }, // CPUの黒7（黒の1枚目）
+      };
+
+      render(<GameBoard initialState={targetState} />);
+
+      // 候補連動バッジが表示されること
+      expect(screen.getByTestId('tracker-assist-active')).toBeInTheDocument();
     });
   });
 });
