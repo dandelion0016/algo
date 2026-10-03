@@ -4276,4 +4276,219 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(cards3p[0].className).toContain('w-8');
     });
   });
+
+  describe('【Issue #118】モバイル画面におけるヘッダーアクションボタンのコンパクトメニュー/ドロップダウン化', () => {
+    const baseGameState: Partial<GameState> = {
+      playerCount: 2,
+      difficulty: 'easy',
+      timeLimit: 30,
+      remainingTime: 25,
+      deck: [
+        { id: 'w-8', color: 'white', number: 8, isOpen: false },
+        { id: 'b-9', color: 'black', number: 9, isOpen: false },
+      ],
+      players: [
+        {
+          id: 'player-1',
+          name: 'あなた',
+          isHuman: true,
+          cards: [
+            { id: 'p-1', color: 'black', number: 2, isOpen: false },
+            { id: 'p-2', color: 'white', number: 5, isOpen: false },
+          ],
+          isEliminated: false,
+          avatarColor: 'indigo',
+        },
+        {
+          id: 'cpu1',
+          name: 'アル',
+          isHuman: false,
+          cards: [
+            { id: 'c1-1', color: 'black', number: 1, isOpen: false },
+            { id: 'c1-2', color: 'white', number: 7, isOpen: false },
+          ],
+          isEliminated: false,
+          avatarColor: 'emerald',
+        },
+      ],
+      activePlayerIndex: 0,
+      phase: 'PLAYER_DRAW_CARD',
+      logs: [],
+      winner: null,
+    };
+
+    it('ヘッダーにモバイルメニューボタン（btn-open-mobile-menu）がレンダリングされ、lg:hiddenクラスが付与されていること', () => {
+      render(<GameBoard initialState={baseGameState} />);
+      const menuBtn = screen.getByTestId('btn-open-mobile-menu');
+      expect(menuBtn).toBeInTheDocument();
+      expect(menuBtn.className).toContain('lg:hidden');
+      expect(menuBtn.textContent).toContain('メニュー');
+    });
+
+    it('セカンダリアクションボタン群に hidden lg:flex クラスが付与され、PC専用表示となっていること', () => {
+      const { container } = render(<GameBoard initialState={baseGameState} />);
+      const soundBtn = screen.getByTestId('btn-sound-toggle');
+      const tutorialBtn = screen.getByTestId('btn-header-tutorial');
+      const rulesBtn = screen.getByTestId('btn-open-rules');
+      const statsBtn = screen.getByTestId('btn-open-stats');
+      const restartBtn = screen.getByTestId('btn-restart-game');
+      const settingsBtn = screen.getByTestId('btn-open-settings');
+
+      expect(soundBtn.className).toContain('hidden');
+      expect(soundBtn.className).toContain('lg:flex');
+
+      expect(tutorialBtn.className).toContain('hidden');
+      expect(tutorialBtn.className).toContain('lg:flex');
+
+      expect(rulesBtn.className).toContain('hidden');
+      expect(rulesBtn.className).toContain('lg:flex');
+
+      expect(statsBtn.className).toContain('hidden');
+      expect(statsBtn.className).toContain('lg:flex');
+
+      expect(restartBtn.className).toContain('hidden');
+      expect(restartBtn.className).toContain('lg:flex');
+
+      expect(settingsBtn.className).toContain('hidden');
+      expect(settingsBtn.className).toContain('lg:flex');
+    });
+
+    it('メニューボタンをクリックするとモバイルメニュー（modal-mobile-menu）が開き、閉じるボタンで閉じること', () => {
+      render(<GameBoard initialState={baseGameState} />);
+      expect(screen.queryByTestId('modal-mobile-menu')).not.toBeInTheDocument();
+
+      // メニューを開く
+      const menuBtn = screen.getByTestId('btn-open-mobile-menu');
+      fireEvent.click(menuBtn);
+      expect(screen.getByTestId('modal-mobile-menu')).toBeInTheDocument();
+
+      // 閉じるボタンで閉じる
+      const closeBtn = screen.getByTestId('btn-close-mobile-menu');
+      fireEvent.click(closeBtn);
+      expect(screen.queryByTestId('modal-mobile-menu')).not.toBeInTheDocument();
+    });
+
+    it('Escapeキー押下および背景オーバーレイクリックでモバイルメニューが閉じること', () => {
+      render(<GameBoard initialState={baseGameState} />);
+      const menuBtn = screen.getByTestId('btn-open-mobile-menu');
+
+      // Escapeキーでのクローズ検証
+      fireEvent.click(menuBtn);
+      expect(screen.getByTestId('modal-mobile-menu')).toBeInTheDocument();
+      fireEvent.keyDown(window, { key: 'Escape' });
+      expect(screen.queryByTestId('modal-mobile-menu')).not.toBeInTheDocument();
+
+      // 背景オーバーレイクリックでのクローズ検証
+      fireEvent.click(menuBtn);
+      const modalOverlay = screen.getByTestId('modal-mobile-menu');
+      fireEvent.click(modalOverlay);
+      expect(screen.queryByTestId('modal-mobile-menu')).not.toBeInTheDocument();
+    });
+
+    it('モバイルメニューからサウンドトグルが実行でき、メニューが閉じること', () => {
+      render(<GameBoard initialState={baseGameState} />);
+      const menuBtn = screen.getByTestId('btn-open-mobile-menu');
+      fireEvent.click(menuBtn);
+
+      const soundMenuBtn = screen.getByTestId('mobile-menu-sound-toggle');
+      expect(soundMenuBtn).toBeInTheDocument();
+      expect(soundMenuBtn.textContent).toContain('効果音サウンド');
+
+      fireEvent.click(soundMenuBtn);
+      // メニューが閉じること
+      expect(screen.queryByTestId('modal-mobile-menu')).not.toBeInTheDocument();
+    });
+
+    it('モバイルメニューから戦績・ルール・チュートリアルの各モーダルが開くこと', () => {
+      const { unmount } = render(<GameBoard initialState={baseGameState} />);
+      const menuBtn = screen.getByTestId('btn-open-mobile-menu');
+
+      // 戦績
+      fireEvent.click(menuBtn);
+      const statsMenuBtn = screen.getByTestId('mobile-menu-stats');
+      fireEvent.click(statsMenuBtn);
+      expect(screen.getByTestId('stats-modal')).toBeInTheDocument();
+      expect(screen.queryByTestId('modal-mobile-menu')).not.toBeInTheDocument();
+      unmount();
+
+      // ルール
+      render(<GameBoard initialState={baseGameState} />);
+      const menuBtn2 = screen.getByTestId('btn-open-mobile-menu');
+      fireEvent.click(menuBtn2);
+      const rulesMenuBtn = screen.getByTestId('mobile-menu-rules');
+      fireEvent.click(rulesMenuBtn);
+      expect(screen.getByTestId('rule-guide-modal')).toBeInTheDocument();
+      expect(screen.queryByTestId('modal-mobile-menu')).not.toBeInTheDocument();
+
+      // チュートリアル
+      const menuBtn3 = screen.getByTestId('btn-open-mobile-menu');
+      fireEvent.click(menuBtn3);
+      const tutorialMenuBtn = screen.getByTestId('mobile-menu-tutorial');
+      fireEvent.click(tutorialMenuBtn);
+      expect(screen.getByTestId('tutorial-modal')).toBeInTheDocument();
+      expect(screen.queryByTestId('modal-mobile-menu')).not.toBeInTheDocument();
+    });
+
+    it('対戦進行中にモバイルメニューから「やり直す」「タイトルへ」を押すと確認モーダルが表示されること', () => {
+      const activeState: Partial<GameState> = {
+        ...baseGameState,
+        phase: 'PLAYER_SELECT_TARGET',
+      };
+      const { unmount } = render(<GameBoard initialState={activeState} />);
+      const menuBtn = screen.getByTestId('btn-open-mobile-menu');
+
+      // やり直す
+      fireEvent.click(menuBtn);
+      const restartMenuBtn = screen.getByTestId('mobile-menu-restart');
+      fireEvent.click(restartMenuBtn);
+      expect(screen.getByTestId('modal-confirm')).toBeInTheDocument();
+      expect(screen.getByText('対戦の中断・再戦の確認')).toBeInTheDocument();
+      unmount();
+
+      // タイトルへ戻る
+      render(<GameBoard initialState={activeState} />);
+      const menuBtn2 = screen.getByTestId('btn-open-mobile-menu');
+      fireEvent.click(menuBtn2);
+      const settingsMenuBtn = screen.getByTestId('mobile-menu-settings');
+      fireEvent.click(settingsMenuBtn);
+      expect(screen.getByTestId('modal-confirm')).toBeInTheDocument();
+      expect(screen.getByText('対戦の中断・設定変更の確認')).toBeInTheDocument();
+    });
+
+    it('ゲーム終了時にリザルトモーダルを閉じた場合、モバイルメニューに対戦結果再表示ボタンが表示されること', () => {
+      const gameOverState: Partial<GameState> = {
+        ...baseGameState,
+        winner: {
+          id: 'player-1',
+          name: 'あなた',
+          isHuman: true,
+          cards: [],
+          isEliminated: false,
+          avatarColor: 'indigo',
+        },
+        phase: 'GAME_OVER',
+      };
+      render(<GameBoard initialState={gameOverState} />);
+
+      // リザルトモーダルが表示されていること
+      expect(screen.getByTestId('result-modal')).toBeInTheDocument();
+
+      // Escapeキーでリザルトモーダルを閉じる
+      fireEvent.keyDown(window, { key: 'Escape' });
+      expect(screen.queryByTestId('result-modal')).not.toBeInTheDocument();
+
+      // モバイルメニューを開く
+      const menuBtn = screen.getByTestId('btn-open-mobile-menu');
+      fireEvent.click(menuBtn);
+
+      const reopenBtn = screen.getByTestId('mobile-menu-reopen-result');
+      expect(reopenBtn).toBeInTheDocument();
+      expect(reopenBtn.textContent).toContain('対戦結果を見る');
+
+      // クリックしてリザルトモーダルが再表示されること
+      fireEvent.click(reopenBtn);
+      expect(screen.getByTestId('result-modal')).toBeInTheDocument();
+      expect(screen.queryByTestId('modal-mobile-menu')).not.toBeInTheDocument();
+    });
+  });
 });

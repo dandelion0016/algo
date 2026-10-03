@@ -72,6 +72,7 @@ import {
   Target,
   Eye,
   FastForward,
+  Menu,
 } from 'lucide-react';
 
 /**
@@ -190,6 +191,7 @@ export interface GameBoardProps {
   initialIsRuleModalOpen?: boolean;
   initialIsTutorialOpen?: boolean;
   initialRecentlyInsertedCard?: { playerId: string; cardId: string } | null;
+  initialIsMobileMenuOpen?: boolean;
 }
 
 export const GameBoard: React.FC<GameBoardProps> = ({
@@ -201,6 +203,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   initialIsRuleModalOpen = false,
   initialIsTutorialOpen = false,
   initialRecentlyInsertedCard = null,
+  initialIsMobileMenuOpen = false,
 }) => {
   const { userId } = useUserSession();
 
@@ -258,19 +261,21 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const [timeUpBanner, setTimeUpBanner] = useState<string | null>(initialTimeUpBanner);
   const [isMobileLogOpen, setIsMobileLogOpen] = useState(false);
   const [isMobileTrackerOpen, setIsMobileTrackerOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(initialIsMobileMenuOpen);
 
-  // モバイル残弾トラッカーおよびモバイルログのEscapeキー対応 (Issue #116)
+  // モバイル残弾トラッカー・モバイルログ・モバイルメニューのEscapeキー対応 (Issue #116, #118)
   useEffect(() => {
-    if (!isMobileTrackerOpen && !isMobileLogOpen) return;
+    if (!isMobileTrackerOpen && !isMobileLogOpen && !isMobileMenuOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (isMobileTrackerOpen) setIsMobileTrackerOpen(false);
         if (isMobileLogOpen) setIsMobileLogOpen(false);
+        if (isMobileMenuOpen) setIsMobileMenuOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isMobileTrackerOpen, isMobileLogOpen]);
+  }, [isMobileTrackerOpen, isMobileLogOpen, isMobileMenuOpen]);
   // CPUが手札に挿入した直後のカード追跡用 (Issue #66)
   const [recentlyInsertedCard, setRecentlyInsertedCard] = useState<{
     playerId: string;
@@ -2022,14 +2027,14 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               <span>アシスト {isAssistEnabled ? 'ON' : 'OFF'}</span>
             </button>
 
-            {/* サウンドON/OFFトグルボタン (Issue #63, #71) */}
+            {/* サウンドON/OFFトグルボタン (Issue #63, #71, #118: モバイル時はメニュー内に格納) */}
             <button
               type="button"
               data-testid="btn-sound-toggle"
               onClick={handleToggleSound}
               aria-label={`サウンド効果音: ${isSoundEnabled ? 'ON' : 'OFF'}`}
               aria-pressed={isSoundEnabled}
-              className={`flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0 ${
+              className={`hidden lg:flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0 ${
                 isSoundEnabled
                   ? 'border-algo-blue/40 bg-algo-blue-light/30 text-algo-navy hover:bg-algo-blue-light/50 ring-1 ring-algo-blue/20'
                   : 'border-slate-200 bg-slate-50 text-slate-400 hover:bg-slate-100'
@@ -2047,7 +2052,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             <button
               data-testid="btn-header-tutorial"
               onClick={() => setIsTutorialOpen(true)}
-              className="flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-algo-blue/30 bg-algo-blue-light/30 hover:bg-algo-blue-light/60 text-algo-navy text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0"
+              className="hidden lg:flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-algo-blue/30 bg-algo-blue-light/30 hover:bg-algo-blue-light/60 text-algo-navy text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0"
             >
               <GraduationCap className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-algo-blue" />
               <span>チュートリアル</span>
@@ -2056,7 +2061,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             <button
               data-testid="btn-open-rules"
               onClick={() => setIsRuleModalOpen(true)}
-              className="flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0"
+              className="hidden lg:flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0"
             >
               <BookOpen className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-algo-blue" />
               <span>ルール</span>
@@ -2066,7 +2071,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               type="button"
               data-testid="btn-open-stats"
               onClick={() => setIsStatsModalOpen(true)}
-              className="flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-900 text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0"
+              className="hidden lg:flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-900 text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0"
               title="通算戦績・アチーブメントを表示"
             >
               <Trophy className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600" />
@@ -2076,7 +2081,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             <button
               data-testid="btn-restart-game"
               onClick={handleRequestRestart}
-              className="flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0"
+              className="hidden lg:flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0"
             >
               <RotateCcw className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-600" />
               <span>再戦</span>
@@ -2085,7 +2090,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             <button
               data-testid="btn-open-settings"
               onClick={handleRequestSetup}
-              className="flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0"
+              className="hidden lg:flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0"
             >
               <Settings2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-algo-yellow" />
               <span>設定</span>
@@ -2097,7 +2102,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 type="button"
                 data-testid="btn-reopen-result"
                 onClick={() => setIsResultModalOpen(true)}
-                className="flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-[10px] sm:text-xs font-black transition-all shadow-2xs whitespace-nowrap shrink-0"
+                className="hidden lg:flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-[10px] sm:text-xs font-black transition-all shadow-2xs whitespace-nowrap shrink-0"
               >
                 <Trophy className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-950" />
                 <span>結果を見る</span>
@@ -2134,6 +2139,18 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                   {gameState.logs.length}
                 </span>
               )}
+            </button>
+
+            {/* モバイル専用 「☰ メニュー」ボタン (lg未満で表示) (Issue #118) */}
+            <button
+              type="button"
+              data-testid="btn-open-mobile-menu"
+              onClick={() => setIsMobileMenuOpen(true)}
+              aria-label="メニューを開く"
+              className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-800 text-[10px] sm:text-xs font-bold transition-all shadow-2xs lg:hidden relative whitespace-nowrap shrink-0 active:scale-95"
+            >
+              <Menu className="w-3.5 h-3.5 text-slate-700 shrink-0" />
+              <span>メニュー</span>
             </button>
           </div>
         </div>
@@ -2702,6 +2719,193 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             </div>
             <div className="flex-1 overflow-y-auto">
               <GameLog logs={gameState.logs} players={gameState.players} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Menu Drawer / Bottom Sheet (Issue #118) */}
+      {isMobileMenuOpen && (
+        <div
+          data-testid="modal-mobile-menu"
+          role="dialog"
+          aria-modal="true"
+          aria-label="モバイルメニュー"
+          className="fixed inset-0 z-50 flex flex-col justify-end bg-black/50 backdrop-blur-xs lg:hidden animate-fade-in"
+          onClick={() => setIsMobileMenuOpen(false)}
+        >
+          <div
+            className="bg-white rounded-t-3xl p-4 sm:p-5 shadow-2xl animate-slide-up max-h-[85vh] flex flex-col overscroll-contain"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header: Title and Close Button */}
+            <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Menu className="w-5 h-5 text-algo-navy" />
+                <h3 className="text-base font-black text-slate-800 tracking-tight">メニュー</h3>
+              </div>
+              <button
+                type="button"
+                data-testid="btn-close-mobile-menu"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-colors"
+                aria-label="メニューを閉じる"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Menu Items List */}
+            <div className="space-y-2 py-1 overflow-y-auto">
+              {/* 🔊 サウンド（ミュート/解除トグル、現在の状態表示） */}
+              <button
+                type="button"
+                data-testid="mobile-menu-sound-toggle"
+                onClick={() => {
+                  handleToggleSound();
+                  setIsMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center justify-between p-3 rounded-2xl border text-sm font-bold transition-all text-left ${
+                  isSoundEnabled
+                    ? 'border-algo-blue/30 bg-algo-blue-light/30 text-algo-navy hover:bg-algo-blue-light/50'
+                    : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  {isSoundEnabled ? (
+                    <Volume2 className="w-5 h-5 text-algo-blue shrink-0" />
+                  ) : (
+                    <VolumeX className="w-5 h-5 text-slate-400 shrink-0" />
+                  )}
+                  <div>
+                    <span className="block font-black text-slate-800">効果音サウンド</span>
+                    <span className="text-xs font-medium text-slate-500">
+                      {isSoundEnabled ? '現在: ON (効果音あり)' : '現在: OFF (ミュート中)'}
+                    </span>
+                  </div>
+                </div>
+                <span
+                  className={`px-2.5 py-1 rounded-full text-xs font-black shrink-0 ${
+                    isSoundEnabled
+                      ? 'bg-algo-blue text-white'
+                      : 'bg-slate-200 text-slate-600'
+                  }`}
+                >
+                  {isSoundEnabled ? 'ON' : 'OFF'}
+                </span>
+              </button>
+
+              {/* 🏆 戦績＆アチーブメント */}
+              <button
+                type="button"
+                data-testid="mobile-menu-stats"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setIsStatsModalOpen(true);
+                }}
+                className="w-full flex items-center justify-between p-3 rounded-2xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-900 text-sm font-bold transition-all text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <Trophy className="w-5 h-5 text-amber-600 shrink-0" />
+                  <div>
+                    <span className="block font-black text-amber-950">戦績＆アチーブメント</span>
+                    <span className="text-xs font-medium text-amber-700">通算戦績・勝率・獲得実績</span>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-amber-600 shrink-0">表示 →</span>
+              </button>
+
+              {/* 📖 ルールガイド */}
+              <button
+                type="button"
+                data-testid="mobile-menu-rules"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setIsRuleModalOpen(true);
+                }}
+                className="w-full flex items-center justify-between p-3 rounded-2xl border border-slate-200 hover:bg-slate-50 text-slate-800 text-sm font-bold transition-all text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <BookOpen className="w-5 h-5 text-algo-blue shrink-0" />
+                  <div>
+                    <span className="block font-black text-slate-800">ルールガイド</span>
+                    <span className="text-xs font-medium text-slate-500">基本ルール・カード並び順の確認</span>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-slate-400 shrink-0">表示 →</span>
+              </button>
+
+              {/* 🎓 チュートリアル */}
+              <button
+                type="button"
+                data-testid="mobile-menu-tutorial"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setIsTutorialOpen(true);
+                }}
+                className="w-full flex items-center justify-between p-3 rounded-2xl border border-algo-blue/30 bg-algo-blue-light/20 hover:bg-algo-blue-light/40 text-algo-navy text-sm font-bold transition-all text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <GraduationCap className="w-5 h-5 text-algo-blue shrink-0" />
+                  <div>
+                    <span className="block font-black text-slate-800">チュートリアル</span>
+                    <span className="text-xs font-medium text-slate-500">遊び方のステップバイステップ解説</span>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-algo-blue shrink-0">開く →</span>
+              </button>
+
+              {/* ゲーム終了時の結果再表示 */}
+              {isGameOver && !isResultModalOpen && (
+                <button
+                  type="button"
+                  data-testid="mobile-menu-reopen-result"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    setIsResultModalOpen(true);
+                  }}
+                  className="w-full flex items-center justify-between p-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-sm font-black transition-all text-left shadow-sm"
+                >
+                  <div className="flex items-center gap-3">
+                    <Trophy className="w-5 h-5 text-slate-950 shrink-0" />
+                    <div>
+                      <span className="block font-black">対戦結果を見る</span>
+                      <span className="text-xs font-bold text-amber-950">勝敗とスコアを再確認</span>
+                    </div>
+                  </div>
+                  <span className="text-xs font-black shrink-0">表示 →</span>
+                </button>
+              )}
+
+              <div className="pt-2 border-t border-slate-100 flex gap-2">
+                {/* 🔄 最初からやり直す */}
+                <button
+                  type="button"
+                  data-testid="mobile-menu-restart"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    handleRequestRestart();
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1.5 p-3 rounded-2xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all"
+                >
+                  <RotateCcw className="w-4 h-4 text-slate-500" />
+                  <span>やり直す</span>
+                </button>
+
+                {/* ⚙ タイトル画面へ戻る */}
+                <button
+                  type="button"
+                  data-testid="mobile-menu-settings"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    handleRequestSetup();
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1.5 p-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all"
+                >
+                  <Settings2 className="w-4 h-4 text-algo-yellow" />
+                  <span>タイトルへ</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
