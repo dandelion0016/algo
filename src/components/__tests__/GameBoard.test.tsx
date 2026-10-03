@@ -2464,4 +2464,179 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(currentState.phase).toBe('PLAYER_GUESS_NUMBER');
     });
   });
+
+  describe('Issue #85: handleConfirmGuess の多層防護バリデーション（範囲外・非整数・同色既出数字の拒否）', () => {
+    beforeEach(() => {
+      clearAuditLogs();
+    });
+
+    const baseGameState: GameState = {
+      playerCount: 2,
+      difficulty: 'easy',
+      timeLimit: 30,
+      remainingTime: 30,
+      deck: [{ id: 'd-1', color: 'black', number: 5, isOpen: false }],
+      players: [
+        {
+          id: 'p1',
+          name: 'あなた',
+          isHuman: true,
+          avatarColor: 'from-blue-500 to-indigo-600',
+          isEliminated: false,
+          cards: [
+            { id: 'p-c1', color: 'black', number: 2, isOpen: false },
+            { id: 'p-c2', color: 'white', number: 7, isOpen: false },
+          ],
+        },
+        {
+          id: 'cpu1',
+          name: 'CPU 1',
+          isHuman: false,
+          avatarColor: 'from-purple-500 to-indigo-600',
+          isEliminated: false,
+          cards: [
+            { id: 'cpu-c1', color: 'white', number: 8, isOpen: false },
+            { id: 'cpu-c2', color: 'black', number: 10, isOpen: true },
+          ],
+        },
+      ],
+      activePlayerIndex: 0,
+      drawnCard: { id: 'p-drawn', color: 'black', number: 4, isOpen: false },
+      phase: 'PLAYER_GUESS_NUMBER',
+      selectedTarget: { playerId: 'cpu1', cardIndex: 0 }, // ターゲットは CPU 1 の白カード (インデックス0, 伏せ)
+      logs: [],
+      winner: null,
+    };
+
+    it('負の数値（-1）で handleConfirmGuess を呼び出した場合、即座に拒否され auditLogger.warn が記録されること', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      vi.spyOn(console, 'info').mockImplementation(() => {});
+
+      render(<GameBoard initialState={baseGameState} />);
+
+      await act(async () => {
+        await (window as any).__algoHandleConfirmGuess(-1);
+      });
+
+      // 1. 警告ログが呼ばれ、INVALID_ATTACK_INPUT の監査ログが記録されていること
+      expect(warnSpy).toHaveBeenCalled();
+      const auditLogs = getAuditLogs();
+      const violationLog = auditLogs.find(
+        (l) => l.eventType === 'SECURITY_VIOLATION' && l.payload.message?.includes('INVALID_ATTACK_INPUT')
+      );
+      expect(violationLog).toBeDefined();
+      expect(violationLog?.payload.guessedNumber).toBe(-1);
+
+      // 2. ターゲットカードが開示されず、ログも追加されず、状態が壊れていないこと
+      const currentState = (window as any).__algoGameState as GameState;
+      const targetPlayer = currentState.players.find((p) => p.id === 'cpu1');
+      expect(targetPlayer?.cards[0].isOpen).toBe(false);
+      expect(currentState.logs.length).toBe(0);
+      expect(currentState.phase).toBe('PLAYER_GUESS_NUMBER');
+    });
+
+    it('11を超える数値（12 や 999）で handleConfirmGuess を呼び出した場合、即座に拒否され auditLogger.warn が記録されること', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      vi.spyOn(console, 'info').mockImplementation(() => {});
+
+      render(<GameBoard initialState={baseGameState} />);
+
+      await act(async () => {
+        await (window as any).__algoHandleConfirmGuess(12);
+      });
+
+      expect(warnSpy).toHaveBeenCalled();
+      const auditLogs = getAuditLogs();
+      const violationLog = auditLogs.find(
+        (l) => l.eventType === 'SECURITY_VIOLATION' && l.payload.message?.includes('INVALID_ATTACK_INPUT')
+      );
+      expect(violationLog).toBeDefined();
+      expect(violationLog?.payload.guessedNumber).toBe(12);
+
+      const currentState = (window as any).__algoGameState as GameState;
+      expect(currentState.logs.length).toBe(0);
+      expect(currentState.phase).toBe('PLAYER_GUESS_NUMBER');
+    });
+
+    it('非整数（3.5 や NaN）で handleConfirmGuess を呼び出した場合、即座に拒否され auditLogger.warn が記録されること', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      vi.spyOn(console, 'info').mockImplementation(() => {});
+
+      render(<GameBoard initialState={baseGameState} />);
+
+      await act(async () => {
+        await (window as any).__algoHandleConfirmGuess(3.5);
+      });
+
+      expect(warnSpy).toHaveBeenCalled();
+      const auditLogs = getAuditLogs();
+      const violationLog = auditLogs.find(
+        (l) => l.eventType === 'SECURITY_VIOLATION' && l.payload.message?.includes('INVALID_ATTACK_INPUT')
+      );
+      expect(violationLog).toBeDefined();
+      expect(violationLog?.payload.guessedNumber).toBe(3.5);
+
+      const currentState = (window as any).__algoGameState as GameState;
+      expect(currentState.logs.length).toBe(0);
+    });
+
+    it('ターゲットカードと同色で既に判明している数字（自分の手札にある白の「7」）でアタックした場合、即座に拒否され auditLogger.warn が記録されること', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      vi.spyOn(console, 'info').mockImplementation(() => {});
+
+      render(<GameBoard initialState={baseGameState} />);
+
+      // 白カードに対して自分の手札にある白の「7」を指定
+      await act(async () => {
+        await (window as any).__algoHandleConfirmGuess(7);
+      });
+
+      expect(warnSpy).toHaveBeenCalled();
+      const auditLogs = getAuditLogs();
+      const violationLog = auditLogs.find(
+        (l) =>
+          l.eventType === 'SECURITY_VIOLATION' &&
+          l.payload.message?.includes('already known')
+      );
+      expect(violationLog).toBeDefined();
+      expect(violationLog?.payload.guessedNumber).toBe(7);
+      expect(violationLog?.payload.targetColor).toBe('white');
+
+      // カード開示やログ追加がブロックされること
+      const currentState = (window as any).__algoGameState as GameState;
+      const targetPlayer = currentState.players.find((p) => p.id === 'cpu1');
+      expect(targetPlayer?.cards[0].isOpen).toBe(false);
+      expect(currentState.logs.length).toBe(0);
+      expect(currentState.phase).toBe('PLAYER_GUESS_NUMBER');
+    });
+
+    it('ターゲットカードと同色で場にオープン済みの数字（黒カードターゲット時の黒「10」）でアタックした場合も拒否されること', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      vi.spyOn(console, 'info').mockImplementation(() => {});
+
+      // ターゲットを CPU 1 の黒カード（インデックス1）
+      const blackTargetState: GameState = {
+        ...baseGameState,
+        selectedTarget: { playerId: 'cpu1', cardIndex: 1 },
+      };
+
+      render(<GameBoard initialState={blackTargetState} />);
+
+      // オープン済みの黒10を指定
+      await act(async () => {
+        await (window as any).__algoHandleConfirmGuess(10);
+      });
+
+      expect(warnSpy).toHaveBeenCalled();
+      const auditLogs = getAuditLogs();
+      const violationLog = auditLogs.find(
+        (l) =>
+          l.eventType === 'SECURITY_VIOLATION' &&
+          l.payload.message?.includes('already known')
+      );
+      expect(violationLog).toBeDefined();
+      expect(violationLog?.payload.guessedNumber).toBe(10);
+      expect(violationLog?.payload.targetColor).toBe('black');
+    });
+  });
 });

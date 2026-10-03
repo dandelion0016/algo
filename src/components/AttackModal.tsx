@@ -57,7 +57,7 @@ export const AttackModal: React.FC<AttackModalProps> = ({
       }
 
       if (e.key === 'Enter') {
-        if (selectedNum !== null) {
+        if (selectedNum !== null && !disabledNumbers.includes(selectedNum)) {
           e.preventDefault();
           if (bufferTimerRef.current) {
             clearTimeout(bufferTimerRef.current);
@@ -79,17 +79,44 @@ export const AttackModal: React.FC<AttackModalProps> = ({
 
         setSelectedNum((prev) => {
           if (prev === null) {
-            return 0;
+            // 未選択時は 0 から探索して disabledNumbers に含まれない最初の数字
+            for (let i = 0; i <= 11; i++) {
+              if (!disabledNumbers.includes(i)) {
+                return i;
+              }
+            }
+            return null;
           }
+
           switch (e.key) {
-            case 'ArrowLeft':
-              return Math.max(0, prev - 1);
-            case 'ArrowRight':
-              return Math.min(11, prev + 1);
-            case 'ArrowUp':
-              return prev - 4 >= 0 ? prev - 4 : prev;
-            case 'ArrowDown':
-              return prev + 4 <= 11 ? prev + 4 : prev;
+            case 'ArrowLeft': {
+              let candidate = prev - 1;
+              while (candidate >= 0 && disabledNumbers.includes(candidate)) {
+                candidate--;
+              }
+              return candidate >= 0 ? candidate : prev;
+            }
+            case 'ArrowRight': {
+              let candidate = prev + 1;
+              while (candidate <= 11 && disabledNumbers.includes(candidate)) {
+                candidate++;
+              }
+              return candidate <= 11 ? candidate : prev;
+            }
+            case 'ArrowUp': {
+              let candidate = prev - 4;
+              while (candidate >= 0 && disabledNumbers.includes(candidate)) {
+                candidate -= 4;
+              }
+              return candidate >= 0 ? candidate : prev;
+            }
+            case 'ArrowDown': {
+              let candidate = prev + 4;
+              while (candidate <= 11 && disabledNumbers.includes(candidate)) {
+                candidate += 4;
+              }
+              return candidate <= 11 ? candidate : prev;
+            }
             default:
               return prev;
           }
@@ -117,10 +144,15 @@ export const AttackModal: React.FC<AttackModalProps> = ({
           }
           inputBufferRef.current = '';
           const num = digit === 0 ? 10 : 11;
-          setSelectedNum(num);
+          if (!disabledNumbers.includes(num)) {
+            setSelectedNum(num);
+          }
         } else if (digit === 1) {
-          // '1' が押されたらまず '1' を選択し、600ms の猶予で2桁目入力を待機
-          setSelectedNum(1);
+          // '1' が押された場合、'1' が disabledNumbers でなければ選択
+          if (!disabledNumbers.includes(1)) {
+            setSelectedNum(1);
+          }
+          // 2桁目（10または11）の入力待機バッファリングは有効化（600ms）
           inputBufferRef.current = '1';
           if (bufferTimerRef.current) {
             clearTimeout(bufferTimerRef.current);
@@ -134,7 +166,9 @@ export const AttackModal: React.FC<AttackModalProps> = ({
             clearTimeout(bufferTimerRef.current);
           }
           inputBufferRef.current = '';
-          setSelectedNum(digit);
+          if (!disabledNumbers.includes(digit)) {
+            setSelectedNum(digit);
+          }
         }
       }
     };
@@ -143,7 +177,7 @@ export const AttackModal: React.FC<AttackModalProps> = ({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [selectedNum, onCancel, onConfirmGuess]);
+  }, [selectedNum, onCancel, onConfirmGuess, disabledNumbers]);
 
   return (
     <div

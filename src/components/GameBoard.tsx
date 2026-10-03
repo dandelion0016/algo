@@ -191,10 +191,13 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const [isResultModalOpen, setIsResultModalOpen] = useState(true);
   const [isManualPaused, setIsManualPaused] = useState(false);
 
+  const handleConfirmGuessRef = useRef<(num: number) => Promise<void>>((() => {}) as any);
+
   useEffect(() => {
     if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
       (window as any).__algoGameState = gameState;
       (window as any).__setGameState = setGameState;
+      (window as any).__algoHandleConfirmGuess = (num: number) => handleConfirmGuessRef.current(num);
     }
   }, [gameState]);
   const [cpuStatusMessage, setCpuStatusMessage] = useState<string>('');
@@ -515,6 +518,51 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     }
 
     const targetCard = targetPlayer.cards[cardIndex];
+    if (!targetCard) return;
+
+    // 防御的プログラミング（多層防御）: 入力バリデーション (Issue #85)
+    // 1. guessedNumber が整数かつ 0〜11 の範囲内であること
+    if (
+      typeof guessedNumber !== 'number' ||
+      !Number.isInteger(guessedNumber) ||
+      guessedNumber < 0 ||
+      guessedNumber > 11
+    ) {
+      auditLogger.warn(
+        'INVALID_ATTACK_INPUT: guessedNumber must be an integer between 0 and 11',
+        {
+          attackerId: currentUserId,
+          targetPlayerId: targetPlayer.id,
+          cardIndex,
+          guessedNumber,
+        },
+        currentUserId
+      );
+      return;
+    }
+
+    // 2. ターゲットカードと同色ですでに判明している数字（disabledNumbers相当）ではないこと
+    const knownNumbers = getKnownNumbersForColor(
+      targetCard.color,
+      gameState.players,
+      gameState.drawnCard
+    );
+    if (knownNumbers.includes(guessedNumber)) {
+      auditLogger.warn(
+        'INVALID_ATTACK_INPUT: guessedNumber is already known for target card color',
+        {
+          attackerId: currentUserId,
+          targetPlayerId: targetPlayer.id,
+          cardIndex,
+          targetColor: targetCard.color,
+          guessedNumber,
+          knownNumbers,
+        },
+        currentUserId
+      );
+      return;
+    }
+
     const isHit = checkAttack(targetCard, guessedNumber);
 
     const log: AttackLog = {
@@ -709,6 +757,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       });
     }
   };
+  handleConfirmGuessRef.current = handleConfirmGuess;
 
   // プレイヤーが「続けてアタック」を選択
   const handlePlayerContinue = () => {
