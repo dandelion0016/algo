@@ -1764,7 +1764,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   // 1. セットアップ画面
   if (gameState.phase === 'SETUP') {
     return (
-      <div className="h-[100dvh] max-h-[100dvh] lg:min-h-screen lg:h-auto flex flex-col justify-center items-center p-2 sm:p-4 lg:py-8 overflow-hidden lg:overflow-visible">
+      <div className="min-h-full flex-1 flex flex-col justify-center items-center p-1.5 sm:p-4 lg:py-8 overflow-y-auto lg:overflow-visible overscroll-contain">
         <SetupModal
           playerCount={gameState.playerCount}
           difficulty={gameState.difficulty}
@@ -1826,7 +1826,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   return (
     <div
       data-testid="board-outer-container"
-      className={`max-w-7xl mx-auto px-1.5 sm:px-4 lg:px-6 py-1 sm:py-3 lg:py-4 h-[100dvh] max-h-[100dvh] lg:h-auto lg:max-h-none flex flex-col justify-between overflow-hidden lg:overflow-visible lg:space-y-4 ${
+      className={`w-full max-w-7xl mx-auto px-1.5 sm:px-4 lg:px-6 py-1 sm:py-2.5 lg:py-4 min-h-full flex-1 flex flex-col justify-between overflow-y-auto lg:overflow-visible overscroll-contain gap-1 sm:gap-2.5 lg:gap-4 ${
         isScreenShaking ? 'animate-shake' : ''
       }`}
     >
@@ -2223,7 +2223,15 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         {/* Left 3 cols: Board Field */}
         <div className="flex-1 min-h-0 flex flex-col justify-between gap-1 sm:gap-2.5 lg:col-span-3 lg:space-y-4 lg:justify-normal">
           {/* Opponents Area */}
-          <div className={`grid gap-1 sm:gap-3 ${opponents.length === 1 ? 'grid-cols-1' : opponents.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+          <div
+            className={`gap-1 sm:gap-3 ${
+              opponents.length === 1
+                ? 'grid grid-cols-1'
+                : opponents.length === 2
+                ? 'grid grid-cols-2'
+                : 'flex overflow-x-auto no-scrollbar gap-1.5 sm:grid sm:grid-cols-3'
+            }`}
+          >
             {opponents.map((opp) => {
               const isCurrentTurn = activePlayer?.id === opp.id;
               const openCount = opp.cards.filter((c) => c.isOpen).length;
@@ -2232,7 +2240,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 <div
                   key={opp.id}
                   data-testid={`player-hand-${opp.id}`}
-                  className={`bg-white rounded-xl sm:rounded-2xl lg:rounded-3xl p-1.5 sm:p-3 lg:p-4 border transition-all relative ${
+                  className={`bg-white rounded-xl sm:rounded-2xl lg:rounded-3xl p-1 sm:p-3 lg:p-4 border transition-all relative ${
+                    opponents.length >= 3 ? 'min-w-[125px] flex-1 sm:min-w-0 shrink-0 sm:shrink' : ''
+                  } ${
                     opp.isEliminated
                       ? 'border-slate-200 bg-slate-50/60 opacity-60'
                       : isCurrentTurn
@@ -2524,7 +2534,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           {humanPlayer && (
             <section
               data-testid={`player-hand-${humanPlayer.id}`}
-              className="bg-white rounded-xl sm:rounded-2xl lg:rounded-3xl p-1.5 sm:p-3.5 lg:p-5 border border-slate-200 shadow-sm relative overflow-hidden shrink-0"
+              className="bg-white rounded-xl sm:rounded-2xl lg:rounded-3xl p-1 sm:p-3 lg:p-4 border border-slate-200 shadow-sm relative overflow-hidden shrink-0"
             >
               <div className="flex items-center justify-between mb-0.5 sm:mb-2">
                 <div className="flex items-center gap-1.5 sm:gap-2">

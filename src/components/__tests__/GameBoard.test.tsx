@@ -1217,7 +1217,7 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       },
     ];
 
-    it('盤面全体コンテナに100dvhおよびオーバーフロー防止クラスが付与されている', () => {
+    it('盤面全体コンテナにmin-h-fullおよびスクロール到達性・オーバーフロー制御クラスが付与されている (Issue #103, #110)', () => {
       const html = renderToString(
         <GameBoard
           initialState={{
@@ -1231,11 +1231,10 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
         />
       );
 
-      // モバイルで1画面に収めるためのCSSクラス
-      expect(html).toContain('h-[100dvh]');
-      expect(html).toContain('max-h-[100dvh]');
-      expect(html).toContain('overflow-hidden');
-      expect(html).toContain('lg:h-auto');
+      // モバイルで画面内に収まりつつスクロール到達性を確保するCSSクラス (Issue #103, #110)
+      expect(html).toContain('min-h-full');
+      expect(html).toContain('overflow-y-auto');
+      expect(html).toContain('overscroll-contain');
       expect(html).toContain('lg:overflow-visible');
     });
 
