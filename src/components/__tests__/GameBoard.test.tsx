@@ -1399,6 +1399,7 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
           params.phase === 'SETUP' ||
           params.phase === 'GAME_OVER' ||
           params.phase === 'CPU_ACTING' ||
+          params.phase === 'PLAYER_DECIDE_NEXT' ||
           params.isAttackResultWaiting ||
           params.isTimerPaused
         ) {
@@ -1417,7 +1418,7 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
         })
       ).toBe(false);
 
-      // モーダルが閉じられた後、次の決定フェーズ（PLAYER_DECIDE_NEXT）でタイマーが稼働すること
+      // モーダルが閉じられた後、次の決定フェーズ（PLAYER_DECIDE_NEXT）でもタイマーが停止（猶予）すること (Issue #89)
       expect(
         isTimerRunning({
           timeLimit: 20,
@@ -1425,7 +1426,7 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
           isAttackResultWaiting: false,
           isTimerPaused: false,
         })
-      ).toBe(true);
+      ).toBe(false);
     });
 
     it('プレイヤーのアタック的中時: ターゲット被弾カードが開示され、モーダル待機後にPLAYER_DECIDE_NEXTへ移行すること', () => {
@@ -2637,6 +2638,120 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(violationLog).toBeDefined();
       expect(violationLog?.payload.guessedNumber).toBe(10);
       expect(violationLog?.payload.targetColor).toBe('black');
+    });
+  });
+
+  describe('アタック成功後のタイマーリセット＆決定フェーズ一時停止 (Issue #89)', () => {
+    it('PLAYER_DECIDE_NEXT フェーズ中は時間が経過してもタイマー（remainingTime）がカウントダウンされないこと', () => {
+      vi.useFakeTimers();
+
+      const { container } = render(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_DECIDE_NEXT',
+            timeLimit: 30,
+            remainingTime: 12,
+            activePlayerIndex: 0,
+            players: [
+              {
+                id: 'p1',
+                name: 'あなた',
+                isHuman: true,
+                avatarColor: 'from-blue-500 to-indigo-600',
+                isEliminated: false,
+                cards: [{ id: 'p-1', color: 'black', number: 2, isOpen: false }],
+              },
+              {
+                id: 'cpu1',
+                name: 'CPU 1',
+                isHuman: false,
+                avatarColor: 'from-purple-500 to-indigo-600',
+                isEliminated: false,
+                cards: [{ id: 'c-1', color: 'white', number: 8, isOpen: false }],
+              },
+            ],
+            deck: [],
+          }}
+        />
+      );
+
+      // 初期の残り時間表示
+      expect(container.textContent).toContain('残り 12 秒');
+
+      // 5秒経過させる
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+
+      // PLAYER_DECIDE_NEXT 中はタイマーが減算されず 12秒のままであること
+      expect(container.textContent).toContain('残り 12 秒');
+
+      // さらに10秒経過させてもタイマーは減算されないこと
+      act(() => {
+        vi.advanceTimersByTime(10000);
+      });
+      expect(container.textContent).toContain('残り 12 秒');
+
+      vi.useRealTimers();
+    });
+
+    it('アタック的中後に「続けてアタック」を選択した際、タイマー（remainingTime）が timeLimit に満額リセットされること', () => {
+      vi.useFakeTimers();
+
+      const { container } = render(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_DECIDE_NEXT',
+            timeLimit: 30,
+            remainingTime: 8, // 直前のアタックで消費され残り8秒になっている
+            activePlayerIndex: 0,
+            players: [
+              {
+                id: 'p1',
+                name: 'あなた',
+                isHuman: true,
+                avatarColor: 'from-blue-500 to-indigo-600',
+                isEliminated: false,
+                cards: [{ id: 'p-1', color: 'black', number: 2, isOpen: false }],
+              },
+              {
+                id: 'cpu1',
+                name: 'CPU 1',
+                isHuman: false,
+                avatarColor: 'from-purple-500 to-indigo-600',
+                isEliminated: false,
+                cards: [
+                  { id: 'c-1', color: 'white', number: 8, isOpen: true }, // 1枚的中済み
+                  { id: 'c-2', color: 'black', number: 5, isOpen: false }, // 残り伏せカード
+                ],
+              },
+            ],
+            deck: [],
+          }}
+        />
+      );
+
+      // 決定フェーズでの表示確認
+      expect(container.textContent).toContain('残り 8 秒');
+      const continueBtn = screen.getByTestId('btn-continue-attack');
+      expect(continueBtn).toBeDefined();
+
+      // 「続けてアタック」ボタンをクリック
+      act(() => {
+        fireEvent.click(continueBtn);
+      });
+
+      // phase が PLAYER_SELECT_TARGET に移行し、タイマーが満額（30秒）にリセットされていること
+      expect(container.textContent).toContain('残り 30 秒');
+      expect(container.textContent).toContain('アタック対象を選択');
+
+      // 続けてアタック開始後はタイマーのカウントダウンが再開すること
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(container.textContent).toContain('残り 29 秒');
+
+      vi.useRealTimers();
     });
   });
 });
