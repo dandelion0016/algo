@@ -4623,5 +4623,44 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       const playerHandSection = playerHandHeading.closest('section');
       expect(deckActionBar.nextElementSibling).toBe(playerHandSection);
     });
+
+    it('自分と相手のカードサイズおよび左右スペーサー構造が完全一致し、垂直列位置の揃えと1画面収まりが維持されていること', () => {
+      const state: Partial<GameState> = {
+        playerCount: 4,
+        players: [
+          createTestPlayer('p-1', 'あなた', true, 3),
+          createTestPlayer('cpu-1', 'CPU 1', false, 3),
+          createTestPlayer('cpu-2', 'CPU 2', false, 3),
+          createTestPlayer('cpu-3', 'CPU 3', false, 3),
+        ],
+        activePlayerIndex: 0,
+        phase: 'PLAYER_TURN_START',
+      };
+
+      render(<GameBoard initialState={state} />);
+
+      // 4人対戦時、相手手札コンテナのカードサイズが xs（w-8, h-12）であること
+      const opponentCards = screen.getAllByTestId('opponent-card-0');
+      expect(opponentCards[0].className).toContain('w-8');
+      expect(opponentCards[0].className).toContain('h-12');
+
+      const playerHandHeading = screen.getByText(/の手札/);
+      const playerHandSection = playerHandHeading.closest('section')!;
+      expect(playerHandSection).toBeInTheDocument();
+
+      const humanCardsContainer = playerHandSection.querySelector('[data-testid^="cards-container-"]')!;
+      expect(humanCardsContainer).toBeInTheDocument();
+      // 自手札のカードも xs（w-8, h-12）であること
+      const humanCard = screen.getByTestId('player-card-0');
+      expect(humanCard.className).toContain('w-8');
+      expect(humanCard.className).toContain('h-12');
+
+      // 相手手札コンテナと自分手札コンテナの整列クラスが一致していること
+      const cpu1CardsContainer = screen.getByTestId('cards-container-cpu-1');
+      expect(cpu1CardsContainer.className).toContain('justify-center');
+      expect(humanCardsContainer.className).toContain('justify-center');
+      expect(cpu1CardsContainer.className).toContain('gap-1 sm:gap-2');
+      expect(humanCardsContainer.className).toContain('gap-1 sm:gap-2');
+    });
   });
 });

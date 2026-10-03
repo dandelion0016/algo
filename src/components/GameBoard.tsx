@@ -1835,6 +1835,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   // 2. 対戦盤面
   const activePlayer = gameState.players[gameState.activePlayerIndex];
   const opponents = gameState.players.filter((p) => !p.isHuman);
+  const activeCardSize = opponents.length === 1 ? 'sm' : 'xs';
   const isGameOver = gameState.phase === 'GAME_OVER';
 
   const isHumanTurn = Boolean(
@@ -1847,7 +1848,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   return (
     <div
       data-testid="board-outer-container"
-      className={`w-full max-w-7xl mx-auto px-1.5 sm:px-4 lg:px-6 py-1 sm:py-2.5 lg:py-4 min-h-full flex-1 flex flex-col justify-between overflow-y-auto lg:overflow-visible overscroll-contain gap-1 sm:gap-2.5 lg:gap-4 ${
+      className={`w-full max-w-7xl mx-auto px-1.5 sm:px-4 lg:px-6 py-1 sm:py-2 lg:py-2.5 min-h-full flex-1 flex flex-col justify-between overflow-y-auto lg:overflow-visible overscroll-contain gap-1 sm:gap-2 lg:gap-2.5 ${
         isScreenShaking ? 'animate-shake' : ''
       }`}
     >
@@ -1887,10 +1888,10 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         </div>
       )}
       {/* Top Header */}
-      <header className="bg-white border border-slate-200 rounded-xl sm:rounded-3xl shadow-sm overflow-hidden shrink-0">
-        <div className="w-full h-1 sm:h-3.5 algo-diamond-pattern border-b border-slate-100" />
+      <header className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl shadow-sm overflow-hidden shrink-0">
+        <div className="w-full h-1 sm:h-2 algo-diamond-pattern border-b border-slate-100" />
 
-        <div className="p-1.5 sm:p-3 lg:p-4 flex flex-wrap items-center justify-between gap-1.5 sm:gap-3">
+        <div className="p-1.5 sm:p-2 lg:p-2.5 flex flex-wrap items-center justify-between gap-1.5 sm:gap-2.5">
           <div className="flex items-center gap-1.5 sm:gap-3">
             <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-2xl overflow-hidden shadow-sm border border-slate-200 shrink-0">
               <img src="/app-icon.jpg" alt="algo" className="w-full h-full object-cover" />
@@ -2279,99 +2280,106 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                       : 'border-slate-200 shadow-sm'
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-0.5 sm:mb-1">
-                    <div className="flex items-center gap-1 sm:gap-1.5">
-                      <div
-                        className={`${
-                          opponents.length > 1
-                            ? 'w-4 h-4 sm:w-5 sm:h-5 text-[10px]'
-                            : 'w-5 h-5 sm:w-6 sm:h-6 text-xs'
-                        } rounded-lg bg-gradient-to-br ${opp.avatarColor} text-white flex items-center justify-center font-bold shadow-2xs shrink-0`}
-                      >
-                        <Bot className={opponents.length > 1 ? 'w-2.5 h-2.5 sm:w-3.5 sm:h-3.5' : 'w-3 h-3 sm:w-4 sm:h-4'} />
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-2">
+                    {/* Left: Player Info & Status */}
+                    <div className="flex items-center justify-between sm:justify-start sm:w-36 lg:w-44 shrink-0 gap-1 sm:gap-1.5">
+                      <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
+                        <div
+                          className={`${
+                            opponents.length > 1
+                              ? 'w-4 h-4 sm:w-5 sm:h-5 text-[10px]'
+                              : 'w-5 h-5 sm:w-6 sm:h-6 text-xs'
+                          } rounded-lg bg-gradient-to-br ${opp.avatarColor} text-white flex items-center justify-center font-bold shadow-2xs shrink-0`}
+                        >
+                          <Bot className={opponents.length > 1 ? 'w-2.5 h-2.5 sm:w-3.5 sm:h-3.5' : 'w-3 h-3 sm:w-4 sm:h-4'} />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="font-black text-[10px] sm:text-xs text-slate-900 block leading-tight truncate">{opp.name}</span>
+                          <span className="text-[8px] sm:text-[9.5px] text-slate-400 font-semibold block leading-none">
+                            ({openCount}/{opp.cards.length} 枚OPEN)
+                          </span>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <span className="font-black text-[10px] sm:text-xs text-slate-900 block leading-tight truncate">{opp.name}</span>
-                        <span className="text-[8px] sm:text-[9.5px] text-slate-400 font-semibold block leading-none">
-                          ({openCount}/{opp.cards.length} 枚OPEN)
+
+                      {opp.isEliminated ? (
+                        <span className="text-[8px] sm:text-[10px] px-1 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-rose-100 text-rose-700 font-bold shrink-0">
+                          脱落
                         </span>
-                      </div>
+                      ) : isCurrentTurn ? (
+                        <span className="text-[8px] sm:text-[10px] px-1 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-algo-blue text-white font-bold animate-pulse shrink-0">
+                          思考中
+                        </span>
+                      ) : null}
                     </div>
 
-                    {opp.isEliminated ? (
-                      <span className="text-[8px] sm:text-[10px] px-1 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-rose-100 text-rose-700 font-bold shrink-0">
-                        脱落
-                      </span>
-                    ) : isCurrentTurn ? (
-                      <span className="text-[8px] sm:text-[10px] px-1 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-algo-blue text-white font-bold animate-pulse shrink-0">
-                        思考中
-                      </span>
-                    ) : null}
-                  </div>
+                    {/* Center: Cards */}
+                    <div
+                      data-testid={`cards-container-${opp.id}`}
+                      className="items-center py-0.5 flex flex-nowrap overflow-x-auto no-scrollbar justify-center gap-1 sm:gap-2 min-w-0 flex-1"
+                    >
+                      {opp.cards.map((card, idx) => {
+                        const candidateHint =
+                          !isGameOver && isAssistEnabled && !card.isOpen && !opp.isEliminated
+                            ? formatCandidateRange(
+                                getPossibleNumbersForCard({
+                                  targetIndex: idx,
+                                  targetHand: opp.cards,
+                                  allPlayers: gameState.players,
+                                  drawnCard: gameState.drawnCard,
+                                  logs: gameState.logs,
+                                  targetPlayerId: opp.id,
+                                })
+                              )
+                            : undefined;
 
-                  <div
-                    data-testid={`cards-container-${opp.id}`}
-                    className="items-center pt-0.5 pb-0.5 min-h-10 sm:min-h-12 flex flex-nowrap overflow-x-auto no-scrollbar justify-center gap-1 sm:gap-2 max-w-full"
-                  >
-                    {opp.cards.map((card, idx) => {
-                      const candidateHint =
-                        !isGameOver && isAssistEnabled && !card.isOpen && !opp.isEliminated
-                          ? formatCandidateRange(
-                              getPossibleNumbersForCard({
-                                targetIndex: idx,
-                                targetHand: opp.cards,
-                                allPlayers: gameState.players,
-                                drawnCard: gameState.drawnCard,
-                                logs: gameState.logs,
-                                targetPlayerId: opp.id,
-                              })
-                            )
-                          : undefined;
+                        const failedNumbers = !isGameOver ? getFailedNumbersForCard(gameState.logs, opp.id, idx) : undefined;
+                        const isHintTarget = Boolean(
+                          !isGameOver &&
+                          activeHint &&
+                          activeHint.targetPlayerId === opp.id &&
+                          activeHint.targetCardIndex === idx &&
+                          !card.isOpen &&
+                          !opp.isEliminated
+                        );
 
-                      const failedNumbers = !isGameOver ? getFailedNumbersForCard(gameState.logs, opp.id, idx) : undefined;
-                      const isHintTarget = Boolean(
-                        !isGameOver &&
-                        activeHint &&
-                        activeHint.targetPlayerId === opp.id &&
-                        activeHint.targetCardIndex === idx &&
-                        !card.isOpen &&
-                        !opp.isEliminated
-                      );
+                        return (
+                          <CardComponent
+                            key={card.id}
+                            card={isGameOver ? card : maskCardForPlayer(card, false)}
+                            isOwner={false}
+                            isRevealed={isGameOver}
+                            size={activeCardSize}
+                            label={`#${idx + 1}`}
+                            testId={`opponent-card-${idx}`}
+                            candidateHint={candidateHint}
+                            failedGuesses={failedNumbers}
+                            isEliminated={opp.isEliminated}
+                            isHintTarget={isHintTarget}
+                            isNewlyInserted={
+                              !isGameOver &&
+                              recentlyInsertedCard?.playerId === opp.id &&
+                              recentlyInsertedCard?.cardId === card.id
+                            }
+                            isSelectable={
+                              !isGameOver &&
+                              activePlayer?.isHuman &&
+                              gameState.phase === 'PLAYER_SELECT_TARGET' &&
+                              !opp.isEliminated &&
+                              !card.isOpen
+                            }
+                            isSelected={
+                              !isGameOver &&
+                              gameState.selectedTarget?.playerId === opp.id &&
+                              gameState.selectedTarget?.cardIndex === idx
+                            }
+                            onClick={() => handleSelectTargetCard(opp.id, idx)}
+                          />
+                        );
+                      })}
+                    </div>
 
-                      return (
-                        <CardComponent
-                          key={card.id}
-                          card={isGameOver ? card : maskCardForPlayer(card, false)}
-                          isOwner={false}
-                          isRevealed={isGameOver}
-                          size={opponents.length === 1 ? 'sm' : 'xs'}
-                          label={`#${idx + 1}`}
-                          testId={`opponent-card-${idx}`}
-                          candidateHint={candidateHint}
-                          failedGuesses={failedNumbers}
-                          isEliminated={opp.isEliminated}
-                          isHintTarget={isHintTarget}
-                          isNewlyInserted={
-                            !isGameOver &&
-                            recentlyInsertedCard?.playerId === opp.id &&
-                            recentlyInsertedCard?.cardId === card.id
-                          }
-                          isSelectable={
-                            !isGameOver &&
-                            activePlayer?.isHuman &&
-                            gameState.phase === 'PLAYER_SELECT_TARGET' &&
-                            !opp.isEliminated &&
-                            !card.isOpen
-                          }
-                          isSelected={
-                            !isGameOver &&
-                            gameState.selectedTarget?.playerId === opp.id &&
-                            gameState.selectedTarget?.cardIndex === idx
-                          }
-                          onClick={() => handleSelectTargetCard(opp.id, idx)}
-                        />
-                      );
-                    })}
+                    {/* Right: Dummy spacer for perfect centering on desktop */}
+                    <div className="hidden sm:block shrink-0 sm:w-36 lg:w-44" aria-hidden="true" />
                   </div>
                 </div>
               );
@@ -2390,7 +2398,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           {/* Deck & Action Bar (自手札直上配置・コンパクトバー形式で中央のデッドスペースを解消) */}
           <section
             data-testid="deck-action-bar"
-            className="bg-white rounded-xl sm:rounded-2xl p-1 sm:p-2 lg:p-2 border border-slate-200 shadow-xs flex items-center justify-between gap-1.5 sm:gap-3 shrink-0"
+            className="bg-white rounded-xl sm:rounded-2xl p-1 sm:px-3 sm:py-1.5 border border-slate-200 shadow-xs flex items-center justify-between gap-1.5 sm:gap-3 shrink-0"
           >
             {/* 1. 山札 (Deck Pile) */}
             <div className="flex items-center gap-1 sm:gap-2 shrink-0">
@@ -2412,7 +2420,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     : undefined
                 }
                 onClick={gameState.phase === 'PLAYER_TURN_START' && gameState.deck.length > 0 ? handlePlayerDraw : undefined}
-                className={`relative w-12 h-13 sm:w-16 sm:h-16 lg:w-18 lg:h-16 rounded-lg sm:rounded-xl border flex flex-col items-center justify-center select-none transition-all ${
+                className={`relative w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-14 rounded-lg sm:rounded-xl border flex flex-col items-center justify-center select-none transition-all ${
                   gameState.phase === 'PLAYER_TURN_START' && gameState.deck.length > 0
                     ? 'border-algo-yellow-dark bg-algo-yellow-light/80 shadow-md shadow-amber-200/50 cursor-pointer hover:scale-105 animate-bounce'
                     : 'border-slate-200 bg-slate-50 text-slate-400'
@@ -2573,45 +2581,65 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           {humanPlayer && (
             <section
               data-testid={`player-hand-${humanPlayer.id}`}
-              className="bg-white rounded-xl sm:rounded-2xl lg:rounded-3xl p-1.5 sm:p-2 lg:p-2.5 border border-slate-200 shadow-sm relative overflow-hidden shrink-0"
+              className={`bg-white rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden shrink-0 ${
+                opponents.length >= 3
+                  ? 'p-1.5 sm:p-2.5 lg:p-2 shadow-2xs'
+                  : opponents.length === 2
+                  ? 'p-1.5 sm:p-2.5 lg:p-2.5 shadow-2xs'
+                  : 'p-2 sm:p-3 lg:p-3.5 shadow-xs'
+              }`}
             >
-              <div className="flex items-center justify-between mb-0.5 sm:mb-1">
-                <div className="flex items-center gap-1 sm:gap-2">
-                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-algo-blue text-white flex items-center justify-center font-bold text-xs shadow-2xs">
-                    <User className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-2">
+                {/* Left: Player Info & Status */}
+                <div className="flex items-center justify-between sm:justify-start sm:w-36 lg:w-44 shrink-0 gap-1 sm:gap-1.5">
+                  <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
+                    <div
+                      className={`${
+                        opponents.length > 1
+                          ? 'w-4 h-4 sm:w-5 sm:h-5 text-[10px]'
+                          : 'w-5 h-5 sm:w-6 sm:h-6 text-xs'
+                      } rounded-lg bg-algo-blue text-white flex items-center justify-center font-bold shadow-2xs shrink-0`}
+                    >
+                      <User className={opponents.length > 1 ? 'w-2.5 h-2.5 sm:w-3.5 sm:h-3.5' : 'w-3 h-3 sm:w-4 sm:h-4'} />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="font-black text-[10px] sm:text-xs text-slate-900 block leading-tight truncate">
+                        {humanPlayer.name} の手札
+                      </span>
+                      <span className="text-[8px] sm:text-[9.5px] text-slate-400 font-semibold block leading-none">
+                        ({humanPlayer.cards.filter((c) => c.isOpen).length}/{humanPlayer.cards.length} 枚OPEN)
+                      </span>
+                    </div>
                   </div>
-                  <h3 className="font-black text-xs sm:text-sm text-slate-900">{humanPlayer.name} の手札</h3>
-                  <span className="text-[8.5px] sm:text-xs font-semibold text-slate-400">
-                    ({humanPlayer.cards.filter((c) => c.isOpen).length}/{humanPlayer.cards.length} 枚OPEN)
-                  </span>
+
+                  {activePlayer?.isHuman && (
+                    <span className="flex items-center gap-1 px-1 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-algo-yellow text-slate-950 text-[8px] sm:text-[10px] font-black shadow-2xs whitespace-nowrap shrink-0">
+                      <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-amber-500 animate-ping" />
+                      自ターン
+                    </span>
+                  )}
                 </div>
 
-                {activePlayer?.isHuman && (
-                  <span className="flex items-center gap-1 px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-algo-yellow text-slate-950 text-[8.5px] sm:text-xs font-black shadow-2xs whitespace-nowrap">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
-                    あなたのターン
-                  </span>
-                )}
-              </div>
+                {/* Center: Cards */}
+                <div
+                  data-testid={`cards-container-${humanPlayer.id}`}
+                  className="items-center py-0.5 flex flex-nowrap overflow-x-auto no-scrollbar justify-center gap-1 sm:gap-2 min-w-0 flex-1"
+                >
+                  {humanPlayer.cards.map((card, idx) => (
+                    <CardComponent
+                      key={card.id}
+                      card={maskCardForPlayer(card, true)}
+                      isOwner={true}
+                      isRevealed={isGameOver}
+                      size={activeCardSize}
+                      label={`#${idx + 1}`}
+                      testId={`player-card-${idx}`}
+                    />
+                  ))}
+                </div>
 
-              {/* Player Cards */}
-              <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-2 lg:gap-2 py-0.5 min-h-12 sm:min-h-16 lg:min-h-20">
-                {humanPlayer.cards.map((card, idx) => (
-                  <CardComponent
-                    key={card.id}
-                    card={maskCardForPlayer(card, true)}
-                    isOwner={true}
-                    isRevealed={isGameOver}
-                    size="sm"
-                    label={`#${idx + 1}`}
-                  />
-                ))}
-              </div>
-
-              <div className="mt-0.5 text-center hidden sm:block">
-                <p className="text-[9px] sm:text-[10px] text-slate-400 font-medium">
-                  ※ 手札は左から小さい順（同数は黒が左）に並んでいます。「伏せ中」の数字は相手には見えていません。
-                </p>
+                {/* Right: Dummy spacer for perfect centering on desktop */}
+                <div className="hidden sm:block shrink-0 sm:w-36 lg:w-44" aria-hidden="true" />
               </div>
             </section>
           )}

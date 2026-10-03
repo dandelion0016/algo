@@ -18,7 +18,7 @@ test.describe('Issue #131: 2人・3人・4人対戦レイアウト実機スク�
   ];
 
   const viewports = [
-    { name: 'desktop', width: 1280, height: 800 },
+    { name: 'desktop', width: 1280, height: 720 },
     { name: 'mobile', width: 375, height: 667 },
   ];
 
