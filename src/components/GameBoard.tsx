@@ -763,6 +763,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const handlePlayerContinue = () => {
     setGameState((prev) => ({
       ...prev,
+      remainingTime: prev.timeLimit,
       phase: 'PLAYER_SELECT_TARGET',
       selectedTarget: null,
     }));
@@ -804,6 +805,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       gameState.phase === 'SETUP' ||
       gameState.phase === 'GAME_OVER' ||
       gameState.phase === 'CPU_ACTING' ||
+      gameState.phase === 'PLAYER_DECIDE_NEXT' ||
       attackResult !== null ||
       isTimerPaused
     ) {
