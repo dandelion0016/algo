@@ -3194,6 +3194,8 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
           name: 'あなた',
           isHuman: true,
           cards: [{ id: 'p1', color: 'black' as const, number: 2, isOpen: false }],
+          isEliminated: false,
+          avatarColor: 'indigo' as const,
         },
         {
           id: 'cpu_1',
@@ -3201,6 +3203,8 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
           isHuman: false,
           // 相手の最後の1枚
           cards: [{ id: 'c1', color: 'white' as const, number: 7, isOpen: false }],
+          isEliminated: false,
+          avatarColor: 'emerald' as const,
         },
       ];
 
@@ -3387,13 +3391,13 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
     it('ヘッダーにサウンドON/OFFボタンが表示され、クリックでトグルおよびlocalStorage永続化される', () => {
       const mockInitialState: GameState = {
         playerCount: 2,
-        difficulty: 'NORMAL',
+        difficulty: 'normal',
         timeLimit: 0,
         remainingTime: 0,
         deck: [],
         players: [
-          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false },
-          { id: 'p2', name: 'CPU 1', isHuman: false, cards: [], isEliminated: false },
+          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false, avatarColor: 'indigo' },
+          { id: 'p2', name: 'CPU 1', isHuman: false, cards: [], isEliminated: false, avatarColor: 'emerald' },
         ],
         activePlayerIndex: 0,
         drawnCard: null,
@@ -3474,13 +3478,13 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
 
       const mockInitialState: GameState = {
         playerCount: 2,
-        difficulty: 'NORMAL',
+        difficulty: 'normal',
         timeLimit: 0,
         remainingTime: 0,
         deck: [{ id: 'card-1', color: 'black', number: 5, isOpen: false }],
         players: [
-          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false },
-          { id: 'p2', name: 'CPU 1', isHuman: false, cards: [], isEliminated: false },
+          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false, avatarColor: 'indigo' },
+          { id: 'p2', name: 'CPU 1', isHuman: false, cards: [], isEliminated: false, avatarColor: 'emerald' },
         ],
         activePlayerIndex: 0,
         drawnCard: null,
@@ -3506,18 +3510,19 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
 
       const mockInitialState: GameState = {
         playerCount: 2,
-        difficulty: 'NORMAL',
+        difficulty: 'normal',
         timeLimit: 0,
         remainingTime: 0,
         deck: [],
         players: [
-          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false },
+          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false, avatarColor: 'indigo' },
           {
             id: 'p2',
             name: 'CPU 1',
             isHuman: false,
             cards: [{ id: 'c-target', color: 'black', number: 7, isOpen: false }],
             isEliminated: false,
+            avatarColor: 'emerald',
           },
         ],
         activePlayerIndex: 0,
@@ -3550,18 +3555,19 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
 
       const mockInitialState: GameState = {
         playerCount: 2,
-        difficulty: 'NORMAL',
+        difficulty: 'normal',
         timeLimit: 0,
         remainingTime: 0,
         deck: [],
         players: [
-          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false },
+          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false, avatarColor: 'indigo' },
           {
             id: 'p2',
             name: 'CPU 1',
             isHuman: false,
             cards: [{ id: 'c-target', color: 'black', number: 7, isOpen: false }],
             isEliminated: false,
+            avatarColor: 'emerald',
           },
         ],
         activePlayerIndex: 0,
@@ -3594,13 +3600,13 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
 
       const mockInitialState: GameState = {
         playerCount: 2,
-        difficulty: 'NORMAL',
+        difficulty: 'normal',
         timeLimit: 30,
         remainingTime: 6,
         deck: [{ id: 'c1', color: 'black', number: 1, isOpen: false }],
         players: [
-          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false },
-          { id: 'p2', name: 'CPU 1', isHuman: false, cards: [], isEliminated: false },
+          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false, avatarColor: 'indigo' },
+          { id: 'p2', name: 'CPU 1', isHuman: false, cards: [], isEliminated: false, avatarColor: 'emerald' },
         ],
         activePlayerIndex: 0,
         drawnCard: null,
@@ -3635,16 +3641,16 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       const victorySpy = vi.spyOn(soundManager, 'playVictorySound');
       const defeatSpy = vi.spyOn(soundManager, 'playDefeatSound');
 
-      const humanPlayer = { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false };
+      const humanPlayer = { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false, avatarColor: 'indigo' as const };
       const mockInitialState: GameState = {
         playerCount: 2,
-        difficulty: 'NORMAL',
+        difficulty: 'normal',
         timeLimit: 0,
         remainingTime: 0,
         deck: [],
         players: [
           humanPlayer,
-          { id: 'p2', name: 'CPU 1', isHuman: false, cards: [], isEliminated: true },
+          { id: 'p2', name: 'CPU 1', isHuman: false, cards: [], isEliminated: true, avatarColor: 'emerald' as const },
         ],
         activePlayerIndex: 0,
         drawnCard: null,
@@ -3664,15 +3670,15 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       const victorySpy = vi.spyOn(soundManager, 'playVictorySound');
       const defeatSpy = vi.spyOn(soundManager, 'playDefeatSound');
 
-      const cpuPlayer = { id: 'p2', name: 'CPU 1', isHuman: false, cards: [], isEliminated: false };
+      const cpuPlayer = { id: 'p2', name: 'CPU 1', isHuman: false, cards: [], isEliminated: false, avatarColor: 'emerald' as const };
       const mockInitialState: GameState = {
         playerCount: 2,
-        difficulty: 'NORMAL',
+        difficulty: 'normal',
         timeLimit: 0,
         remainingTime: 0,
         deck: [],
         players: [
-          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: true },
+          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: true, avatarColor: 'indigo' as const },
           cpuPlayer,
         ],
         activePlayerIndex: 1,
@@ -4311,7 +4317,7 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
         },
       ],
       activePlayerIndex: 0,
-      phase: 'PLAYER_DRAW_CARD',
+      phase: 'PLAYER_TURN_START',
       logs: [],
       winner: null,
     };
