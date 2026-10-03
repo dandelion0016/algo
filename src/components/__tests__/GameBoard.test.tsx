@@ -1188,7 +1188,47 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(html).toContain('aria-label="数字 5"');
       expect(html).not.toContain('aria-label="数字 5 (確認済)"');
     });
+
+    it('Issue #113: GameBoard内でAttackModal表示時に対象カラーの未確定残弾インジケーターとバッジが表示される', () => {
+      const html = renderToString(
+        <GameBoard
+          initialState={{
+            phase: 'PLAYER_GUESS_NUMBER',
+            timeLimit: 30,
+            remainingTime: 30,
+            players: mockColorPlayers,
+            activePlayerIndex: 0,
+            selectedTarget: {
+              playerId: 'cpu-1',
+              cardIndex: 0, // mockColorPlayers[1].cards[0] は color: 'black'
+            },
+            drawnCard: { id: 'b-10', color: 'black', number: 10, isOpen: false },
+          }}
+        />
+      );
+
+      // モーダルおよび未確定残弾インジケーターが表示されている
+      expect(html).toContain('data-testid="attack-modal"');
+      expect(html).toContain('data-testid="attack-remaining-deck-hint"');
+      expect(html).toContain('未確定の残弾:');
+
+      // 黒の確定済みは 2, 5, 7, 10 なので、未確定残弾バッジは 0, 1, 3, 4, 6, 8, 9, 11 が含まれ、2, 5, 7, 10 は含まれない
+      expect(html).toContain('data-testid="remaining-deck-badge-0"');
+      expect(html).toContain('data-testid="remaining-deck-badge-1"');
+      expect(html).toContain('data-testid="remaining-deck-badge-3"');
+      expect(html).toContain('data-testid="remaining-deck-badge-4"');
+      expect(html).toContain('data-testid="remaining-deck-badge-6"');
+      expect(html).toContain('data-testid="remaining-deck-badge-8"');
+      expect(html).toContain('data-testid="remaining-deck-badge-9"');
+      expect(html).toContain('data-testid="remaining-deck-badge-11"');
+
+      expect(html).not.toContain('data-testid="remaining-deck-badge-2"');
+      expect(html).not.toContain('data-testid="remaining-deck-badge-5"');
+      expect(html).not.toContain('data-testid="remaining-deck-badge-7"');
+      expect(html).not.toContain('data-testid="remaining-deck-badge-10"');
+    });
   });
+
 
   describe('Issue #36: モバイル端末での1画面完結レイアウト対応', () => {
     const mockMobilePlayers: Player[] = [

@@ -135,3 +135,23 @@ export function calculateDeckTrackerState(options: DeckTrackerOptions): DeckTrac
     },
   };
 }
+
+/**
+ * 対象カードの色の未確定残弾数字配列（昇順）を取得 (Issue #113)
+ * Information Hidingを厳守し、相手の裏向きカードや山札のカードの非公開数字は一切参照しない。
+ */
+export function getRemainingDeckNumbers(
+  players: Player[],
+  color: CardColor,
+  drawnCard?: Card | null
+): number[] {
+  const confirmedSets = getConfirmedCardSets(players, drawnCard);
+  const confirmed = confirmedSets[color];
+  const remaining: number[] = [];
+  for (let num = 0; num <= 11; num++) {
+    if (!confirmed.has(num)) {
+      remaining.push(num);
+    }
+  }
+  return remaining;
+}
