@@ -11,6 +11,7 @@ interface CardComponentProps {
   isSelectable?: boolean;
   isHintTarget?: boolean; // AIヒント推薦対象カード（Issue #44）
   isRevealed?: boolean; // ゲーム終了時などの答え合わせ開示フラグ (Issue #60)
+  isNewlyInserted?: boolean; // CPUが手札に挿入した直後のカードハイライト (Issue #66)
   onClick?: () => void;
   size?: 'xs' | 'sm' | 'md' | 'lg';
   label?: string;
@@ -27,6 +28,7 @@ export const CardComponent: React.FC<CardComponentProps> = ({
   isSelectable = false,
   isHintTarget = false,
   isRevealed = false,
+  isNewlyInserted = false,
   onClick,
   size = 'md',
   label,
@@ -62,6 +64,8 @@ export const CardComponent: React.FC<CardComponentProps> = ({
     stateClasses = 'border-4 border-algo-blue ring-4 ring-algo-blue/40 shadow-xl scale-105 z-10';
   } else if (isHintTarget) {
     stateClasses = 'border-4 border-amber-400 ring-4 ring-amber-300/80 shadow-lg shadow-amber-300/50 scale-105 z-10 animate-pulse';
+  } else if (isNewlyInserted) {
+    stateClasses = 'border-2 border-amber-400 ring-2 ring-amber-400 shadow-lg shadow-amber-200/50 z-10';
   } else if (isSelectable) {
     stateClasses += ' cursor-pointer hover:border-algo-blue hover:scale-105 hover:shadow-lg animate-attack-pulse';
   }
@@ -81,11 +85,14 @@ export const CardComponent: React.FC<CardComponentProps> = ({
       <div
         data-testid={cardTestId}
         data-hint-target={isHintTarget ? 'true' : undefined}
+        data-newly-inserted={isNewlyInserted ? 'true' : undefined}
         role={isClickable ? 'button' : undefined}
         tabIndex={isClickable ? 0 : undefined}
         aria-label={`${isBlack ? '黒' : '白'}カード ${label || ''}${
           showNumber ? ` (数字: ${card.number})` : ' (伏せカード)'
-        }${card.isOpen ? ' [オープン]' : isAnswerRevealed ? ' [開示]' : ''}${isHintTarget ? ' [AIヒント推奨]' : ''}`}
+        }${card.isOpen ? ' [オープン]' : isAnswerRevealed ? ' [開示]' : ''}${isHintTarget ? ' [AIヒント推奨]' : ''}${
+          isNewlyInserted ? ' [新規挿入]' : ''
+        }`}
         aria-pressed={isSelected ? true : undefined}
         onClick={isClickable ? onClick : undefined}
         onKeyDown={
@@ -109,6 +116,20 @@ export const CardComponent: React.FC<CardComponentProps> = ({
             className="animate-card-shimmer"
             aria-hidden="true"
           />
+        )}
+
+        {/* 新規挿入カードバッジ (Issue #66) */}
+        {isNewlyInserted && !isHintTarget && (
+          <div
+            data-testid="newly-inserted-badge"
+            className={`absolute z-20 flex items-center justify-center rounded-full bg-amber-400 text-slate-950 font-black shadow-md border border-amber-300 animate-pulse ${
+              size === 'xs'
+                ? '-top-2 -left-1 text-[7px] px-1 py-0.2'
+                : '-top-2.5 -left-1.5 text-[9px] px-1.5 py-0.5'
+            }`}
+          >
+            NEW!
+          </div>
         )}
         {/* ヒント対象バッジ */}
         {isHintTarget && (

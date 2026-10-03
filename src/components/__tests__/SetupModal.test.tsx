@@ -207,5 +207,14 @@ describe('SetupModal Component', () => {
       expect(html).toContain('初級：気楽に推理');
       expect(html).toContain('無制限（じっくり思考）');
     });
+
+    it('onOpenStatsが渡された場合、戦績・実績ボタン（btn-setup-stats）が表示される', () => {
+      const onOpenStats = vi.fn();
+      const html = renderToString(
+        <SetupModal {...defaultProps} onOpenStats={onOpenStats} />
+      );
+      expect(html).toContain('data-testid="btn-setup-stats"');
+      expect(html).toContain('戦績・実績');
+    });
   });
 });

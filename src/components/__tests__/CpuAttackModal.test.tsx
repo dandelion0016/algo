@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { renderToString } from 'react-dom/server';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import {
   CpuAttackModal,
   AttackResultModal,
@@ -436,6 +437,174 @@ describe('CpuAttackModal / AttackResultModal Component Rendering', () => {
       handler({ key: 'Tab', preventDefault });
       expect(preventDefault).not.toHaveBeenCalled();
       expect(onConfirm).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('観戦モード（自動観戦 / 決着スキップ）(Issue #61 要求仕様)', () => {
+    const spectatorData: AttackResultData = {
+      attackerName: 'CPU 1',
+      targetPlayerName: 'CPU 2',
+      targetCardIndex: 0,
+      targetColor: 'white',
+      guessedNumber: 3,
+      isHit: true,
+      actualNumber: 3,
+      nextAction: 'CONTINUE',
+    };
+
+    it('isSpectating: false の場合、観戦バッジやスキップ等の観戦コントロールは表示されない', () => {
+      render(
+        <CpuAttackModal
+          isOpen={true}
+          data={spectatorData}
+          onConfirm={vi.fn()}
+          isSpectating={false}
+        />
+      );
+
+      expect(screen.queryByTestId('spectator-badge')).toBeNull();
+      expect(screen.queryByTestId('spectate-controls')).toBeNull();
+      expect(screen.queryByTestId('toggle-auto-advance')).toBeNull();
+      expect(screen.queryByTestId('btn-skip-to-result')).toBeNull();
+      expect(screen.getByTestId('btn-attack-result-ok').textContent).toContain('OK (次へ)');
+    });
+
+    it('isSpectating: true の場合、観戦バッジ、自動観戦トグル、スキップボタンが表示される', () => {
+      const onToggle = vi.fn();
+      const onSkip = vi.fn();
+
+      render(
+        <CpuAttackModal
+          isOpen={true}
+          data={spectatorData}
+          onConfirm={vi.fn()}
+          isSpectating={true}
+          isAutoAdvance={true}
+          onToggleAutoAdvance={onToggle}
+          onSkipToResult={onSkip}
+        />
+      );
+
+      expect(screen.getByTestId('spectator-badge')).toBeDefined();
+      expect(screen.getByTestId('spectator-badge').textContent).toContain('観戦モード');
+      expect(screen.getByTestId('spectate-controls')).toBeDefined();
+
+      const toggleBtn = screen.getByTestId('toggle-auto-advance');
+      expect(toggleBtn.textContent).toContain('自動観戦: ON');
+
+      const skipBtn = screen.getByTestId('btn-skip-to-result');
+      expect(skipBtn.textContent).toContain('決着までスキップ');
+
+      const okBtn = screen.getByTestId('btn-attack-result-ok');
+      expect(okBtn.textContent).toContain('OK (自動進行中...)');
+    });
+
+    it('isAutoAdvance: false の場合、トグル表示がOFFになり、OKボタンが「OK (次へ)」になる', () => {
+      render(
+        <CpuAttackModal
+          isOpen={true}
+          data={spectatorData}
+          onConfirm={vi.fn()}
+          isSpectating={true}
+          isAutoAdvance={false}
+          onToggleAutoAdvance={vi.fn()}
+        />
+      );
+
+      const toggleBtn = screen.getByTestId('toggle-auto-advance');
+      expect(toggleBtn.textContent).toContain('自動観戦: OFF');
+
+      const okBtn = screen.getByTestId('btn-attack-result-ok');
+      expect(okBtn.textContent).toContain('OK (次へ)');
+    });
+
+    it('「決着までスキップ」ボタンクリック時に onSkipToResult が発火する', () => {
+      const onSkip = vi.fn();
+      render(
+        <CpuAttackModal
+          isOpen={true}
+          data={spectatorData}
+          onConfirm={vi.fn()}
+          isSpectating={true}
+          onSkipToResult={onSkip}
+        />
+      );
+
+      const skipBtn = screen.getByTestId('btn-skip-to-result');
+      fireEvent.click(skipBtn);
+      expect(onSkip).toHaveBeenCalledTimes(1);
+    });
+
+    it('「自動観戦」トグルボタンクリック時に onToggleAutoAdvance が発火する', () => {
+      const onToggle = vi.fn();
+      render(
+        <CpuAttackModal
+          isOpen={true}
+          data={spectatorData}
+          onConfirm={vi.fn()}
+          isSpectating={true}
+          onToggleAutoAdvance={onToggle}
+        />
+      );
+
+      const toggleBtn = screen.getByTestId('toggle-auto-advance');
+      fireEvent.click(toggleBtn);
+      expect(onToggle).toHaveBeenCalledTimes(1);
+    });
+
+    describe('タイマーによる自動進行（Auto-Advance）', () => {
+      beforeEach(() => {
+        vi.useFakeTimers();
+      });
+
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
+      it('isSpectating & isAutoAdvance が true の場合、指定時間（例: 1500ms）経過後に onConfirm が自動発火する', () => {
+        const onConfirm = vi.fn();
+        render(
+          <CpuAttackModal
+            isOpen={true}
+            data={spectatorData}
+            onConfirm={onConfirm}
+            isSpectating={true}
+            isAutoAdvance={true}
+            autoAdvanceDelayMs={1500}
+          />
+        );
+
+        expect(onConfirm).not.toHaveBeenCalled();
+
+        act(() => {
+          vi.advanceTimersByTime(1499);
+        });
+        expect(onConfirm).not.toHaveBeenCalled();
+
+        act(() => {
+          vi.advanceTimersByTime(1);
+        });
+        expect(onConfirm).toHaveBeenCalledTimes(1);
+      });
+
+      it('isAutoAdvance が false の場合、タイマー経過しても自動発火しない', () => {
+        const onConfirm = vi.fn();
+        render(
+          <CpuAttackModal
+            isOpen={true}
+            data={spectatorData}
+            onConfirm={onConfirm}
+            isSpectating={true}
+            isAutoAdvance={false}
+            autoAdvanceDelayMs={1500}
+          />
+        );
+
+        act(() => {
+          vi.advanceTimersByTime(3000);
+        });
+        expect(onConfirm).not.toHaveBeenCalled();
+      });
     });
   });
 });

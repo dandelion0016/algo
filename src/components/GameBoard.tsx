@@ -7,6 +7,7 @@ import {
   createDeck,
   setupGamePlayers,
   insertCardInOrder,
+  insertCardInOrderWithIndex,
   isAllOpen,
   checkAttack,
   getNextActivePlayerIndex,
@@ -31,9 +32,25 @@ import {
 } from './CpuAttackModal';
 import { HintModal } from './HintModal';
 import { LethalCutIn } from './LethalCutIn';
+import { StatsModal } from './StatsModal';
+import { DeckTracker } from './DeckTracker';
+import { calculateDeckTrackerState } from '../lib/deckTracker';
 import { getBestHint, HintResult } from '../lib/hintAdvisor';
 import { useUserSession } from '../hooks/useUserSession';
 import { auditLogger } from '../lib/auditLogger';
+import { soundManager } from '../lib/soundManager';
+import { haptics } from '../lib/haptics';
+import {
+  getStoredStats,
+  recordMatchResult,
+  resetStats,
+  PlayerStats,
+} from '../lib/statsManager';
+import {
+  getStoredAchievements,
+  checkAndUnlockAchievements,
+  Achievement,
+} from '../lib/achievementManager';
 import {
   Layers,
   Sparkles,
@@ -50,6 +67,11 @@ import {
   ScrollText,
   X,
   Lightbulb,
+  Volume2,
+  VolumeX,
+  Target,
+  Eye,
+  FastForward,
 } from 'lucide-react';
 
 /**
@@ -109,6 +131,12 @@ export const TIME_UP_NO_DECK_MESSAGE =
   'TIME UP! 制限時間を超過し山札がないため、手札の伏せカードが強制オープンされました';
 
 /**
+ * プレイヤー脱落時の通知メッセージ定数 (Issue #61)
+ */
+export const ELIMINATION_MESSAGE =
+  '手札がすべてオープンされ、脱落しました！観戦モードに移行します';
+
+/**
  * ターゲットカードの色（黒または白）に応じた確認済み数字（既知数字）のリストを抽出する (Issue #38)
  * - 自分の手札のうち、ターゲットと同色のカードの数字
  * - 全プレイヤーのオープン済みカードのうち、ターゲットと同色のカードの数字
@@ -161,6 +189,7 @@ export interface GameBoardProps {
   initialIsHintModalOpen?: boolean;
   initialIsRuleModalOpen?: boolean;
   initialIsTutorialOpen?: boolean;
+  initialRecentlyInsertedCard?: { playerId: string; cardId: string } | null;
 }
 
 export const GameBoard: React.FC<GameBoardProps> = ({
@@ -171,6 +200,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   initialIsHintModalOpen = false,
   initialIsRuleModalOpen = false,
   initialIsTutorialOpen = false,
+  initialRecentlyInsertedCard = null,
 }) => {
   const { userId } = useUserSession();
 
@@ -195,6 +225,25 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const [isTutorialPromptOpen, setIsTutorialPromptOpen] = useState(false);
   const [isResultModalOpen, setIsResultModalOpen] = useState(true);
   const [isManualPaused, setIsManualPaused] = useState(false);
+  const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
+
+  const [playerStats, setPlayerStats] = useState<PlayerStats>(() => getStoredStats());
+  const [playerAchievements, setPlayerAchievements] = useState<Achievement[]>(() =>
+    getStoredAchievements()
+  );
+  const [newlyUnlockedToast, setNewlyUnlockedToast] = useState<Achievement | null>(null);
+
+  const playerTurnsCountRef = useRef<number>(0);
+  const wasInClutchRef = useRef<boolean>(false);
+  const consecutiveHitsInTurnRef = useRef<number>(0);
+  const maxConsecutiveHitsInTurnRef = useRef<number>(0);
+  const hasRecordedGameOverRef = useRef<boolean>(false);
+  const hasTurnStartedForHumanRef = useRef<boolean>(false);
+
+  const handleResetStats = useCallback(() => {
+    const freshStats = resetStats();
+    setPlayerStats(freshStats);
+  }, []);
 
   const handleConfirmGuessRef = useRef<(num: number) => Promise<void>>((() => {}) as any);
 
@@ -208,6 +257,12 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const [cpuStatusMessage, setCpuStatusMessage] = useState<string>('');
   const [timeUpBanner, setTimeUpBanner] = useState<string | null>(initialTimeUpBanner);
   const [isMobileLogOpen, setIsMobileLogOpen] = useState(false);
+  const [isMobileTrackerOpen, setIsMobileTrackerOpen] = useState(false);
+  // CPUが手札に挿入した直後のカード追跡用 (Issue #66)
+  const [recentlyInsertedCard, setRecentlyInsertedCard] = useState<{
+    playerId: string;
+    cardId: string;
+  } | null>(initialRecentlyInsertedCard);
   // 初心者向け推理候補アシストの有効状態（Issue #42: デフォルト true）
   const [isAssistEnabled, setIsAssistEnabled] = useState<boolean>(() => {
     try {
@@ -248,11 +303,34 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     setIsLethalCutInActive(false);
   }, []);
 
+  // 効果音・サウンドの有効状態（Issue #63, #71: デフォルト true）
+  const [isSoundEnabled, setIsSoundEnabled] = useState<boolean>(() => soundManager.isSoundEnabled());
+
+  useEffect(() => {
+    const unsubscribe = soundManager.subscribe((enabled) => {
+      setIsSoundEnabled(enabled);
+    });
+    return unsubscribe;
+  }, []);
+
+  const handleToggleSound = useCallback(() => {
+    soundManager.unlockAudio();
+    soundManager.toggleSound();
+  }, []);
+
+  // 観戦モード・自動観戦・スキップ状態 (Issue #61)
+  const [isAutoSpectate, setIsAutoSpectate] = useState<boolean>(true);
+  const [isSkippingToResult, setIsSkippingToResult] = useState<boolean>(false);
+  const isSkippingToResultRef = useRef<boolean>(false);
+  const [isEliminationDismissed, setIsEliminationDismissed] = useState<boolean>(false);
   // 推理結果確認モーダル用状態と非同期リゾルバ (CPU & プレイヤー)
   const [attackResult, setAttackResult] = useState<AttackResultData | null>(null);
   const attackResolverRef = useRef<(() => void) | null>(null);
 
   const waitForAttackOk = useCallback((data: AttackResultData) => {
+    if (isSkippingToResultRef.current) {
+      return Promise.resolve();
+    }
     return new Promise<void>((resolve) => {
       attackResolverRef.current = resolve;
       setAttackResult(data);
@@ -264,6 +342,18 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     if (attackResolverRef.current) {
       const resolve = attackResolverRef.current;
       attackResolverRef.current = null;
+      resolve();
+    }
+  }, []);
+
+  // 決着まで一括スキップハンドラ (Issue #61)
+  const handleSkipToResult = useCallback(() => {
+    isSkippingToResultRef.current = true;
+    setIsSkippingToResult(true);
+    if (attackResolverRef.current) {
+      const resolve = attackResolverRef.current;
+      attackResolverRef.current = null;
+      setAttackResult(null);
       resolve();
     }
   }, []);
@@ -348,16 +438,122 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       setHintCount(3);
       setActiveHint(null);
       setIsHintModalOpen(false);
+      playerTurnsCountRef.current = 0;
+      wasInClutchRef.current = false;
+      consecutiveHitsInTurnRef.current = 0;
+      maxConsecutiveHitsInTurnRef.current = 0;
+      hasRecordedGameOverRef.current = false;
+      hasTurnStartedForHumanRef.current = false;
+      setRecentlyInsertedCard(null);
+      // 観戦・スキップ状態のリセット (Issue #61)
+      setIsSkippingToResult(false);
+      isSkippingToResultRef.current = false;
+      setIsEliminationDismissed(false);
     },
     [gameState.playerCount, gameState.difficulty, gameState.timeLimit, userId]
   );
 
-  // GAME_OVER 遷移時に決着モーダルを自動オープン
+  // GAME_OVER 遷移時に決着モーダルを自動オープン ＆ 通算戦績・アチーブメントの自動記録 ＆ 勝敗SE・ハプティクス再生 (Issue #63, #71, #72)
   useEffect(() => {
-    if (gameState.phase === 'GAME_OVER') {
+    if (gameState.phase === 'GAME_OVER' && gameState.winner) {
       setIsResultModalOpen(true);
+
+      if (!hasRecordedGameOverRef.current) {
+        hasRecordedGameOverRef.current = true;
+
+        if (gameState.winner.isHuman) {
+          soundManager.playVictorySound();
+          haptics.vibrateSuccess();
+        } else {
+          soundManager.playDefeatSound();
+          haptics.vibrateFailure();
+        }
+
+        const humanPlayer = gameState.players.find((p) => p.isHuman);
+        const isHumanWin = Boolean(humanPlayer && gameState.winner.id === humanPlayer.id);
+
+        const humanAttacks = gameState.logs.filter((l) => l.attackerId === humanPlayer?.id);
+        const attacksCount = humanAttacks.length;
+        const hitsCount = humanAttacks.filter((l) => l.isHit).length;
+        const missesCount = humanAttacks.filter((l) => !l.isHit).length;
+
+        // 1. 通算戦績の記録
+        const updatedStats = recordMatchResult({
+          isWin: isHumanWin,
+          difficulty: gameState.difficulty,
+          turns: playerTurnsCountRef.current,
+          attacks: attacksCount,
+          hits: hitsCount,
+        });
+        setPlayerStats(updatedStats);
+
+        // 2. アチーブメント判定
+        const { updatedAchievements, newlyUnlocked } = checkAndUnlockAchievements({
+          isWin: isHumanWin,
+          difficulty: gameState.difficulty,
+          timeLimit: gameState.timeLimit,
+          turns: playerTurnsCountRef.current,
+          playerAttacks: attacksCount,
+          playerHits: hitsCount,
+          playerMisses: missesCount,
+          maxConsecutiveHitsInSingleTurn: maxConsecutiveHitsInTurnRef.current,
+          wasInClutch: wasInClutchRef.current,
+          stats: updatedStats,
+        });
+        setPlayerAchievements(updatedAchievements);
+        if (newlyUnlocked.length > 0) {
+          setNewlyUnlockedToast(newlyUnlocked[0]);
+        }
+      }
     }
-  }, [gameState.phase]);
+  }, [
+    gameState.phase,
+    gameState.winner,
+    gameState.players,
+    gameState.difficulty,
+    gameState.timeLimit,
+    gameState.logs,
+  ]);
+
+  // アチーブメント解除トーストの自動消去（6秒後）
+  useEffect(() => {
+    if (newlyUnlockedToast) {
+      const timer = setTimeout(() => {
+        setNewlyUnlockedToast(null);
+      }, 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [newlyUnlockedToast]);
+
+  // 人間プレイヤーの手番開始（ターン数カウント）の監視
+  useEffect(() => {
+    if (
+      gameState.phase === 'PLAYER_TURN_START' ||
+      (gameState.deck.length === 0 &&
+        gameState.phase === 'PLAYER_SELECT_TARGET' &&
+        gameState.activePlayerIndex === 0)
+    ) {
+      if (!hasTurnStartedForHumanRef.current) {
+        hasTurnStartedForHumanRef.current = true;
+        playerTurnsCountRef.current += 1;
+        consecutiveHitsInTurnRef.current = 0;
+      }
+    } else if (gameState.phase === 'CPU_ACTING') {
+      hasTurnStartedForHumanRef.current = false;
+      consecutiveHitsInTurnRef.current = 0;
+    }
+  }, [gameState.phase, gameState.activePlayerIndex, gameState.deck.length]);
+
+  // 人間プレイヤーの残り手札が1枚（ピンチ状態）になったかどうかの監視
+  useEffect(() => {
+    const human = gameState.players.find((p) => p.isHuman);
+    if (human && !human.isEliminated) {
+      const unrevealed = human.cards.filter((c) => !c.isOpen);
+      if (unrevealed.length === 1) {
+        wasInClutchRef.current = true;
+      }
+    }
+  }, [gameState.players]);
 
   // タイムアップ警告バナーの自動消去タイマー（6秒後に消去）
   useEffect(() => {
@@ -371,6 +567,16 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
   // ゲームが進行中（未決着かつセットアップ以外）かどうかの判定
   const isGameInProgress =
+    gameState.phase !== 'SETUP' &&
+    gameState.phase !== 'GAME_OVER' &&
+    gameState.winner === null;
+
+  // 人間プレイヤーの脱落状態・観戦モード判定 (Issue #61)
+  const isHumanEliminated = Boolean(
+    gameState.players.find((p) => p.isHuman)?.isEliminated
+  );
+  const isSpectating =
+    isHumanEliminated &&
     gameState.phase !== 'SETUP' &&
     gameState.phase !== 'GAME_OVER' &&
     gameState.winner === null;
@@ -498,6 +704,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     const drawn = gameState.deck[0];
     const nextDeck = gameState.deck.slice(1);
 
+    soundManager.playDrawSound();
+    haptics.vibrateLight();
+
     setGameState((prev) => ({
       ...prev,
       deck: nextDeck,
@@ -604,6 +813,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
     const isHit = checkAttack(targetCard, guessedNumber);
 
+    soundManager.playAttackSound();
+    haptics.vibrateLight();
+
     const log: AttackLog = {
       id: `log-${Date.now()}`,
       attackerId: currentUserId,
@@ -623,6 +835,31 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     };
 
     if (isHit) {
+      consecutiveHitsInTurnRef.current += 1;
+      if (consecutiveHitsInTurnRef.current > maxConsecutiveHitsInTurnRef.current) {
+        maxConsecutiveHitsInTurnRef.current = consecutiveHitsInTurnRef.current;
+      }
+      if (consecutiveHitsInTurnRef.current >= 3) {
+        const { updatedAchievements, newlyUnlocked } = checkAndUnlockAchievements({
+          isWin: false,
+          difficulty: gameState.difficulty,
+          timeLimit: gameState.timeLimit,
+          turns: playerTurnsCountRef.current,
+          playerAttacks: 0,
+          playerHits: 0,
+          playerMisses: 0,
+          maxConsecutiveHitsInSingleTurn: maxConsecutiveHitsInTurnRef.current,
+          wasInClutch: false,
+          stats: playerStats,
+        });
+        setPlayerAchievements(updatedAchievements);
+        if (newlyUnlocked.length > 0) {
+          setNewlyUnlockedToast(newlyUnlocked[0]);
+        }
+      }
+      soundManager.playHitSound();
+      haptics.vibrateSuccess();
+
       const updatedPlayers = gameState.players.map((p) => {
         if (p.id !== playerId) return p;
         const newCards = p.cards.map((c, i) => (i === cardIndex ? { ...c, isOpen: true } : c));
@@ -675,6 +912,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         }));
       }
     } else {
+      consecutiveHitsInTurnRef.current = 0;
+      soundManager.playMissSound();
+      haptics.vibrateFailure();
       const playerIdx = gameState.players.findIndex((p) => p.isHuman);
       const isDeckExhausted = !gameState.drawnCard;
 
@@ -817,6 +1057,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const handlePlayerStay = () => {
     setIsManualPaused(false);
     setActiveHint(null);
+    consecutiveHitsInTurnRef.current = 0;
     const playerIdx = gameState.players.findIndex((p) => p.isHuman);
     const updatedPlayers = [...gameState.players];
     if (gameState.drawnCard) {
@@ -859,6 +1100,12 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     const interval = setInterval(() => {
       setGameState((prev) => {
         const nextRemainingTime = prev.remainingTime - 1;
+
+        // 制限時間5秒以下の警告音・ハプティクス (Issue #63, #71)
+        if (nextRemainingTime <= 5 && nextRemainingTime > 0) {
+          soundManager.playTimeWarningSound();
+          haptics.vibrateWarning();
+        }
 
         if (nextRemainingTime <= 0) {
           // 時間切れ（0秒到達）強制オープンペナルティ処理
@@ -981,10 +1228,12 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     let isMounted = true;
     let timerId: ReturnType<typeof setTimeout> | null = null;
 
-    const delay = (ms: number) =>
-      new Promise<void>((resolve) => {
+    const delay = (ms: number) => {
+      if (isSkippingToResultRef.current) return Promise.resolve();
+      return new Promise<void>((resolve) => {
         timerId = setTimeout(resolve, ms);
       });
+    };
 
     const executeCpuTurn = async () => {
       let currentDeck = [...gameState.deck];
@@ -1000,6 +1249,12 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       if (currentDeck.length > 0) {
         cpuDrawn = currentDeck[0];
         currentDeck = currentDeck.slice(1);
+        soundManager.playDrawSound();
+        setGameState((prev) => ({
+          ...prev,
+          deck: currentDeck,
+          drawnCard: cpuDrawn,
+        }));
       }
 
       let currentPlayers = [...gameState.players];
@@ -1051,6 +1306,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         }
 
         const isHit = checkAttack(targetCard, decision.guessedNumber);
+        soundManager.playAttackSound();
 
         const isCpuDeckExhausted = !cpuDrawn;
         const missLogSuffix = isCpuDeckExhausted
@@ -1078,6 +1334,10 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         currentLogs = [log, ...currentLogs];
 
         if (isHit) {
+          soundManager.playHitSound();
+          if (targetPlayer.isHuman) {
+            haptics.vibrateWarning();
+          }
           // 的中処理: 被弾カードを開示し脱落判定
           currentPlayers = currentPlayers.map((p) => {
             if (p.id !== targetPlayer.id) return p;
@@ -1172,7 +1432,28 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             continue;
           } else {
             // ステイ (false)
-            // ログに「CPUは手札に加えてステイしました」を記録
+            // 引いたカードを手札に伏せて整列挿入し、次のプレイヤーへ手番を遷移
+            const cpuIdx = currentPlayers.findIndex((p) => p.id === currentCpu.id);
+            let insertedIdx = -1;
+            if (cpuDrawn && cpuIdx !== -1) {
+              const { newHand, insertedIndex } = insertCardInOrderWithIndex(currentPlayers[cpuIdx].cards, {
+                ...cpuDrawn,
+                isOpen: false,
+              });
+              currentPlayers[cpuIdx] = {
+                ...currentPlayers[cpuIdx],
+                cards: newHand,
+              };
+              insertedIdx = insertedIndex;
+              setRecentlyInsertedCard({ playerId: currentCpu.id, cardId: cpuDrawn.id });
+            }
+
+            // ログに「CPU {名前} が山札から [{黒/白}] を引き、左から {N} 番目に挿入しました」を記録 (Issue #66)
+            const colorText = cpuDrawn ? (cpuDrawn.color === 'black' ? '黒' : '白') : '';
+            const stayMessage = cpuDrawn
+              ? `${currentCpu.name} が山札から [${colorText}] を引き、左から ${insertedIdx + 1} 番目に挿入しました。`
+              : `${currentCpu.name} はステイしました`;
+
             const stayLog: AttackLog = {
               id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
               attackerId: currentCpu.id,
@@ -1184,30 +1465,19 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               guessedNumber: 0,
               isHit: true,
               timestamp: Date.now(),
-              message: cpuDrawn ? 'CPUは手札に加えてステイしました' : 'CPUはステイしました',
+              message: stayMessage,
             };
             currentLogs = [stayLog, ...currentLogs];
-
-            // 引いたカードを手札に伏せて整列挿入し、次のプレイヤーへ手番を遷移
-            const cpuIdx = currentPlayers.findIndex((p) => p.id === currentCpu.id);
-            if (cpuDrawn && cpuIdx !== -1) {
-              currentPlayers[cpuIdx] = {
-                ...currentPlayers[cpuIdx],
-                cards: insertCardInOrder(currentPlayers[cpuIdx].cards, {
-                  ...cpuDrawn,
-                  isOpen: false,
-                }),
-              };
-            }
 
             const nextIdx = getNextActivePlayerIndex(gameState.activePlayerIndex, currentPlayers);
             const nextPlayer = currentPlayers[nextIdx];
             const nextPlayerName = nextPlayer ? (nextPlayer.isHuman ? 'あなた' : nextPlayer.name) : undefined;
 
-            // 盤面を更新
+            // 盤面を更新（drawnCard を null にリセットして手札へ移動）
             setGameState((prev) => ({
               ...prev,
               deck: currentDeck,
+              drawnCard: null,
               players: currentPlayers,
               logs: currentLogs,
             }));
@@ -1248,17 +1518,40 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           }
         } else {
           // ハズレ (isHit === false)
+          soundManager.playMissSound();
           const cpuIdx = currentPlayers.findIndex((p) => p.id === currentCpu.id);
+          let insertedIdx = -1;
           if (cpuDrawn && cpuIdx !== -1) {
-            const newCards = insertCardInOrder(currentPlayers[cpuIdx].cards, {
+            const { newHand, insertedIndex } = insertCardInOrderWithIndex(currentPlayers[cpuIdx].cards, {
               ...cpuDrawn,
               isOpen: true,
             });
             currentPlayers[cpuIdx] = {
               ...currentPlayers[cpuIdx],
-              cards: newCards,
-              isEliminated: isAllOpen(newCards),
+              cards: newHand,
+              isEliminated: isAllOpen(newHand),
             };
+            insertedIdx = insertedIndex;
+            setRecentlyInsertedCard({ playerId: currentCpu.id, cardId: cpuDrawn.id });
+
+            // ログに山札から引いたカードの挿入を明記 (Issue #66)
+            const colorText = cpuDrawn.color === 'black' ? '黒' : '白';
+            const insertLog: AttackLog = {
+              id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+              attackerId: currentCpu.id,
+              attackerName: currentCpu.name,
+              targetPlayerId: '',
+              targetPlayerName: '',
+              targetCardIndex: 0,
+              targetColor: cpuDrawn.color,
+              guessedNumber: 0,
+              isHit: false,
+              actualNumber: cpuDrawn.number,
+              drawnCard: cpuDrawn,
+              timestamp: Date.now(),
+              message: `${currentCpu.name} が山札から [${colorText}] を引き、左から ${insertedIdx + 1} 番目に挿入しました。`,
+            };
+            currentLogs = [insertLog, ...currentLogs];
           } else if (!cpuDrawn && cpuIdx !== -1) {
             // 山札0枚ペナルティ: 手札の最初の伏せカードをオープン (Issue #68)
             const firstClosedIdx = currentPlayers[cpuIdx].cards.findIndex((c) => !c.isOpen);
@@ -1281,10 +1574,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           const nextPlayer = currentPlayers[nextIdx];
           const nextPlayerName = nextPlayer ? (nextPlayer.isHuman ? 'あなた' : nextPlayer.name) : undefined;
 
-          // カードがオープンされた盤面を即座にUIへ反映
+          // カードがオープンされた盤面を即座にUIへ反映（drawnCard を null にリセットして手札へ移動）
           setGameState((prev) => ({
             ...prev,
             deck: currentDeck,
+            drawnCard: null,
             players: currentPlayers,
             logs: currentLogs,
           }));
@@ -1339,6 +1633,26 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       }
 
       // ループガード（最大10回）上限到達時のステイ処理
+      const cpuIdx = currentPlayers.findIndex((p) => p.id === currentCpu.id);
+      let insertedIdx = -1;
+      if (cpuDrawn && cpuIdx !== -1) {
+        const { newHand, insertedIndex } = insertCardInOrderWithIndex(currentPlayers[cpuIdx].cards, {
+          ...cpuDrawn,
+          isOpen: false,
+        });
+        currentPlayers[cpuIdx] = {
+          ...currentPlayers[cpuIdx],
+          cards: newHand,
+        };
+        insertedIdx = insertedIndex;
+        setRecentlyInsertedCard({ playerId: currentCpu.id, cardId: cpuDrawn.id });
+      }
+
+      const colorText = cpuDrawn ? (cpuDrawn.color === 'black' ? '黒' : '白') : '';
+      const stayMessage = cpuDrawn
+        ? `${currentCpu.name} が山札から [${colorText}] を引き、左から ${insertedIdx + 1} 番目に挿入しました。`
+        : `${currentCpu.name} はステイしました`;
+
       const stayLog: AttackLog = {
         id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         attackerId: currentCpu.id,
@@ -1350,20 +1664,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         guessedNumber: 0,
         isHit: true,
         timestamp: Date.now(),
-        message: cpuDrawn ? 'CPUは手札に加えてステイしました' : 'CPUはステイしました',
+        message: stayMessage,
       };
       currentLogs = [stayLog, ...currentLogs];
-
-      const cpuIdx = currentPlayers.findIndex((p) => p.id === currentCpu.id);
-      if (cpuDrawn && cpuIdx !== -1) {
-        currentPlayers[cpuIdx] = {
-          ...currentPlayers[cpuIdx],
-          cards: insertCardInOrder(currentPlayers[cpuIdx].cards, {
-            ...cpuDrawn,
-            isOpen: false,
-          }),
-        };
-      }
 
       const nextIdx = getNextActivePlayerIndex(gameState.activePlayerIndex, currentPlayers);
       const nextPlayer = currentPlayers[nextIdx];
@@ -1372,6 +1675,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       setGameState((prev) => ({
         ...prev,
         deck: currentDeck,
+        drawnCard: null,
         players: currentPlayers,
         logs: currentLogs,
       }));
@@ -1435,6 +1739,28 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     gameState.drawnCard
   );
 
+  // 残弾デッキトラッカー用計算（Issue #65）
+  // 選択中ターゲットカードの推理候補数字（アシスト連動）
+  const trackerHighlightNumbers =
+    selectedTargetPlayer && gameState.selectedTarget
+      ? getPossibleNumbersForCard({
+          targetIndex: gameState.selectedTarget.cardIndex,
+          targetHand: selectedTargetPlayer.cards,
+          allPlayers: gameState.players,
+          drawnCard: gameState.drawnCard,
+          logs: gameState.logs,
+          targetPlayerId: selectedTargetPlayer.id,
+        })
+      : [];
+  const trackerHighlightColor = selectedTargetCard?.color || null;
+
+  const trackerState = calculateDeckTrackerState({
+    players: gameState.players,
+    drawnCard: gameState.drawnCard,
+    highlightedNumbers: trackerHighlightNumbers,
+    highlightColor: trackerHighlightColor,
+  });
+
   // 1. セットアップ画面
   if (gameState.phase === 'SETUP') {
     return (
@@ -1453,6 +1779,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           }
           onOpenRules={() => setIsRuleModalOpen(true)}
           onOpenTutorial={() => setIsTutorialOpen(true)}
+          onOpenStats={() => setIsStatsModalOpen(true)}
         />
         <RuleGuideModal
           isOpen={isRuleModalOpen}
@@ -1472,6 +1799,13 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           onClose={() => setIsTutorialOpen(false)}
           onComplete={() => setIsTutorialOpen(false)}
           isTimedMatch={isTimedMatch}
+        />
+        <StatsModal
+          isOpen={isStatsModalOpen}
+          onClose={() => setIsStatsModalOpen(false)}
+          stats={playerStats}
+          achievements={playerAchievements}
+          onResetStats={handleResetStats}
         />
       </div>
     );
@@ -1496,6 +1830,41 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         isScreenShaking ? 'animate-shake' : ''
       }`}
     >
+      {/* 新規アチーブメント解除トースト通知 */}
+      {newlyUnlockedToast && (
+        <div
+          data-testid="achievement-toast"
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 bg-slate-900/95 text-white border-2 border-amber-400 rounded-2xl shadow-2xl backdrop-blur-md animate-in slide-in-from-top-4 duration-200 max-w-sm w-full mx-auto"
+        >
+          <div className="w-10 h-10 rounded-xl bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-2xl shrink-0">
+            {newlyUnlockedToast.icon}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 text-[10px] text-amber-400 font-bold uppercase tracking-wider">
+              <Trophy className="w-3.5 h-3.5 text-amber-400" />
+              <span>実績解除！</span>
+            </div>
+            <p className="text-xs sm:text-sm font-black truncate">
+              {newlyUnlockedToast.title}{' '}
+              <span className="font-normal text-[11px] text-slate-400">
+                ({newlyUnlockedToast.nameEn})
+              </span>
+            </p>
+            <p className="text-[11px] text-slate-300 truncate">
+              {newlyUnlockedToast.description}
+            </p>
+          </div>
+          <button
+            type="button"
+            data-testid="close-achievement-toast"
+            aria-label="閉じる"
+            onClick={() => setNewlyUnlockedToast(null)}
+            className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
       {/* Top Header */}
       <header className="bg-white border border-slate-200 rounded-xl sm:rounded-3xl shadow-sm overflow-hidden shrink-0">
         <div className="w-full h-1 sm:h-3.5 algo-diamond-pattern border-b border-slate-100" />
@@ -1637,6 +2006,28 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               <span>アシスト {isAssistEnabled ? 'ON' : 'OFF'}</span>
             </button>
 
+            {/* サウンドON/OFFトグルボタン (Issue #63, #71) */}
+            <button
+              type="button"
+              data-testid="btn-sound-toggle"
+              onClick={handleToggleSound}
+              aria-label={`サウンド効果音: ${isSoundEnabled ? 'ON' : 'OFF'}`}
+              aria-pressed={isSoundEnabled}
+              className={`flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0 ${
+                isSoundEnabled
+                  ? 'border-algo-blue/40 bg-algo-blue-light/30 text-algo-navy hover:bg-algo-blue-light/50 ring-1 ring-algo-blue/20'
+                  : 'border-slate-200 bg-slate-50 text-slate-400 hover:bg-slate-100'
+              }`}
+              title={isSoundEnabled ? 'サウンドON（クリックでミュート）' : 'サウンドOFF（クリックでON）'}
+            >
+              {isSoundEnabled ? (
+                <Volume2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-algo-blue" />
+              ) : (
+                <VolumeX className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400" />
+              )}
+              <span>サウンド {isSoundEnabled ? 'ON' : 'OFF'}</span>
+            </button>
+
             <button
               data-testid="btn-header-tutorial"
               onClick={() => setIsTutorialOpen(true)}
@@ -1653,6 +2044,17 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             >
               <BookOpen className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-algo-blue" />
               <span>ルール</span>
+            </button>
+
+            <button
+              type="button"
+              data-testid="btn-open-stats"
+              onClick={() => setIsStatsModalOpen(true)}
+              className="flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-900 text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0"
+              title="通算戦績・アチーブメントを表示"
+            >
+              <Trophy className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600" />
+              <span>戦績</span>
             </button>
 
             <button
@@ -1685,6 +2087,21 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 <span>結果を見る</span>
               </button>
             )}
+
+            {/* モバイル専用 残弾トラッカー表示トグルボタン (lg未満で表示) (Issue #65) */}
+            <button
+              type="button"
+              data-testid="btn-toggle-tracker"
+              onClick={() => setIsMobileTrackerOpen((prev) => !prev)}
+              className="flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-[10px] sm:text-xs font-bold transition-all shadow-2xs lg:hidden relative whitespace-nowrap shrink-0"
+              aria-label={`残弾トラッカーを開く (残弾 ${trackerState.summary.totalRemaining}枚)`}
+            >
+              <Target className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-algo-blue" />
+              <span>残弾</span>
+              <span className="ml-0.5 px-1 py-0.2 rounded-full bg-algo-blue/15 text-algo-blue text-[9px] font-black">
+                {trackerState.summary.totalRemaining}
+              </span>
+            </button>
 
             {/* モバイル専用 ログ表示トグルボタン (lg未満で表示) */}
             <button
@@ -1724,6 +2141,54 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             data-testid="close-timeup-banner"
             onClick={() => setTimeUpBanner(null)}
             className="text-rose-500 hover:text-rose-700 font-black text-xs sm:text-sm p-1 rounded-lg hover:bg-rose-100 transition-colors"
+            aria-label="通知を閉じる"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* プレイヤー脱落通知バナー（観戦モード案内） (Issue #61) */}
+      {isSpectating && !isEliminationDismissed && (
+        <div
+          data-testid="elimination-banner"
+          role="alert"
+          className="bg-purple-50 border-2 border-purple-300 text-purple-900 px-3 py-1.5 sm:px-4 sm:py-2.5 rounded-xl sm:rounded-2xl shadow-md flex items-center justify-between gap-2 sm:gap-3 shrink-0 animate-fade-in"
+        >
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-base sm:text-lg">💥</span>
+            <span className="font-bold text-xs sm:text-sm">
+              {ELIMINATION_MESSAGE}
+            </span>
+            <div className="flex items-center gap-1.5 ml-1">
+              <button
+                type="button"
+                data-testid="banner-toggle-auto-advance"
+                onClick={() => setIsAutoSpectate((prev) => !prev)}
+                className={`text-[11px] font-bold px-2 py-0.5 rounded-md border flex items-center gap-1 transition-colors cursor-pointer ${
+                  isAutoSpectate
+                    ? 'bg-purple-600 text-white border-purple-600'
+                    : 'bg-white text-purple-700 border-purple-300 hover:bg-purple-100'
+                }`}
+              >
+                {isAutoSpectate ? '自動観戦: ON' : '自動観戦: OFF'}
+              </button>
+              <button
+                type="button"
+                data-testid="banner-skip-to-result"
+                onClick={handleSkipToResult}
+                className="text-[11px] font-black px-2 py-0.5 rounded-md bg-amber-500 hover:bg-amber-600 text-white shadow-xs flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
+              >
+                <FastForward className="w-3 h-3" />
+                <span>決着までスキップ</span>
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            data-testid="close-elimination-banner"
+            onClick={() => setIsEliminationDismissed(true)}
+            className="text-purple-500 hover:text-purple-700 font-black text-xs sm:text-sm p-1 rounded-lg hover:bg-purple-100 transition-colors cursor-pointer"
             aria-label="通知を閉じる"
           >
             ✕
@@ -1840,6 +2305,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                           failedGuesses={failedNumbers}
                           isEliminated={opp.isEliminated}
                           isHintTarget={isHintTarget}
+                          isNewlyInserted={
+                            !isGameOver &&
+                            recentlyInsertedCard?.playerId === opp.id &&
+                            recentlyInsertedCard?.cardId === card.id
+                          }
                           isSelectable={
                             !isGameOver &&
                             activePlayer?.isHuman &&
@@ -1914,13 +2384,26 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             <div data-testid="drawn-card-area" className="flex flex-col items-center gap-0.5 sm:gap-1 shrink-0">
               <span className="text-[9px] sm:text-xs font-bold text-slate-500">引いたカード</span>
               {gameState.drawnCard ? (
-                <div className="scale-100 sm:scale-105 transition-transform animate-card-draw">
+                <div className="scale-100 sm:scale-105 transition-transform animate-card-draw flex flex-col items-center gap-1">
                   <CardComponent
-                    card={isGameOver ? gameState.drawnCard : maskCardForPlayer(gameState.drawnCard, true)}
-                    isOwner={true}
+                    card={
+                      isGameOver
+                        ? gameState.drawnCard
+                        : maskCardForPlayer(gameState.drawnCard, Boolean(activePlayer?.isHuman))
+                    }
+                    isOwner={Boolean(activePlayer?.isHuman)}
                     isRevealed={isGameOver}
                     size="sm"
+                    testId="drawn-card"
                   />
+                  {!activePlayer?.isHuman && (
+                    <span
+                      data-testid="cpu-drawn-card-badge"
+                      className="text-[8px] sm:text-[10px] font-bold px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-slate-800 text-white shadow-xs whitespace-nowrap"
+                    >
+                      {activePlayer?.name} が引いたカード [{gameState.drawnCard.color === 'black' ? '黒' : '白'}]
+                    </span>
+                  )}
                 </div>
               ) : (
                 <div className="w-10 h-16 sm:w-14 sm:h-22 lg:w-16 lg:h-24 rounded-lg sm:rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center text-[10px] sm:text-xs text-slate-400 font-semibold bg-slate-50/50">
@@ -2087,9 +2570,59 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
         {/* Right 1 col: Log & Visuals (Desktop) */}
         <div className="hidden lg:block lg:col-span-1 space-y-4">
+          <DeckTracker
+            players={gameState.players}
+            drawnCard={gameState.drawnCard}
+            highlightedNumbers={trackerHighlightNumbers}
+            highlightColor={trackerHighlightColor}
+            isCollapsible={true}
+            defaultCollapsed={false}
+          />
           <GameLog logs={gameState.logs} players={gameState.players} />
         </div>
       </div>
+
+      {/* Mobile Deck Tracker Drawer / Bottom Sheet (Issue #65) */}
+      {isMobileTrackerOpen && (
+        <div
+          data-testid="mobile-tracker-drawer"
+          role="dialog"
+          aria-label="モバイル残弾デッキトラッカー"
+          className="fixed inset-0 z-50 flex flex-col justify-end bg-black/50 backdrop-blur-xs lg:hidden animate-fade-in"
+          onClick={() => setIsMobileTrackerOpen(false)}
+        >
+          <div
+            className="bg-white rounded-t-3xl p-4 shadow-2xl animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-algo-blue" />
+                <h3 className="text-sm font-black text-slate-800">残弾デッキトラッカー</h3>
+              </div>
+              <button
+                type="button"
+                data-testid="close-mobile-tracker"
+                onClick={() => setIsMobileTrackerOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                aria-label="トラッカーを閉じる"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div>
+              <DeckTracker
+                players={gameState.players}
+                drawnCard={gameState.drawnCard}
+                highlightedNumbers={trackerHighlightNumbers}
+                highlightColor={trackerHighlightColor}
+                isCollapsible={false}
+                hideHeader={false}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mobile Log Drawer / Bottom Sheet */}
       {isMobileLogOpen && (
@@ -2200,9 +2733,14 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
       {/* 推理結果確認モーダル (CPU & プレイヤー) */}
       <AttackResultModal
-        isOpen={attackResult !== null}
+        isOpen={attackResult !== null && !isSkippingToResult}
         data={attackResult}
         onConfirm={handleAttackOk}
+        isSpectating={isSpectating}
+        isAutoAdvance={isAutoSpectate}
+        onToggleAutoAdvance={() => setIsAutoSpectate((prev) => !prev)}
+        onSkipToResult={handleSkipToResult}
+        autoAdvanceDelayMs={1500}
       />
 
       {/* SCR-006: 決着リザルト＆祝祭演出モーダル */}
@@ -2238,6 +2776,15 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         isActive={isLethalCutInActive}
         winnerName={lethalWinnerName}
         onComplete={handleLethalCutInComplete}
+      />
+
+      {/* 通算戦績＆アチーブメントモーダル (Issue #72) */}
+      <StatsModal
+        isOpen={isStatsModalOpen}
+        onClose={() => setIsStatsModalOpen(false)}
+        stats={playerStats}
+        achievements={playerAchievements}
+        onResetStats={handleResetStats}
       />
     </div>
   );
