@@ -80,8 +80,17 @@ export const CardComponent: React.FC<CardComponentProps> = ({
   const cardTestId = testId || `card-${card.color}-${showNumber ? card.number : 'hidden'}`;
 
   return (
-    <div className="flex flex-col items-center gap-1 select-none perspective-1000" data-testid="card-element">
-      {label && <span className="text-[10px] sm:text-xs text-slate-500 font-semibold">{label}</span>}
+    <div className="flex flex-col items-center gap-0.5 sm:gap-1 pt-0.5 select-none perspective-1000" data-testid="card-element">
+      {label && (
+        <span
+          data-testid="card-label"
+          className={`${
+            size === 'xs' ? 'text-[9px] sm:text-[10px]' : 'text-[10px] sm:text-xs'
+          } text-slate-500 font-semibold leading-none`}
+        >
+          {label}
+        </span>
+      )}
       <div
         data-testid={cardTestId}
         data-hint-target={isHintTarget ? 'true' : undefined}

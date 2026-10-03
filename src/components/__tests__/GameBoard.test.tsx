@@ -4041,5 +4041,45 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       // 候補連動バッジが表示されること
       expect(screen.getByTestId('tracker-assist-active')).toBeInTheDocument();
     });
+
+    it('4人対戦時、相手手札コンテナとカードエリアに上部見切れ防止用の余白スタイルが付与されていること (Issue #115)', () => {
+      const fourPlayerState: GameState = {
+        ...baseGameState,
+        players: [
+          baseGameState.players[0], // 人間
+          baseGameState.players[1], // CPU 1
+          {
+            id: 'cpu2',
+            name: 'CPU 2',
+            isHuman: false,
+            cards: [{ id: 'c2-1', color: 'black', number: 3, isOpen: false }],
+            isEliminated: false,
+            avatarColor: 'emerald',
+          },
+          {
+            id: 'cpu3',
+            name: 'CPU 3',
+            isHuman: false,
+            cards: [{ id: 'c3-1', color: 'white', number: 8, isOpen: false }],
+            isEliminated: false,
+            avatarColor: 'amber',
+          },
+        ],
+      };
+
+      render(<GameBoard initialState={fourPlayerState} />);
+
+      const cpu1Hand = screen.getByTestId('player-hand-cpu1');
+      expect(cpu1Hand).toBeInTheDocument();
+      // 4人対戦時（相手3人）の最適化パディング
+      expect(cpu1Hand.className).toContain('p-1.5');
+      expect(cpu1Hand.className).toContain('sm:p-2.5');
+
+      // カード番号ラベル (#1) が見切れずにレンダリングされていること
+      const cardLabels = screen.getAllByTestId('card-label');
+      expect(cardLabels.length).toBeGreaterThan(0);
+      expect(cardLabels[0].textContent).toBe('#1');
+      expect(cardLabels[0].className).toContain('leading-none');
+    });
   });
 });

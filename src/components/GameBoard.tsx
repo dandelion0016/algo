@@ -2243,8 +2243,10 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 <div
                   key={opp.id}
                   data-testid={`player-hand-${opp.id}`}
-                  className={`bg-white rounded-xl sm:rounded-2xl lg:rounded-3xl p-1 sm:p-3 lg:p-4 border transition-all relative ${
-                    opponents.length >= 3 ? 'min-w-[125px] flex-1 sm:min-w-0 shrink-0 sm:shrink' : ''
+                  className={`bg-white rounded-xl sm:rounded-2xl lg:rounded-3xl border transition-all relative ${
+                    opponents.length >= 3
+                      ? 'min-w-[125px] flex-1 sm:min-w-0 shrink-0 sm:shrink p-1.5 sm:p-2.5 lg:p-3'
+                      : 'p-2 sm:p-3 lg:p-4'
                   } ${
                     opp.isEliminated
                       ? 'border-slate-200 bg-slate-50/60 opacity-60'
@@ -2253,7 +2255,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                       : 'border-slate-200 shadow-sm'
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-0.5 sm:mb-2">
+                  <div className="flex items-center justify-between mb-1 sm:mb-2">
                     <div className="flex items-center gap-1.5 sm:gap-2">
                       <div
                         className={`w-5 h-5 sm:w-7 sm:h-7 rounded-lg sm:rounded-xl bg-gradient-to-br ${opp.avatarColor} text-white flex items-center justify-center font-bold text-xs shadow-2xs`}
@@ -2279,7 +2281,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     ) : null}
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-2 py-0.5 sm:py-1 min-h-12 sm:min-h-20 lg:min-h-24">
+                  <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-2 pt-1 sm:pt-1.5 pb-0.5 sm:pb-1 min-h-12 sm:min-h-20 lg:min-h-24">
                     {opp.cards.map((card, idx) => {
                       const candidateHint =
                         !isGameOver && isAssistEnabled && !card.isOpen && !opp.isEliminated
@@ -2600,7 +2602,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         <div
           data-testid="mobile-tracker-drawer"
           role="dialog"
-          aria-label="モバイル残弾デッキトラッカー"
+          aria-label="モバイル残弾トラッカー"
           className="fixed inset-0 z-50 flex flex-col justify-end bg-black/50 backdrop-blur-xs lg:hidden animate-fade-in"
           onClick={() => setIsMobileTrackerOpen(false)}
         >
@@ -2611,7 +2613,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Target className="w-4 h-4 text-algo-blue" />
-                <h3 className="text-sm font-black text-slate-800">残弾デッキトラッカー</h3>
+                <h3 className="text-sm font-black text-slate-800">残弾トラッカー</h3>
               </div>
               <button
                 type="button"
