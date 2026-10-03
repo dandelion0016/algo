@@ -258,6 +258,19 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const [timeUpBanner, setTimeUpBanner] = useState<string | null>(initialTimeUpBanner);
   const [isMobileLogOpen, setIsMobileLogOpen] = useState(false);
   const [isMobileTrackerOpen, setIsMobileTrackerOpen] = useState(false);
+
+  // モバイル残弾トラッカーおよびモバイルログのEscapeキー対応 (Issue #116)
+  useEffect(() => {
+    if (!isMobileTrackerOpen && !isMobileLogOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isMobileTrackerOpen) setIsMobileTrackerOpen(false);
+        if (isMobileLogOpen) setIsMobileLogOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isMobileTrackerOpen, isMobileLogOpen]);
   // CPUが手札に挿入した直後のカード追跡用 (Issue #66)
   const [recentlyInsertedCard, setRecentlyInsertedCard] = useState<{
     playerId: string;
@@ -2091,18 +2104,18 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               </button>
             )}
 
-            {/* モバイル専用 残弾トラッカー表示トグルボタン (lg未満で表示) (Issue #65) */}
+            {/* モバイル専用 残弾トラッカー表示トグルボタン (lg未満で表示) (Issue #65, Issue #116) */}
             <button
               type="button"
-              data-testid="btn-toggle-tracker"
+              data-testid="btn-open-deck-tracker-mobile"
               onClick={() => setIsMobileTrackerOpen((prev) => !prev)}
               className="flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-[10px] sm:text-xs font-bold transition-all shadow-2xs lg:hidden relative whitespace-nowrap shrink-0"
-              aria-label={`残弾トラッカーを開く (残弾 ${trackerState.summary.totalRemaining}枚)`}
+              aria-label={`残弾トラッカーを開く (残弾 ${trackerState.summary.totalRemaining}/24枚)`}
             >
-              <Target className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-algo-blue" />
+              <Target className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-algo-blue shrink-0" />
               <span>残弾</span>
               <span className="ml-0.5 px-1 py-0.2 rounded-full bg-algo-blue/15 text-algo-blue text-[9px] font-black">
-                {trackerState.summary.totalRemaining}
+                {trackerState.summary.totalRemaining}/24
               </span>
             </button>
 
@@ -2597,42 +2610,55 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         </div>
       </div>
 
-      {/* Mobile Deck Tracker Drawer / Bottom Sheet (Issue #65) */}
+      {/* Mobile Deck Tracker Drawer / Bottom Sheet (Issue #65, Issue #116) */}
       {isMobileTrackerOpen && (
         <div
           data-testid="mobile-tracker-drawer"
           role="dialog"
+          aria-modal="true"
           aria-label="モバイル残弾トラッカー"
           className="fixed inset-0 z-50 flex flex-col justify-end bg-black/50 backdrop-blur-xs lg:hidden animate-fade-in"
           onClick={() => setIsMobileTrackerOpen(false)}
         >
           <div
-            className="bg-white rounded-t-3xl p-4 shadow-2xl animate-slide-up"
+            className="bg-white rounded-t-3xl p-4 shadow-2xl animate-slide-up max-h-[85vh] flex flex-col overscroll-contain"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <Target className="w-4 h-4 text-algo-blue" />
-                <h3 className="text-sm font-black text-slate-800">残弾トラッカー</h3>
+              <div className="flex items-center gap-2 min-w-0">
+                <Target className="w-4 h-4 text-algo-blue shrink-0" />
+                <h3 className="text-sm font-black text-slate-800 whitespace-nowrap">残弾トラッカー</h3>
+                <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                  残り {trackerState.summary.totalRemaining}/24枚
+                </span>
+                {trackerHighlightNumbers.length > 0 && (
+                  <span
+                    className="flex items-center gap-0.5 px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 text-[9px] font-bold shrink-0 animate-fade-in"
+                    title="推理候補ハイライト中"
+                  >
+                    <Sparkles className="w-2.5 h-2.5" />
+                    <span>候補連動</span>
+                  </span>
+                )}
               </div>
               <button
                 type="button"
-                data-testid="close-mobile-tracker"
+                data-testid="btn-close-deck-tracker-mobile"
                 onClick={() => setIsMobileTrackerOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
                 aria-label="トラッカーを閉じる"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div>
+            <div className="flex-1 overflow-y-auto">
               <DeckTracker
                 players={gameState.players}
                 drawnCard={gameState.drawnCard}
                 highlightedNumbers={trackerHighlightNumbers}
                 highlightColor={trackerHighlightColor}
                 isCollapsible={false}
-                hideHeader={false}
+                hideHeader={true}
               />
             </div>
           </div>

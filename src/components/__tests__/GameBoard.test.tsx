@@ -12,7 +12,7 @@ import {
   ELIMINATION_MESSAGE,
   getKnownNumbersForColor,
 } from '../GameBoard';
-import { render, screen, act, fireEvent } from '@testing-library/react';
+import { render, screen, act, fireEvent, within } from '@testing-library/react';
 import * as useUserSessionModule from '../../hooks/useUserSession';
 import { createDeck, setupGamePlayers, insertCardInOrder, isAllOpen, getNextActivePlayerIndex, checkAttack } from '../../lib/algoEngine';
 import { getNextActionMessage } from '../CpuAttackModal';
@@ -4007,25 +4007,41 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(summary.textContent).toContain('20');
     });
 
-    it('モバイルトグルボタンをクリックするとモバイルトラッカードロワーが開閉できること', () => {
+    it('モバイルトグルボタン (btn-open-deck-tracker-mobile) をクリックするとモバイルトラッカードロワーが開き、閉じるボタン (btn-close-deck-tracker-mobile) やEscapeキーで閉じること (Issue #116)', () => {
       render(<GameBoard initialState={baseGameState} />);
 
       // 初期状態ではモバイルドロワーは非表示
       expect(screen.queryByTestId('mobile-tracker-drawer')).not.toBeInTheDocument();
 
-      // トグルボタンをクリックしてドロワーを開く
-      const toggleBtn = screen.getByTestId('btn-toggle-tracker');
+      // トグルボタンをクリックしてドロワーを開く（残弾サマリ 20/24 が表示されていること）
+      const toggleBtn = screen.getByTestId('btn-open-deck-tracker-mobile');
       expect(toggleBtn).toBeInTheDocument();
+      expect(toggleBtn.textContent).toContain('20/24');
       fireEvent.click(toggleBtn);
 
       // モバイルドロワーが表示されること
-      expect(screen.getByTestId('mobile-tracker-drawer')).toBeInTheDocument();
+      const drawer = screen.getByTestId('mobile-tracker-drawer');
+      expect(drawer).toBeInTheDocument();
+      expect(drawer.textContent).toContain('残り 20/24枚');
 
       // ドロワー内の閉じるボタンをクリック
-      const closeBtn = screen.getByTestId('close-mobile-tracker');
+      const closeBtn = screen.getByTestId('btn-close-deck-tracker-mobile');
+      expect(closeBtn).toBeInTheDocument();
       fireEvent.click(closeBtn);
 
       // ドロワーが閉じること
+      expect(screen.queryByTestId('mobile-tracker-drawer')).not.toBeInTheDocument();
+
+      // 再度開き、Escapeキーで閉じること
+      fireEvent.click(toggleBtn);
+      expect(screen.getByTestId('mobile-tracker-drawer')).toBeInTheDocument();
+      fireEvent.keyDown(window, { key: 'Escape' });
+      expect(screen.queryByTestId('mobile-tracker-drawer')).not.toBeInTheDocument();
+
+      // 再度開き、背景backdropクリックで閉じること
+      fireEvent.click(toggleBtn);
+      const openDrawer = screen.getByTestId('mobile-tracker-drawer');
+      fireEvent.click(openDrawer);
       expect(screen.queryByTestId('mobile-tracker-drawer')).not.toBeInTheDocument();
     });
 
@@ -4040,6 +4056,43 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
 
       // 候補連動バッジが表示されること
       expect(screen.getByTestId('tracker-assist-active')).toBeInTheDocument();
+    });
+
+    it('【Issue #116】モバイル用残弾ボタンのクリックでドロワーが開き、残弾サマリが正しく表示され、閉じるボタンで閉じること', () => {
+      render(<GameBoard initialState={baseGameState} />);
+
+      // 初期状態ではモバイルドロワーが存在しない
+      expect(screen.queryByTestId('mobile-tracker-drawer')).not.toBeInTheDocument();
+
+      // モバイル用残弾ボタントグル (btn-open-deck-tracker-mobile) の検証
+      const openButton = screen.getByTestId('btn-open-deck-tracker-mobile');
+      expect(openButton).toBeInTheDocument();
+      expect(openButton).toHaveAttribute('aria-label', expect.stringContaining('残弾 20/24枚'));
+      expect(openButton.textContent).toContain('残弾');
+      expect(openButton.textContent).toContain('20/24');
+
+      // クリックでドロワー展開
+      fireEvent.click(openButton);
+
+      // ドロワー内のヘッダー要素・サマリ・閉じるボタンの検証
+      const drawer = screen.getByTestId('mobile-tracker-drawer');
+      expect(drawer).toBeInTheDocument();
+      expect(drawer).toHaveAttribute('role', 'dialog');
+      expect(drawer).toHaveAttribute('aria-modal', 'true');
+      expect(drawer.textContent).toContain('残弾トラッカー');
+      expect(drawer.textContent).toContain('残り 20/24枚');
+
+      // ドロワー内に未確定カードが表示されていること
+      expect(within(drawer).getByTestId('tracker-card-black-7')).toBeInTheDocument();
+
+      // 閉じるボタン (btn-close-deck-tracker-mobile) の検証とクリック
+      const closeButton = screen.getByTestId('btn-close-deck-tracker-mobile');
+      expect(closeButton).toBeInTheDocument();
+      expect(closeButton).toHaveAttribute('aria-label', 'トラッカーを閉じる');
+      fireEvent.click(closeButton);
+
+      // ドロワーが閉じること
+      expect(screen.queryByTestId('mobile-tracker-drawer')).not.toBeInTheDocument();
     });
 
     it('4人対戦時、相手手札コンテナとカードエリアに上部見切れ防止用の余白スタイルが付与されていること (Issue #115)', () => {
