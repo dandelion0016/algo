@@ -15,6 +15,7 @@ interface AttackModalProps {
   possibleNumbers?: number[]; // 推理候補数字リスト (Issue #42)
   assistEnabled?: boolean;    // 初心者アシスト有効フラグ (Issue #42)
   failedNumbers?: number[];   // そのカードに対して過去に外れた数字リスト (Issue #43)
+  remainingDeckNumbers?: number[]; // 対象カードと同色の未確定残弾数字配列 (Issue #113)
 }
 
 export const AttackModal: React.FC<AttackModalProps> = ({
@@ -27,6 +28,7 @@ export const AttackModal: React.FC<AttackModalProps> = ({
   possibleNumbers,
   assistEnabled = true,
   failedNumbers = [],
+  remainingDeckNumbers,
 }) => {
   const [selectedNum, setSelectedNum] = useState<number | null>(null);
   const inputBufferRef = useRef<string>('');
@@ -245,6 +247,37 @@ export const AttackModal: React.FC<AttackModalProps> = ({
                   ({possibleNumbers.length}通り)
                 </span>
               </span>
+            </div>
+          )}
+
+          {/* 未確定残弾インジケーター (Issue #113: モーダル内残弾連携) */}
+          {remainingDeckNumbers !== undefined && (
+            <div
+              data-testid="attack-remaining-deck-hint"
+              className="mt-2 py-1.5 px-3 rounded-xl bg-slate-100/90 border border-slate-200 text-slate-800 text-xs font-bold flex flex-wrap items-center justify-between gap-1 shadow-2xs"
+            >
+              <span className="flex items-center gap-1.5 text-slate-600 font-semibold text-xs">
+                <span>未確定の残弾:</span>
+              </span>
+              <div className="flex flex-wrap items-center gap-1" data-testid="remaining-deck-badges">
+                {remainingDeckNumbers.length > 0 ? (
+                  remainingDeckNumbers.map((num) => (
+                    <span
+                      key={num}
+                      data-testid={`remaining-deck-badge-${num}`}
+                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md text-[11px] font-black border shadow-2xs ${
+                        isBlack
+                          ? 'bg-zinc-800 text-zinc-100 border-zinc-700'
+                          : 'bg-white text-zinc-800 border-slate-300'
+                      }`}
+                    >
+                      {num}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs text-slate-400 font-normal">なし</span>
+                )}
+              </div>
             </div>
           )}
 

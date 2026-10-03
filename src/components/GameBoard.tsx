@@ -34,7 +34,7 @@ import { HintModal } from './HintModal';
 import { LethalCutIn } from './LethalCutIn';
 import { StatsModal } from './StatsModal';
 import { DeckTracker } from './DeckTracker';
-import { calculateDeckTrackerState } from '../lib/deckTracker';
+import { calculateDeckTrackerState, getRemainingDeckNumbers } from '../lib/deckTracker';
 import { getBestHint, HintResult } from '../lib/hintAdvisor';
 import { useUserSession } from '../hooks/useUserSession';
 import { auditLogger } from '../lib/auditLogger';
@@ -2706,6 +2706,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               : undefined
           }
           assistEnabled={isAssistEnabled}
+          remainingDeckNumbers={
+            selectedTargetColor
+              ? getRemainingDeckNumbers(gameState.players, selectedTargetColor, gameState.drawnCard)
+              : undefined
+          }
         />
       )}
 

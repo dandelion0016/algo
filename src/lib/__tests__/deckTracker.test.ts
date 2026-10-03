@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Player, Card } from '../../types/game';
-import { calculateDeckTrackerState, getConfirmedCardSets } from '../deckTracker';
+import { calculateDeckTrackerState, getConfirmedCardSets, getRemainingDeckNumbers } from '../deckTracker';
 
 describe('deckTracker', () => {
   const createMockPlayer = (
@@ -158,6 +158,38 @@ describe('deckTracker', () => {
       expect(state.whiteCards[0].isHighlighted).toBe(true);
       expect(state.whiteCards[11].isHighlighted).toBe(true);
       expect(state.blackCards[1].isHighlighted).toBe(false);
+    });
+  });
+
+  describe('getRemainingDeckNumbers (Issue #113)', () => {
+    it('初期状態では0から11までの全12個の数字が昇順で返されること', () => {
+      const remainingBlack = getRemainingDeckNumbers([], 'black');
+      const remainingWhite = getRemainingDeckNumbers([], 'white');
+
+      expect(remainingBlack).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+      expect(remainingWhite).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    });
+
+    it('人間手札・オープンカード・ドローカードの数字が除外された昇順未確定数字配列が返されること', () => {
+      const human = createMockPlayer('p1', 'Player 1', true, [
+        { id: 'b-0', color: 'black', number: 0, isOpen: false },
+        { id: 'b-5', color: 'black', number: 5, isOpen: true },
+        { id: 'w-2', color: 'white', number: 2, isOpen: false },
+      ]);
+      const cpu = createMockPlayer('cpu1', 'CPU 1', false, [
+        { id: 'b-7', color: 'black', number: 7, isOpen: false }, // 裏向き（残弾として残る）
+        { id: 'b-9', color: 'black', number: 9, isOpen: true },  // オープン（確定除外）
+        { id: 'w-4', color: 'white', number: 4, isOpen: true },  // オープン（確定除外）
+      ]);
+      const drawnCard: Card = { id: 'b-11', color: 'black', number: 11, isOpen: false };
+
+      const remainingBlack = getRemainingDeckNumbers([human, cpu], 'black', drawnCard);
+      // 除外: 0 (human), 5 (human), 9 (cpu open), 11 (drawn) -> 残り: 1, 2, 3, 4, 6, 7, 8, 10
+      expect(remainingBlack).toEqual([1, 2, 3, 4, 6, 7, 8, 10]);
+
+      const remainingWhite = getRemainingDeckNumbers([human, cpu], 'white', drawnCard);
+      // 除外: 2 (human), 4 (cpu open) -> 残り: 0, 1, 3, 5, 6, 7, 8, 9, 10, 11
+      expect(remainingWhite).toEqual([0, 1, 3, 5, 6, 7, 8, 9, 10, 11]);
     });
   });
 });

@@ -452,4 +452,48 @@ describe('AttackModal Component (SCR-004 & Issue #17: data-testid and a11y)', ()
       expect(html).not.toContain('data-testid="attack-failed-numbers-hint"');
     });
   });
+
+  describe('未確定残弾インジケーター表示 (Issue #113)', () => {
+    it('remainingDeckNumbers が渡された場合、未確定残弾インジケーターと数字バッジが表示される', () => {
+      const html = renderToString(
+        <AttackModal
+          {...defaultProps}
+          targetColor="black"
+          remainingDeckNumbers={[0, 1, 4, 7, 10]}
+        />
+      );
+
+      expect(html).toContain('data-testid="attack-remaining-deck-hint"');
+      expect(html).toContain('未確定の残弾:');
+      expect(html).toContain('data-testid="remaining-deck-badges"');
+      expect(html).toContain('data-testid="remaining-deck-badge-0"');
+      expect(html).toContain('data-testid="remaining-deck-badge-1"');
+      expect(html).toContain('data-testid="remaining-deck-badge-4"');
+      expect(html).toContain('data-testid="remaining-deck-badge-7"');
+      expect(html).toContain('data-testid="remaining-deck-badge-10"');
+      expect(html).not.toContain('data-testid="remaining-deck-badge-2"');
+    });
+
+    it('remainingDeckNumbers が渡されない場合は未確定残弾インジケーターが表示されない', () => {
+      const html = renderToString(
+        <AttackModal
+          {...defaultProps}
+        />
+      );
+
+      expect(html).not.toContain('data-testid="attack-remaining-deck-hint"');
+    });
+
+    it('remainingDeckNumbers が空配列の場合は「なし」と表示される', () => {
+      const html = renderToString(
+        <AttackModal
+          {...defaultProps}
+          remainingDeckNumbers={[]}
+        />
+      );
+
+      expect(html).toContain('data-testid="attack-remaining-deck-hint"');
+      expect(html).toContain('なし');
+    });
+  });
 });
