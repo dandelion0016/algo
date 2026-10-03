@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Player, AttackLog, PlayerCount, Difficulty, TimeLimit } from '../types/game';
 import { ConfettiEffect } from './ConfettiEffect';
+import { CardComponent } from './CardComponent';
 
 export interface ResultModalProps {
   isOpen: boolean;
@@ -350,6 +351,83 @@ export const ResultModal: React.FC<ResultModalProps> = ({
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* 🔍 手札の答え合わせ (Review Hands) セクション (Issue #60) */}
+            <div
+              data-testid="hand-review-section"
+              className="bg-slate-50/90 border border-slate-200/90 rounded-xl sm:rounded-2xl p-3 sm:p-4 space-y-2.5"
+            >
+              <div className="flex items-center justify-between px-0.5">
+                <h3 className="text-[11px] sm:text-xs font-black text-slate-700 tracking-wider flex items-center gap-1.5">
+                  <Eye className="w-3.5 h-3.5 text-algo-blue" />
+                  <span>🔍 手札の答え合わせ (Review Hands)</span>
+                </h3>
+                <span className="text-[10px] sm:text-[11px] font-semibold text-slate-400">
+                  全プレイヤーの最終手札
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {players.map((p) => {
+                  const isCurrentWinner = winner?.id === p.id;
+                  const openCount = p.cards.filter((c) => c.isOpen).length;
+                  return (
+                    <div
+                      key={p.id}
+                      data-testid={`review-player-${p.id}`}
+                      className="bg-white rounded-lg sm:rounded-xl p-2.5 sm:p-3 border border-slate-200/70 shadow-2xs space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{
+                              backgroundColor: p.avatarColor?.startsWith('from-')
+                                ? undefined
+                                : p.avatarColor || '#3b82f6',
+                            }}
+                          />
+                          <span className="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-1">
+                            {p.name}
+                            {p.isHuman && (
+                              <span className="text-[10px] text-slate-500 font-normal">(あなた)</span>
+                            )}
+                          </span>
+                          {isCurrentWinner && (
+                            <span className="px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 text-[9px] font-black">
+                              👑 勝者
+                            </span>
+                          )}
+                          {p.isEliminated && (
+                            <span className="px-1.5 py-0.2 rounded-full bg-rose-100 text-rose-700 text-[9px] font-bold">
+                              脱落
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          {openCount}/{p.cards.length} 枚OPEN
+                        </span>
+                      </div>
+
+                      {/* 手札カード一覧（全カードを表向きで開示） */}
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                        {p.cards.map((card, cIdx) => (
+                          <CardComponent
+                            key={card.id || `${p.id}-${cIdx}`}
+                            card={card}
+                            isOwner={false}
+                            isRevealed={true}
+                            size="xs"
+                            testId={`review-card-${p.id}-${cIdx}`}
+                            label={`#${cIdx + 1}`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

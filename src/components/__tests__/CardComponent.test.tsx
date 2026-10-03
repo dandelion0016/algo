@@ -173,4 +173,75 @@ describe('CardComponent (Issue #43: failed-guesses-badge)', () => {
       expect(container.querySelector('[data-testid="card-white-4"]')).not.toBeNull();
     });
   });
+
+  describe('Issue #60: ゲーム終了時答え合わせ開示 (isRevealed)', () => {
+    const hiddenOpponentCard = {
+      id: 'b-7',
+      color: 'black' as const,
+      number: 7,
+      isOpen: false,
+    };
+
+    const openOpponentCard = {
+      id: 'w-3',
+      color: 'white' as const,
+      number: 3,
+      isOpen: true,
+    };
+
+    it('isRevealed: true の場合、相手の伏せカードであっても数字が表示され、答え合わせ開示バッジ（reveal-badge）が表示される', () => {
+      const { container } = render(
+        <CardComponent
+          card={hiddenOpponentCard}
+          isOwner={false}
+          isRevealed={true}
+        />
+      );
+
+      // 1. 数字 7 がテキストとして描画されること（「?」ではない）
+      expect(container.textContent).toContain('7');
+      expect(container.textContent).not.toContain('?');
+
+      // 2. 答え合わせ「開示」バッジが描画されること
+      const revealBadge = container.querySelector('[data-testid="reveal-badge"]');
+      expect(revealBadge).not.toBeNull();
+      expect(revealBadge?.textContent).toBe('開示');
+
+      // 3. testid に数字が含まれること
+      expect(container.querySelector('[data-testid="card-black-7"]')).not.toBeNull();
+
+      // 4. aria-label に数字と [開示] が含まれること
+      const cardEl = container.querySelector('[data-testid="card-black-7"]');
+      expect(cardEl?.getAttribute('aria-label')).toContain('(数字: 7)');
+      expect(cardEl?.getAttribute('aria-label')).toContain('[開示]');
+    });
+
+    it('isRevealed: true かつカードが既にオープンの場合、OPENバッジが表示され、開示バッジは表示されない', () => {
+      const { container } = render(
+        <CardComponent
+          card={openOpponentCard}
+          isOwner={false}
+          isRevealed={true}
+        />
+      );
+
+      expect(container.textContent).toContain('3');
+      expect(container.textContent).toContain('OPEN');
+      expect(container.querySelector('[data-testid="reveal-badge"]')).toBeNull();
+    });
+
+    it('isRevealed: false の場合、伏せカードは「?」表示となり開示バッジは表示されない', () => {
+      const { container } = render(
+        <CardComponent
+          card={hiddenOpponentCard}
+          isOwner={false}
+          isRevealed={false}
+        />
+      );
+
+      expect(container.textContent).toContain('?');
+      expect(container.textContent).not.toContain('7');
+      expect(container.querySelector('[data-testid="reveal-badge"]')).toBeNull();
+    });
+  });
 });

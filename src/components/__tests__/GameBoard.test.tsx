@@ -669,6 +669,168 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
         // 中央テーブル内の戦績サマリ表示ボタン
         expect(html).toContain('戦績サマリを表示');
       });
+
+      it('Issue #60: GAME_OVER 時に相手の未オープン伏せカードが盤面上で表向き開示され、答え合わせバッジとバナーが表示される', () => {
+        const gameOverWithHiddenOpponent = [
+          {
+            id: 'test_user_1',
+            name: 'あなた',
+            isHuman: true,
+            cards: [
+              { id: 'b-1', color: 'black' as const, number: 1, isOpen: false },
+              { id: 'w-2', color: 'white' as const, number: 2, isOpen: false },
+            ],
+            isEliminated: false,
+            avatarColor: 'from-blue-500 to-indigo-600',
+          },
+          {
+            id: 'cpu-1',
+            name: 'CPU 1',
+            isHuman: false,
+            cards: [
+              { id: 'b-5', color: 'black' as const, number: 5, isOpen: true },
+              { id: 'w-9', color: 'white' as const, number: 9, isOpen: false }, // 未オープンのカード
+            ],
+            isEliminated: true,
+            avatarColor: 'from-amber-500 to-orange-600',
+          },
+        ];
+
+        const { container } = render(
+          <GameBoard
+            initialState={{
+              phase: 'GAME_OVER',
+              timeLimit: 30,
+              remainingTime: 30,
+              playerCount: 2,
+              difficulty: 'normal',
+              players: gameOverWithHiddenOpponent,
+              winner: gameOverWithHiddenOpponent[0],
+            }}
+          />
+        );
+
+        // 1. 答え合わせバナー（game-over-reveal-banner）が存在すること
+        const banner = container.querySelector('[data-testid="game-over-reveal-banner"]');
+        expect(banner).not.toBeNull();
+        expect(banner?.textContent).toContain('全プレイヤーの手札の答え合わせが開示されています');
+
+        // 2. 相手（CPU 1）の未オープンカード（w-9）が盤面上で数字 9 とともに開示されていること
+        const opponentCard1 = container.querySelector('[data-testid="opponent-card-1"]');
+        expect(opponentCard1).not.toBeNull();
+        expect(opponentCard1?.textContent).toContain('9');
+        expect(opponentCard1?.textContent).not.toContain('?');
+
+        // 3. 相手の未オープンカードに「開示」バッジ（reveal-badge）が表示されていること
+        const revealBadge = opponentCard1?.querySelector('[data-testid="reveal-badge"]');
+        expect(revealBadge).not.toBeNull();
+        expect(revealBadge?.textContent).toBe('開示');
+
+        // 4. 既にオープンされていたカード（b-5）は「OPEN」バッジのままであること
+        const opponentCard0 = container.querySelector('[data-testid="opponent-card-0"]');
+        expect(opponentCard0?.textContent).toContain('5');
+        expect(opponentCard0?.textContent).toContain('OPEN');
+        expect(opponentCard0?.querySelector('[data-testid="reveal-badge"]')).toBeNull();
+      });
+
+      it('Issue #60: リザルトモーダルを閉じた際（盤面振り返り時）に相手カードが開示されたままであり、結果を見るボタンが表示される', () => {
+        const gameOverWithHiddenOpponent = [
+          {
+            id: 'test_user_1',
+            name: 'あなた',
+            isHuman: true,
+            cards: [
+              { id: 'b-1', color: 'black' as const, number: 1, isOpen: false },
+            ],
+            isEliminated: false,
+            avatarColor: 'from-blue-500 to-indigo-600',
+          },
+          {
+            id: 'cpu-1',
+            name: 'CPU 1',
+            isHuman: false,
+            cards: [
+              { id: 'w-7', color: 'white' as const, number: 7, isOpen: false },
+            ],
+            isEliminated: true,
+            avatarColor: 'from-amber-500 to-orange-600',
+          },
+        ];
+
+        const { container } = render(
+          <GameBoard
+            initialState={{
+              phase: 'GAME_OVER',
+              playerCount: 2,
+              players: gameOverWithHiddenOpponent,
+              winner: gameOverWithHiddenOpponent[0],
+            }}
+          />
+        );
+
+        // 「盤面を振り返る（モーダルを閉じる）」をクリック
+        const closeBtn = screen.getByText('盤面を振り返る（モーダルを閉じる）');
+        fireEvent.click(closeBtn);
+
+        // リザルトモーダルが閉じていること
+        expect(screen.queryByTestId('result-modal')).toBeNull();
+
+        // 相手のカードは開示されたままであること
+        const opponentCard = container.querySelector('[data-testid="opponent-card-0"]');
+        expect(opponentCard?.textContent).toContain('7');
+        expect(opponentCard?.querySelector('[data-testid="reveal-badge"]')?.textContent).toBe('開示');
+
+        // ヘッダーに「結果を見る」再表示ボタン（btn-reopen-result）が表示されていること
+        const reopenBtn = screen.getByTestId('btn-reopen-result');
+        expect(reopenBtn).toBeInTheDocument();
+
+        // 再表示ボタンをクリックするとリザルトモーダルが再び開くこと
+        fireEvent.click(reopenBtn);
+        expect(screen.getByTestId('result-modal')).toBeInTheDocument();
+      });
+
+      it('Issue #60: ゲーム進行中（phase !== GAME_OVER）は相手の伏せカードが絶対に開示されず「?」であること（Information Hidingの堅持）', () => {
+        const activeGamePlayers = [
+          {
+            id: 'test_user_1',
+            name: 'あなた',
+            isHuman: true,
+            cards: [
+              { id: 'b-1', color: 'black' as const, number: 1, isOpen: false },
+            ],
+            isEliminated: false,
+            avatarColor: 'from-blue-500 to-indigo-600',
+          },
+          {
+            id: 'cpu-1',
+            name: 'CPU 1',
+            isHuman: false,
+            cards: [
+              { id: 'w-7', color: 'white' as const, number: 7, isOpen: false },
+            ],
+            isEliminated: false,
+            avatarColor: 'from-amber-500 to-orange-600',
+          },
+        ];
+
+        const { container } = render(
+          <GameBoard
+            initialState={{
+              phase: 'PLAYER_SELECT_TARGET',
+              playerCount: 2,
+              players: activeGamePlayers,
+              activePlayerIndex: 0,
+            }}
+          />
+        );
+
+        const opponentCard = container.querySelector('[data-testid="opponent-card-0"]');
+        expect(opponentCard).not.toBeNull();
+        expect(opponentCard?.textContent).toContain('?');
+        expect(opponentCard?.textContent).not.toContain('7');
+        expect(container.querySelector('[data-testid="game-over-reveal-banner"]')).toBeNull();
+        expect(opponentCard?.querySelector('[data-testid="reveal-badge"]')).toBeNull();
+      });
     });
 
     describe('Issue #17: UIコンポーネントへの data-testid 属性付与とアクセシビリティ検証', () => {
