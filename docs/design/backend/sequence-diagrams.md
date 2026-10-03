@@ -1,21 +1,20 @@
 # バックエンド ＆ ゲームロジック 業務シーケンス設計書: アルゴ（algo）Web対戦システム
 
-本設計書は、「アルゴ（algo）Web対戦システム」におけるコアゲームフロー、プレイヤー操作、CPU推論処理、時間切れペナルティ、および勝敗決着のシーケンスをMermaid図を用いて定義します。
+本設計書は、「アルゴ（algo）Web対戦システム」におけるコアゲームフロー、プレイヤー操作、CPU推論処理、アタック結果確認演出、観戦モード自動進行、AIヒント助言、タイマー制御、および勝敗決着のシーケンスをMermaid図を用いて定義します。
 
 ---
 
 ## 1. 全体アーキテクチャ境界
 
-- **UI / Client Component**: ユーザー入力の受付、カード描画、モーダル表示、タイマー監視。
+- **UI / Client Component**: ユーザー入力の受付、カード描画、モーダル表示（`AttackResultModal`, `CpuAttackModal`, `HintModal`, `ResultModal` 等）、タイマー監視。
 - **Game Controller (`GameBoard.tsx`)**: React State（`GameState`）のライフサイクル管理とフェーズ遷移のオーケストレーション。
 - **Core Engine (`algoEngine.ts`)**: カードデッキ生成、ソート、アタック判定、生存判定等の純粋関数ロジック。
 - **CPU AI (`cpuAI.ts`)**: 不完全情報ゲームにおける推論、候補絞り込み、難易度別意思決定。
+- **Support Modules**: `hintAdvisor.ts`（ヒント算出）、`soundManager.ts`（SE発音）、`statsManager.ts`（戦績永続化）。
 
 ---
 
 ## 2. シーケンス a: ゲーム開始〜初期手札配布シーケンス
-
-プレイヤーが人数（2〜4人）、難易度（Easy/Normal/Hard）、持ち時間（無制限/15秒/30秒）を選択してゲームを開始するフローです。
 
 ```mermaid
 sequenceDiagram
@@ -25,32 +24,28 @@ sequenceDiagram
     participant Board as GameBoard (Controller)
     participant Engine as algoEngine (Core)
 
-    User->>Setup: 設定選択 (人数: 2〜4人, 難易度, 持ち時間)
-    User->>Setup: 「ゲームを開始する」クリック
+    User->>Setup: ニックネーム設定, 人数(2〜4人), 難易度, 持ち時間選択
+    User->>Setup: 「対戦を開始する！」クリック
     Setup->>Board: initializeGame(playerCount, difficulty, timeLimit)
 
     Board->>Engine: createDeck()
-    Engine-->>Board: 全24枚カード配列返却 (黒12枚・白12枚)
+    Engine-->>Board: 全24枚カード配列 (黒12枚・白12枚)
 
-    Board->>Engine: setupGamePlayers(rawDeck, playerCount)
+    Board->>Engine: setupGamePlayers(playerCount, humanPlayerId)
     activate Engine
     Engine->>Engine: shuffleDeck() [Fisher-Yates]
-    Engine->>Engine: getInitialCardCount(playerCount) [2人:4枚, 3人:3枚, 4人:3枚]
     Engine->>Engine: プレイヤー手札配布 ＆ sortCards()
-    Engine->>Engine: CPU手札配布 ＆ sortCards()
-    Engine-->>Board: { players, remainingDeck } 返却
+    Engine-->>Board: { players, deck } 返却
     deactivate Engine
 
-    Board->>Board: GameState 初期化<br/>(phase: 'PLAYER_TURN_START', activePlayerIndex: 0)
+    Board->>Board: GameState 初期化 (phase: 'PLAYER_TURN_START')
     Board-->>Setup: セットアップモーダル閉じる
     Board-->>User: 盤面描画 (人間手札オープン/CPU手札伏せ/山札表示)
 ```
 
 ---
 
-## 3. シーケンス b: プレイヤー手番（ドロー〜アタック〜判定〜コンティニュー/ステイ）
-
-プレイヤーの標準手番サイクルです。ドローからアタック、的中・ハズレによる分岐、および継続またはステイの選択フローを網羅します。
+## 3. シーケンス b: プレイヤー手番（ドロー〜アタック〜結果確認〜継続/ステイ）
 
 ```mermaid
 sequenceDiagram
@@ -58,209 +53,166 @@ sequenceDiagram
     actor User as プレイヤー (人間)
     participant Board as GameBoard (Controller)
     participant Modal as AttackModal (UI)
+    participant ResultModal as AttackResultModal (UI)
     participant Engine as algoEngine (Core)
-    participant Timer as ターンタイマー
+    participant Sound as SoundManager
 
-    Note over Board,Timer: 手番開始 (phase: 'PLAYER_TURN_START')
-    Board->>Timer: カウントダウン開始 (15s / 30s)
-
-    User->>Board: 山札クリック (ドロー要求)
-    Board->>Board: deck[0] を drawnCard として取得 (phase: 'PLAYER_SELECT_TARGET')
-    Board-->>User: 引いたカードを手元に表示 (自分のみ数字閲覧可)
+    Note over Board: 手番開始 (phase: 'PLAYER_TURN_START')
+    User->>Board: 山札クリック (ドロー)
+    Board->>Board: drawnCard 取得 (phase: 'PLAYER_SELECT_TARGET')
+    Sound->>Sound: playDraw()
 
     User->>Board: 相手の伏せカードを選択
-    Board->>Board: selectedTarget 設定 (phase: 'PLAYER_GUESS_NUMBER')
-    Board-->>Modal: AttackModal 表示 (数字 0〜11 入力キーパッド)
+    Board-->>Modal: AttackModal 表示 (候補アシスト・残弾連動)
 
-    User->>Modal: 予想数字選択 (例: 「7」) ＆ 「アタック確定」
-    Modal->>Board: handleConfirmGuess(guessedNumber: 7)
+    User->>Modal: 予想数字選択 ＆ アタック確定
+    Modal->>Board: handleConfirmGuess(guessedNumber)
     Modal-->>User: モーダル閉じる
 
-    Board->>Engine: checkAttack(targetCard, 7)
+    Board->>Engine: checkAttack(targetCard, guessedNumber)
 
     alt 【的中 (isHit === true)】
         Engine-->>Board: true 返却
-        Board->>Board: 対象カードを isOpen: true に更新
-        Board->>Board: ログ追加 (AttackLog)
-        Board->>Engine: evaluateGameState(updatedPlayers)
+        Sound->>Sound: playAttackHit()
+        Board->>Board: 対象カード isOpen: true
+        Board-->>ResultModal: AttackResultModal 表示 (「的中！」案内)
+        User->>ResultModal: Space/Enter または確認クリック
+        ResultModal-->>Board: onConfirm()
 
-        alt 相手の全カードがオープン (脱落)
-            Board->>Board: isEliminated = true
-            alt 生存者が1名のみ (完全勝利)
-                Board->>Board: phase = 'GAME_OVER', winner 確定
-                Board-->>User: 勝利リザルト画面表示
-            end
+        alt 相手脱落 ＆ 生存者1名 (リーサルK.O.)
+            Board-->>User: LethalCutIn 演出 ➔ ResultModal (決着)
         else ゲーム継続
             Board->>Board: phase = 'PLAYER_DECIDE_NEXT'
-            Board-->>User: 「続けてアタック」or「ステイ」ダイアログ表示
-
-            alt ユーザーが「続けてアタック」を選択
-                User->>Board: 「続けてアタック」クリック
-                Board->>Board: phase = 'PLAYER_SELECT_TARGET' (山札は引かず次の対象選択へ)
-            else ユーザーが「ステイ」を選択
-                User->>Board: 「ステイ」クリック
-                Board->>Engine: insertCardInOrder(playerCards, { ...drawnCard, isOpen: false })
-                Board->>Engine: getNextActivePlayerIndex(currentIndex, players)
-                Board->>Board: activePlayerIndex 移行, phase = 'CPU_ACTING'
-            end
+            Board-->>User: 「続けてアタック」or「ステイ」選択パネル表示
         end
 
     else 【ハズレ (isHit === false)】
         Engine-->>Board: false 返却
-        Board->>Board: ログ追加 (ハズレログ)
-        Board->>Engine: insertCardInOrder(playerCards, { ...drawnCard, isOpen: true })
-        Note over Board: ペナルティ: 引いたカードを表向きで手札の正しい位置に公開挿入
-        Board->>Engine: getNextActivePlayerIndex(0, players)
-        Engine-->>Board: nextActiveIdx 返却
-        Board->>Board: activePlayerIndex = nextActiveIdx, phase = 'CPU_ACTING'
-        Board-->>User: ハズレ演出 ＆ オープンカード挿入アニメーション
+        Sound->>Sound: playAttackMiss()
+        Board->>Engine: insertCardInOrder(myCards, { ...drawnCard, isOpen: true })
+        Board-->>ResultModal: AttackResultModal 表示 (「ハズレ」案内)
+        User->>ResultModal: 確認クリック
+        ResultModal-->>Board: onConfirm()
+        Board->>Board: phase = 'CPU_ACTING' (手番交代)
     end
 ```
 
 ---
 
-## 4. シーケンス c: ターンタイマー切れ（時間切れペナルティ）シーケンス
-
-制限時間（15秒/30秒）内にプレイヤーがアクションを完了しなかった場合の強制ペナルティフローです。
+## 4. シーケンス c: 持ち時間切れ（タイムアウト強制ペナルティ）シーケンス
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Timer as ターンタイマー (useEffect)
+    participant Timer as タイマー監視
     participant Board as GameBoard (Controller)
     participant Engine as algoEngine (Core)
+    participant Sound as SoundManager
     actor User as プレイヤー (人間)
 
-    Note over Timer: 毎秒カウントダウン (remainingTime <= 1)
-    Timer->>Board: タイムアウト検知 (handleTimeout)
+    Timer->>Board: remainingTime === 0 (タイムアップ検知)
+    Sound->>Sound: playTimeWarning()
+    Board->>Board: 操作ロック (AttackModal 等を強制クローズ)
 
-    rect rgb(255, 240, 240)
-        Note over Board: 時間切れペナルティ処理
-        alt まだドローしていない場合
-            Board->>Board: 山札トップから1枚取得
-        end
-        Board->>Engine: insertCardInOrder(playerCards, { ...penaltyCard, isOpen: true })
-        Note over Board: ドローカードを強制オープン（表向き）で自手札に整列挿入
-
-        Board->>Board: タイムアウト失策ログ記録 (AttackLog)
-        Board->>Engine: getNextActivePlayerIndex(0, players)
-        Engine-->>Board: nextActiveIdx (次のCPU)
-        Board->>Board: activePlayerIndex = nextActiveIdx, phase = 'CPU_ACTING'
+    alt 山札がある場合 (未ドロー)
+        Board->>Board: 山札から1枚強制ドロー
+        Board->>Engine: insertCardInOrder(myCards, { ...drawn, isOpen: true })
+    else 山札枯渇 (山札0枚)
+        Board->>Board: 手札内の既存伏せカードを1枚強制オープン
     end
 
-    Board-->>User: 「時間切れ！カードが強制公開され手番交代」トースト・演出表示
+    Board->>Board: ログ追加 (タイムアウトペナルティ)
+    Board->>Board: phase = 'CPU_ACTING' (次プレイヤーへ交代)
+    Board-->>User: 「時間切れ！カードが強制公開されました」通知
 ```
 
 ---
 
-## 5. シーケンス d: CPU手番（思考・カード選択・推論・結果反映）シーケンス
-
-CPUが盤面情報と難易度（Easy/Normal/Hard）に基づき、論理的消去法を実行して自律行動するフローです。
+## 5. シーケンス d: CPU手番 ＆ 演出モーダルシーケンス
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant Board as GameBoard (Controller)
     participant AI as cpuAI (Reasoning)
+    participant CpuModal as CpuAttackModal (UI)
     participant Engine as algoEngine (Core)
     actor User as プレイヤー (人間)
 
-    Note over Board: phase === 'CPU_ACTING' 検知
-    Board->>Board: 山札から1枚ドロー (cpuDrawnCard)
-    Board-->>User: 「CPUが山札からドロー中...」ステータス表示
-
-    Note over Board: 思考ディレイ (UX演出用 1000ms〜1500ms)
-    Board->>AI: decideMultiCpuAttack(currentCpu, cpuDrawn, players, difficulty, logs)
-
-    activate AI
-    AI->>AI: getAvailableUnknownCardsMulti()<br/>(自手札・ドロー・全オープンカード除外)
-
-    loop 全生存対戦相手の全伏せカード
-        AI->>AI: getPossibleNumbersForTarget()<br/>(左右オープンカードの境界・大小制約判定)
-        opt Hard難易度
-            AI->>AI: 過去の失策ログ除外 (消去法)
-        end
-    end
-
-    alt 難易度: Easy
-        AI->>AI: ランダムな相手カード ＆ 候補からランダム数字選択
-    else 難易度: Hard (確定マスあり)
-        AI->>AI: 候補数 === 1 のカード・数字を最優先選択
-    else 難易度: Normal / Hard (確定マスなし)
-        AI->>AI: 最も候補数が少ないカードを選択 ＆ (Hard: 中央値 / Normal: ランダム)
-    end
-    AI-->>Board: MultiCpuAttackDecision { targetPlayerId, targetCardIndex, guessedNumber }
-    deactivate AI
+    Note over Board: phase === 'CPU_ACTING'
+    Board->>Board: 山札からドロー (山札0枚時はスキップ)
+    Board->>AI: decideMultiCpuAttack(...)
+    AI-->>Board: { targetPlayerId, targetCardIndex, guessedNumber }
 
     Board->>Engine: checkAttack(targetCard, guessedNumber)
+    Board-->>CpuModal: CpuAttackModal 表示 (CPUの推理内容と結果演出)
 
-    alt 【CPUアタック的中】
-        Engine-->>Board: true 返却
-        Board->>Board: 対象カードを isOpen: true に更新
-        Board->>Board: ログ記録 (CPU的中ログ)
-        Board->>Engine: evaluateGameState(players)
-
-        alt 相手脱落 ＆ 生存者1名
-            Board->>Board: phase = 'GAME_OVER', winner = CPU
-            Board-->>User: ゲームオーバー（敗北）画面表示
-        else ゲーム継続
-            Board->>AI: decideMultiCpuContinue(currentCpu, cpuDrawn, players, difficulty)
-            alt CPU継続を選択 (Hardかつ有力候補あり)
-                AI-->>Board: true (継続)
-                Note over Board: 再度 decideMultiCpuAttack へループ
-            else CPUステイを選択 (安全策)
-                AI-->>Board: false (ステイ)
-                Board->>Engine: insertCardInOrder(cpuCards, { ...cpuDrawn, isOpen: false })
-                Board->>Engine: getNextActivePlayerIndex(cpuIdx, players)
-                Board->>Board: 次のプレイヤーへ手番交代
-            end
-        end
-
-    else 【CPUアタックハズレ】
-        Engine-->>Board: false 返却
-        Board->>Board: ログ記録 (CPUハズレログ)
-        Board->>Engine: insertCardInOrder(cpuCards, { ...cpuDrawn, isOpen: true })
-        Note over Board: CPUの手札に引いたカードが表向きで公開挿入
-        Board->>Engine: getNextActivePlayerIndex(cpuIdx, players)
-        Board->>Board: 次のプレイヤーへ手番交代
+    alt プレイヤー生存中
+        User->>CpuModal: 結果確認クリック
+    else プレイヤー脱落（観戦モード）
+        Note over CpuModal: isAutoAdvance === true の場合 1500ms 後に自動進行<br/>(または「決着までスキップ」で一括完了)
     end
 
-    Board-->>User: 最新盤面描画 ＆ CPU行動結果メッセージ表示
+    CpuModal-->>Board: onConfirm()
+    Board->>Board: 盤面状態更新 ＆ 次の手番へ遷移
 ```
 
 ---
 
-## 6. シーケンス e: 勝敗決着（サバイバル判定）シーケンス
+## 6. シーケンス e: AIヒント取得シーケンス (`HintModal`)
 
-プレイヤーの手札がすべて表向きになった際の脱落判定と、最後の1人が残った際のサバイバル勝利決定フローです。
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as プレイヤー (人間)
+    participant Board as GameBoard (Controller)
+    participant Advisor as hintAdvisor
+    participant HintModal as HintModal (UI)
+
+    User->>Board: 「AIヒント」ボタン押下
+    Board->>Board: remainingHints > 0 かつ プレイヤー手番であることを検証
+    Board->>Advisor: getBestHint(players, humanId, drawnCard, logs)
+    activate Advisor
+    Advisor->>Advisor: 全相手伏せカードの論理候補算出
+    Advisor->>Advisor: 確定マス(候補1)優先抽出、なければ最善候補選定
+    Advisor-->>Board: HintResult { targetPlayerId, targetCardIndex, possibleNumbers, isDefinite }
+    deactivate Advisor
+
+    Board->>Board: remainingHints を 1 減算
+    Board-->>HintModal: HintModal 表示 (アドバイス文, 的中率, 持ち時間進行警告)
+
+    opt ユーザーが「このカードを狙う」を選択
+        User->>HintModal: 対象選択クリック
+        HintModal->>Board: onSelectTarget(targetPlayerId, targetCardIndex)
+    end
+
+    User->>HintModal: モーダルを閉じる
+    HintModal-->>Board: onClose()
+```
+
+---
+
+## 7. シーケンス f: 勝敗決着 ＆ リザルト答え合わせシーケンス
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant Board as GameBoard (Controller)
-    participant Engine as algoEngine (Core)
-    actor Winner as 勝者プレイヤー
-    actor Loser as 敗北・脱落プレイヤー
+    participant CutIn as LethalCutIn (UI)
+    participant Result as ResultModal (UI)
+    participant Stats as statsManager
+    actor User as プレイヤー (人間)
 
-    Note over Board: アタック的中時 (checkAttack === true)
-    Board->>Board: 被弾カードを isOpen: true に更新
-    Board->>Engine: isAllOpen(targetPlayer.cards)
+    Note over Board: 生存プレイヤーが1名になった瞬間
+    Board-->>CutIn: LethalCutIn 表示 (「💥 FINISH!!」全画面バースト)
+    Note over CutIn: 1.2秒経過またはクリック/キー入力で完了
+    CutIn-->>Board: onComplete()
 
-    alt 被弾プレイヤーの伏せカードが 0 枚になった場合
-        Engine-->>Board: true 返却
-        Board->>Board: targetPlayer.isEliminated = true
-        Board-->>Loser: 脱落アニメーション演出 (カード全開示・脱落表示)
+    Board->>Stats: updateStatsAfterMatch(winner, human, playerCount, diff, logs)
+    Board->>Board: phase = 'GAME_OVER'
+    Board-->>Result: ResultModal 表示 (勝敗判定, 紙吹雪, 戦闘スタッツ)
 
-        Board->>Board: 生存プレイヤー数をカウント<br/>activePlayers = players.filter(!p.isEliminated)
-
-        alt 生存者数 === 1 (完全決着)
-            Board->>Board: phase = 'GAME_OVER'
-            Board->>Board: winner = activePlayers[0]
-            Board-->>Winner: 完全勝利セレブレーション演出 (紙吹雪/Trophy表示)
-            Board-->>Board: タイマー停止 ＆ リプレイ・再戦ボタン活性化
-        else 生存者数 >= 2 (3〜4人対戦の継続)
-            Note over Board: 残りの生存プレイヤー間で対戦継続
-            Board->>Board: 手番継続または次の生存プレイヤーへ移行
-        end
-    end
+    Note over Result: 【Review Hands セクション】<br/>全対戦相手の伏せカードが完全オープン表示され、答え合わせが可能
+    User->>Result: 「もう一度対戦する」クリック
+    Result->>Board: onPlayAgain() ➔ initializeGame()
 ```

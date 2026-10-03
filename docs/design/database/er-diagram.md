@@ -119,4 +119,5 @@ erDiagram
    - 対戦終了時に `MATCH_HISTORIES` の挿入と同時にアトミック（トランザクション）にインクリメントし、一覧表示時の `COUNT(*)` 集計負荷を排除。
 2. **手札スナップショットのJSONB保持 (`ROOM_PARTICIPANTS` テーブル)**:
    - カード24枚の物理テーブルを細分化（カード単位の個別行）せず、プレイヤーごとの手札配列（`current_hand`）をJSONB/Map形式で集約保持。
+   - カード構造は `{ id: string, color: 'black' | 'white', number: number, isOpen: boolean }` とし、`position` フィールドは持たず配列インデックス順で並びを表現。
    - アルゴの手札は最大でも4枚〜6枚程度と極小であるため、行分割によるJOINのオーバーヘッドを避け、1回のI/Oで手札全体の整列・開示状態を取得可能にする。

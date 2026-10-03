@@ -40,29 +40,29 @@ flowchart TD
 
 | カード属性 | 自分の手札 | 相手の手札（表向き / Open） | 相手の手札（裏向き / Closed） | 山札（未ドロー） |
 | :--- | :---: | :---: | :---: | :---: |
-| `cardId` | 公開 | 公開 | 公開 (識別用) | 秘匿 (ハッシュまたは非送信) |
-| `color` (黒/白) | **公開** | **公開** | **公開** (ルール上必須) | 秘匿 (次に引くカードの色は直前まで伏せる) |
-| `position` (並び順) | **公開** | **公開** | **公開** (ソートルール準拠) | - |
+| `id` | 公開 | 公開 | 公開 (例: `b-3`, `w-7`) | 秘匿 (ハッシュまたは非送信) |
+| `color` (`black`/`white`) | **公開** | **公開** | **公開** (ルール上必須) | 秘匿 (次に引くカードの色は直前まで伏せる) |
 | `isOpen` (表/裏) | **公開** | **公開** | **公開** | - |
 | **`number` (数字 0〜11)** | **公開** | **公開** | ❌ **絶対に送信しない (`null`)** | ❌ **絶対に送信しない (`null`)** |
+
+> [!NOTE] カード並び順（配列インデックス）
+> `position` フィールドは持たず、手札配列のインデックス（0-indexed）順序そのものが「左から小さい順、同数は黒が左」の完全順序を表します。
 
 ### 2.2 マスキング変換ロジック（TypeScript / Lambda 仕様）
 
 ```typescript
 export interface Card {
   id: string;
-  color: 'BLACK' | 'WHITE';
+  color: 'black' | 'white';
   number: number;
   isOpen: boolean;
-  position: number;
 }
 
 export interface MaskedCard {
   id: string;
-  color: 'BLACK' | 'WHITE';
+  color: 'black' | 'white';
   number: number | null; // 伏せカードの場合は null
   isOpen: boolean;
-  position: number;
 }
 
 /**
@@ -83,7 +83,6 @@ export function projectHandForViewer(
         color: card.color,
         number: card.number,
         isOpen: card.isOpen,
-        position: card.position,
       };
     }
 
@@ -93,7 +92,6 @@ export function projectHandForViewer(
       color: card.color,
       number: null,
       isOpen: false,
-      position: card.position,
     };
   });
 }

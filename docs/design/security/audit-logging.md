@@ -8,89 +8,127 @@
 ## 1. 監査ログ基本方針
 
 1. **ゲーム公平性の証明（Auditability）**:
-   - すべてのアタック、的中/ハズレ判定、ドロー、カード開示、ターン遷移をタイムスタンプ付きの構造化JSONで記録。
+   - すべてのアタック、的中/ハズレ判定、ドロー、カード開示、ターン遷移をタイムスタンプ付きの構造化JSON（`AuditEvent`）で記録。
    - 勝敗に関する疑義や不具合発生時に、最初の手札配分から完全再現（リプレイ）可能な状態を保持。
-2. **プライバシー保護 ＆ PIIマスキング**:
-   - メールアドレス、認証JWT、セッショントークンはログ出力前に完全にマスキング。
-   - クライアントIPアドレスは末尾オクテットをハッシュ化またはゼロ埋め（`192.168.1.***`）して記録。
+2. **プライバシー保護 ＆ 機密情報マスキング**:
+   - メールアドレス、認証JWT、セッショントークンはログ出力前に完全にマスキング（`[REDACTED]`）。
+   - クライアントIPアドレスは末尾オクテットを匿名化（`192.168.1.***`）して記録。
+   - アタック失敗時、対象カードの真の数字は漏洩防止のためペイロードに含めない（Issue #84）。
 3. **無料枠を意識したログ保持ポリシー**:
    - CloudWatch Logs のログ保持期間（Retention Period）を **30日** に設定し、古いログが蓄積して無料枠（5GB）を超過することを防止。
 
 ---
 
-## 2. 監査対象イベントマトリクス
+## 2. 監査対象イベントマトリクス (`src/types/audit.ts`)
 
-| イベント種別 (`eventType`) | 重要度 | 記録タイミング | 主な記録項目 |
+| イベント種別 (`AuditEventType`) | 重要度 | 記録タイミング | 主な記録項目（`payload`） |
 | :--- | :---: | :--- | :--- |
-| `MATCH_INIT` | INFO | 対戦開始時（山札シャッフル・手札配布） | `matchId`, `playerCount`, `initialHandSizes`, `starterId` |
-| `TURN_DRAW` | INFO | 山札からカードを引いた時 | `matchId`, `turnNumber`, `playerId`, `drawCardColor` (数字は秘匿) |
-| `TURN_ATTACK` | INFO | プレイヤーが相手カードを推理した時 | `matchId`, `turnNumber`, `attackerId`, `targetPlayerId`, `targetCardIndex`, `declaredNumber`, `isHit` |
-| `TURN_STAY` | INFO | 的中後、ステイを選択して手番終了した時 | `matchId`, `turnNumber`, `playerId` |
-| `MATCH_FINISH` | INFO | 勝敗決定（全滅または単独生存） | `matchId`, `winnerId`, `durationSec`, `totalTurns`, `finalHands` |
-| `SECURITY_RULE_VIOLATION` | WARN | 不正なパラメータ、手番外操作検知 | `matchId`, `playerId`, `violationType`, `requestPayload` |
-| `AUTH_LINK_GUEST` | INFO | ゲストからCognitoアカウントへの昇格 | `userId`, `guestIdHash`, `timestamp` |
+| `GAME_INIT` | INFO | ゲーム初期化・対戦開始時 | `playerCount`, `difficulty`, `timeLimit`, `initialHandSizes`, `starterId` |
+| `TURN_START` | INFO | 各ターンの手番開始時 | `turnNumber`, `activePlayerIndex`, `activePlayerId`, `timeLimit` |
+| `DRAW_CARD` | INFO | 山札からカードを引いた時 | `playerId`, `drawCardId`, `color` (※相手カード数字は秘匿) |
+| `ATTACK_ATTEMPT` | INFO | プレイヤー/CPUが相手カードを推理した時 | `attackerId`, `targetPlayerId`, `targetCardIndex`, `targetColor`, `guessedNumber` |
+| `ATTACK_RESULT` | INFO | 推理判定結果確定時 | `attackerId`, `targetPlayerId`, `targetCardIndex`, `guessedNumber`, `isHit`, `actualNumber` (的中時のみ) |
+| `TURN_PASS` | INFO | 的中後、ステイを選択して手番終了した時 | `playerId`, `stayedCardId`, `nextPlayerId` |
+| `TIMEOUT_PENALTY` | WARN | 持ち時間切れで強制ペナルティ発生時 | `playerId`, `remainingTime`, `penalizedCardId`, `forcedAction` |
+| `GAME_OVER` | INFO | 決着・サバイバル勝者確定時 | `winnerId`, `winnerName`, `playerCount`, `totalTurns`, `durationMs` |
+| `SECURITY_VIOLATION` | WARN / ERROR | 手番外操作、不正数字入力、自手札アタック等 | `violationType`, `userId`, `action`, `invalidParams`, `clientIp` |
+| `CLIENT_CRASH` | ERROR | ErrorBoundary による捕捉例外検知時 | `errorName`, `errorMessage`, `componentStack`, `url` |
 
 ---
 
 ## 3. 構造化対戦ログスキーマ (JSON)
 
-### 3.1 アタック判定イベント例 (`TURN_ATTACK`)
-```json
-{
-  "timestamp": "2026-09-28T12:34:56.789Z",
-  "logLevel": "INFO",
-  "eventType": "TURN_ATTACK",
-  "matchId": "match_9f8e7d6c5b4a",
-  "turnNumber": 4,
-  "attacker": {
-    "playerId": "usr_alpha123",
-    "role": "player"
-  },
-  "action": {
-    "targetPlayerId": "cpu_bot_hard",
-    "targetCardIndex": 2,
-    "declaredNumber": 7,
-    "result": "HIT",
-    "revealedCard": {
-      "color": "black",
-      "number": 7
-    },
-    "isTargetEliminated": false
-  },
-  "metadata": {
-    "timeRemainingMs": 18450,
-    "clientVersion": "1.0.0"
-  }
+### 3.1 監査イベントデータ型定義 (`src/types/audit.ts`)
+
+```typescript
+export type AuditEventType =
+  | 'GAME_INIT'
+  | 'TURN_START'
+  | 'DRAW_CARD'
+  | 'ATTACK_ATTEMPT'
+  | 'ATTACK_RESULT'
+  | 'TURN_PASS'
+  | 'TIMEOUT_PENALTY'
+  | 'GAME_OVER'
+  | 'SECURITY_VIOLATION'
+  | 'CLIENT_CRASH';
+
+export interface AuditEvent {
+  eventId: string;
+  timestamp: number;
+  eventType: AuditEventType;
+  userId: string;
+  payload: Record<string, unknown>;
+  isMasked: boolean;
 }
 ```
 
-### 3.2 不正ルール違反イベント例 (`SECURITY_RULE_VIOLATION`)
+### 3.2 アタック結果判定イベント例 (`ATTACK_RESULT`)
 ```json
 {
-  "timestamp": "2026-09-28T12:35:10.123Z",
-  "logLevel": "WARN",
-  "eventType": "SECURITY_RULE_VIOLATION",
-  "matchId": "match_9f8e7d6c5b4a",
-  "playerId": "guest_attacker99",
-  "clientIp": "203.0.113.***",
-  "violationType": "INVALID_NUMBER_RANGE",
-  "details": {
-    "attemptedValue": 15,
-    "expectedRange": "0 <= n <= 11",
-    "action": "ATTACK_REJECTED"
-  }
+  "eventId": "evt_9f8e7d6c5b4a_0012",
+  "timestamp": 1759560896789,
+  "eventType": "ATTACK_RESULT",
+  "userId": "usr_alpha123",
+  "payload": {
+    "attackerId": "usr_alpha123",
+    "attackerName": "あなた",
+    "targetPlayerId": "cpu-1",
+    "targetPlayerName": "CPU アル",
+    "targetCardIndex": 2,
+    "targetColor": "black",
+    "guessedNumber": 7,
+    "isHit": true,
+    "actualNumber": 7,
+    "isTargetEliminated": false
+  },
+  "isMasked": true
+}
+```
+
+### 3.3 セキュリティ違反イベント例 (`SECURITY_VIOLATION`)
+```json
+{
+  "eventId": "evt_9f8e7d6c5b4a_0013",
+  "timestamp": 1759560910123,
+  "eventType": "SECURITY_VIOLATION",
+  "userId": "usr_attacker99",
+  "payload": {
+    "violationType": "SELF_ATTACK_FORBIDDEN",
+    "action": "ATTACK_ATTEMPT",
+    "targetPlayerId": "usr_attacker99",
+    "reason": "手番プレイヤー自身の手札をアタック対象に指定することはできません",
+    "clientIp": "203.0.113.***"
+  },
+  "isMasked": true
+}
+```
+
+### 3.4 クライアントクラッシュイベント例 (`CLIENT_CRASH`)
+```json
+{
+  "eventId": "evt_9f8e7d6c5b4a_0014",
+  "timestamp": 1759560920555,
+  "eventType": "CLIENT_CRASH",
+  "userId": "usr_alpha123",
+  "payload": {
+    "errorName": "TypeError",
+    "errorMessage": "Cannot read properties of undefined (reading 'color')",
+    "componentStack": "at CardComponent (CardComponent.tsx:45)\nat GameBoard (GameBoard.tsx:210)"
+  },
+  "isMasked": false
 }
 ```
 
 ---
 
-## 4. 機密情報マスキング規約
+## 4. 機密情報マスキング規約 (`src/lib/auditLogger.ts`)
 
-ログ出力ライブラリ（Winston / Pino 等）のカスタムフォーマッターにより、以下のパターンを機械的に置換します：
+ログ出力前にカスタムサニタイザーを通し、個人情報・認証シークレットを確実に置換します：
 
 ```typescript
 export function sanitizeLogData(data: Record<string, unknown>): Record<string, unknown> {
-  const SENSITIVE_KEYS = ['password', 'authorization', 'token', 'idToken', 'refreshToken', 'email'];
+  const SENSITIVE_KEYS = ['password', 'authorization', 'token', 'idtoken', 'refreshtoken', 'email', 'secret'];
   const cloned = { ...data };
 
   for (const [key, value] of Object.entries(cloned)) {
@@ -102,8 +140,8 @@ export function sanitizeLogData(data: Record<string, unknown>): Record<string, u
   }
 
   // IPアドレスの部分匿名化
-  if (typeof cloned.ipAddress === 'string') {
-    cloned.ipAddress = cloned.ipAddress.replace(/\.\d+$/, '.***');
+  if (typeof cloned.clientIp === 'string') {
+    cloned.clientIp = cloned.clientIp.replace(/\.\d+$/, '.***');
   }
 
   return cloned;

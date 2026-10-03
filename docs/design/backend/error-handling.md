@@ -1,6 +1,6 @@
 # バックエンド ＆ ゲームロジック バリデーション ＆ エラーハンドリング規約: アルゴ（algo）Web対戦システム
 
-本規約は、「アルゴ（algo）Web対戦システム」における入力バリデーション規約、将来のオンライン対戦API向けRFC 7807準拠エラーレスポンス形式、およびクライアント側例外ハンドリング・フォールバック設計を定義します。
+本規約は、「アルゴ（algo）Web対戦システム」における入力バリデーション規約、将来のオンライン対戦API向けRFC 7807準拠エラーレスポンス形式および生成ユーティリティ、自己修復型ステートリコンシリエーション（状態不整合修復）、およびクライアント側例外ハンドリング・フォールバック設計を定義します。
 
 ---
 
@@ -16,11 +16,12 @@
 | **フェーズ整合性チェック** | 各アクションが許容される `GamePhase` であること。<br>- ドロー: `PLAYER_TURN_START`<br>- ターゲット選択: `PLAYER_SELECT_TARGET`<br>- 数字アタック: `PLAYER_GUESS_NUMBER`<br>- 継続/ステイ: `PLAYER_DECIDE_NEXT` | 無効フェーズでのアクションは状態変更を行わず無視。 |
 | **脱落プレイヤー操作抑止** | `isEliminated === true` のプレイヤーは一切のアクションを行えない。 | 操作を即座にブロック。 |
 
-### 1.2 カード選択バリデーション
+### 1.2 カード選択・アタック対象の多層防護バリデーション
 
 | 検証項目 | 検証ルール | 違反時の処置 |
 | :--- | :--- | :--- |
-| **対象プレイヤー妥当性** | - 存在するプレイヤーIDであること。<br>- 自プレイヤー自身を選択していないこと（`playerId !== 'player'`）。<br>- 既に脱落（`isEliminated === true`）したプレイヤーでないこと。 | 対象カード選択を拒否（赤枠強調またはトースト通知）。 |
+| **自身の手札アタック誤爆防止** | アタック対象プレイヤーIDが手番プレイヤー（自分）と異なること（`targetPlayerId !== activePlayer.id`）。 | 対象選択を機械的に拒否。自手札カードにはアタック選択イベントをバインドしない。 |
+| **対象プレイヤー妥当性** | - 存在するプレイヤーIDであること。<br>- 既に脱落（`isEliminated === true`）したプレイヤーでないこと。 | 対象カード選択を拒否（赤枠強調またはトースト通知）。 |
 | **対象カード状態** | - 手札インデックスが `0 <= cardIndex < cards.length` の範囲内であること。<br>- 選択対象カードが**伏せ状態（`isOpen === false`）**であること（表向きカードのアタック禁止）。 | クリック無効化およびカーソル禁止（`cursor-not-allowed`）。 |
 
 ### 1.3 アタック数字入力バリデーション
@@ -29,40 +30,57 @@
 | :--- | :--- | :--- |
 | **数字の範囲制約** | 整数値であり、`0 <= guessedNumber <= 11` を満たすこと。 | 入力ボタン（0〜11）のみUI上に提示し、直接の自由入力を排除。 |
 | **型整合性** | `typeof guessedNumber === 'number'` かつ `Number.isInteger(guessedNumber)` かつ `!isNaN(guessedNumber)`。 | サーバー/ロジック層で即座に例外スロー。 |
+| **既知・失策アシスト整合性** | 既にオープンされているカードの数字や同一カードで過去に外れた数字を警告/グレーアウト表示。 | 誤認による無駄な手番消費をアシスト機能で防止。 |
 
 ### 1.4 タイムアウト時の排他制御
 
-- カウントダウンタイマーが `0` に達した瞬間、フロントエンドの入力受付状態（`AttackModal` 等）を強制クローズし、サーバー/Controller側で `handleTimeout` を確定実行。
+- カウントダウンタイマーが `0` に達した瞬間、フロントエンドの入力受付状態（`AttackModal` 等）を強制クローズし、ロジック/Controller側でタイムアウトペナルティを確定実行。
 - タイムアウト確定後に遅れて到着したアタック宣言リクエストは破棄（Idempotent Guard）。
 
 ---
 
-## 2. RFC 7807 準拠エラーレスポンス仕様 (将来のオンラインAPI向け)
+## 2. RFC 7807 準拠エラーレスポンス仕様 ＆ 生成モジュール (`src/lib/problemDetails.ts`)
 
 オンライン対戦API（WebSocket / REST）におけるエラーレスポンスは、すべて **RFC 7807 (Problem Details for HTTP APIs)** に準拠した構造で返却します。
 
-### 2.1 標準エラースキーマ
+### 2.1 RFC 7807 生成ユーティリティ (`src/lib/problemDetails.ts`)
+
+システム内では、標準化されたファクトリ関数群を用いて一貫性のある Problem Details オブジェクトを動的生成します。
+
+```typescript
+// RFC 7807 生成関数シグネチャ
+export function createProblemDetails(options: CreateProblemDetailsOptions): ProblemDetails
+export function formatErrorType(errorCode: string, prefix?: string): string
+export function generateUuid(): string
+
+// 業務特化ファクトリ関数
+export function createOutOfTurnProblem(expectedPlayerId: string, actualPlayerId: string): ProblemDetails
+export function createInvalidTargetProblem(reason: string, details?: unknown): ProblemDetails
+export function createRuleViolationProblem(ruleName: string, detail: string): ProblemDetails
+```
+
+### 2.2 標準エラースキーマ例
 
 ```json
 {
-  "type": "https://algo-game.example.com/errors/GAME_INVALID_ACTION",
+  "type": "https://algo.internal/errors/game-out-of-turn",
   "title": "不正なゲームアクションです",
   "status": 400,
   "detail": "現在の手番プレイヤーではありません。",
-  "instance": "/api/v1/rooms/room_algo_98234/actions",
+  "instance": "urn:uuid:f47ac10b-58cc-4372-a567-0e02b2c3d479",
   "code": "GAME_OUT_OF_TURN",
   "invalidParams": [
     {
       "name": "playerId",
-      "reason": "手番は usr_opponent です。あなたの手番ではありません。"
+      "reason": "手番は CPU 1 です。あなたの手番ではありません。"
     }
   ],
   "traceId": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-  "timestamp": 1759060800000
+  "timestamp": 1759560800000
 }
 ```
 
-### 2.2 アルゴ対戦システム固有エラーコード一覧
+### 2.3 アルゴ対戦システム固有エラーコード一覧
 
 | HTTP Status | エラーコード (`code`) | 分類 | 主な発生条件 |
 | :--- | :--- | :--- | :--- |
@@ -78,60 +96,45 @@
 
 ---
 
-## 3. クライアント側例外ハンドリング ＆ フォールバック設計
+## 3. クライアント側例外ハンドリング ＆ 自己修復設計
 
 ### 3.1 React Error Boundary による画面クラッシュ防止
 
-- ゲーム画面全体を包含する `ErrorBoundary`（別名 `GameErrorBoundary`）コンポーネントを配置。
-- 万が一レンダリング中や状態更新中に捕捉されない例外が発生した場合でも、画面全体が真っ白（White-out）になるのを防ぎ、以下のフォールバックUIを表示：
+- ゲーム画面全体を包含する `ErrorBoundary` コンポーネントを配置。
+- レンダリング中や状態更新中に捕捉されない例外が発生した場合でも、画面全体が真っ白（White-out）になるのを防ぎ、以下のフォールバックUIを表示：
   - **北欧モダンデザイン**: パステル調イエロー・スカイブルー、柔らかなカード枠、システム保護警告アイコン。
-  - **タイトル**: 「予期せぬエラーが発生しました」
-  - **説明文**: 「ゲームの処理中に問題が発生しました。以下のボタンから安全にリカバリできます。」
   - **リカバリ操作**:
     - 「ページを再読み込み」ボタン: `window.location.reload()`
-    - 「ゲームを初期化して再開」ボタン: `localStorage.clear()` / `sessionStorage.clear()` 後に `window.location.href = '/'`
-    - 「エラー詳細を表示」アコーディオン/トグル: `error.message`、`error.stack`、`componentStack` を安全に表示。
-  - **クラッシュレポート基盤**: `componentDidCatch` 内で `recordAuditEvent('CLIENT_CRASH', ...)` を自動発行し、CloudWatch/SREメトリクス（SLI-003）へ構造化ログを送信。
+    - 「ゲームを初期化して再開」ボタン: LocalStorage/SessionStorage クリア後に安全リセット
+    - 「エラー詳細を表示」アコーディオン: スタックトレース表示
+  - **クラッシュレポート基盤**: `componentDidCatch` 内で `recordAuditEvent('CLIENT_CRASH', ...)` を自動発行。
 
-### 3.2 不正操作時の視覚的・触覚的フィードバック
+### 3.2 状態不整合（State Inconsistency）からの自己修復 (`src/lib/stateReconciliation.ts`)
 
-ユーザーの誤操作やルール違反に対しては、静かに無視するだけでなく直感的なフィードバックを提供：
-1. **無効カードクリック時**: 対象カードが一瞬赤色にパルス振動し、操作不可であることを視覚的に通知。
-2. **タイムアウト直前警告**: 残り5秒を切った段階でタイマー表示が赤く点滅し、警告音またはパルスアニメーションで注意喚起。
-3. **アタック対象未選択時の確定ブロック**: `selectedTarget === null` の状態では「アタック確定」ボタンを無効化（`disabled`）。
-
-### 3.3 状態不整合（State Inconsistency）からの自己修復・フォールバック
-
-万が一、カードのオープン状態や手札枚数に不整合が生じた場合の自己修復ロジック：
+非同期処理やレースコンディションによってゲーム状態に万が一矛盾が発生した場合、`validateAndReconcileGameState` により**4大不整合修復ロジック（Self-Healing）**を機械的に実行します。
 
 ```typescript
-export function sanitizeGameState(state: GameState): GameState {
-  // 1. 各プレイヤーの手札がルール通りソートされているか検証・再ソート
-  const sanitizedPlayers = state.players.map((player) => ({
-    ...player,
-    cards: sortCards(player.cards),
-    isEliminated: isAllOpen(player.cards),
-  }));
-
-  // 2. 生存プレイヤー数の再計算
-  const activePlayers = sanitizedPlayers.filter((p) => !p.isEliminated);
-  if (activePlayers.length <= 1 && state.phase !== 'GAME_OVER') {
-    return {
-      ...state,
-      players: sanitizedPlayers,
-      phase: 'GAME_OVER',
-      winner: activePlayers[0] || null,
-    };
-  }
-
-  return {
-    ...state,
-    players: sanitizedPlayers,
-  };
+export interface ReconciliationResult {
+  state: GameState;
+  wasRepaired: boolean;
+  repairLogs: string[];
 }
+
+export function validateAndReconcileGameState(state: GameState): ReconciliationResult
 ```
 
-### 3.4 オンライン対戦時のネットワーク切断・再接続ハンドリング
+#### 4大不整合修復ロジック:
+1. **手札順序の修復 (Hand Sort Invariant)**:
+   - `compareCards` に従い、全プレイヤーの手札が「数字昇順、同数字は黒が先」になっているかを検証。乱れがある場合は `sortCards` で再整列し修復。
+2. **脱落判定の修復 (Elimination Status Invariant)**:
+   - 手札全カードがオープン（`isAllOpen(player.cards)`）なのに `isEliminated === false` の場合は `true` に補正。
+   - 逆に伏せカードが残っているのに `isEliminated === true` の場合は `false` に補正。
+3. **勝者・決着判定の修復 (Winner & Phase Invariant)**:
+   - 生存プレイヤーが1名以下で `phase !== 'GAME_OVER'` の場合、即座に `phase = 'GAME_OVER'` および唯一の生存者を `winner` に設定して勝敗を正常確定。
+4. **手番インデックスの修復 (Active Player Invariant)**:
+   - `activePlayerIndex` が脱落済みのプレイヤーを指している場合、`getNextActivePlayerIndex` により次の生存プレイヤーへ手番インデックスをスキップ修復。
+
+### 3.3 オンライン対戦時のネットワーク切断・再接続ハンドリング
 
 1. **ハートビート監視**: 5秒ごとに `ping/pong` を送受信。15秒間応答がない場合は「接続切断中」と判定。
 2. **切断時の一時停止**: 切断プレイヤーに30秒の再接続猶予時間（Grace Period）を付与。
