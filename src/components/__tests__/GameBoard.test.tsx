@@ -11,11 +11,12 @@ import {
   TIME_UP_NO_DECK_MESSAGE,
   getKnownNumbersForColor,
 } from '../GameBoard';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, fireEvent } from '@testing-library/react';
 import * as useUserSessionModule from '../../hooks/useUserSession';
 import { createDeck, setupGamePlayers, insertCardInOrder, isAllOpen, getNextActivePlayerIndex, checkAttack } from '../../lib/algoEngine';
 import { getNextActionMessage } from '../CpuAttackModal';
 import { Card, GameState, AttackLog, Player } from '../../types/game';
+import { getAuditLogs, clearAuditLogs, auditLogger } from '../../lib/auditLogger';
 
 // useUserSession フックのモック化
 vi.mock('../../hooks/useUserSession', () => ({
@@ -2254,6 +2255,213 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
 
       // モーダルや盤面に相手の伏せカードの数字「11」がテキストや属性として存在しないことを確認
       expect(container.querySelector('[data-testid="game-log"]')?.textContent || '').not.toContain('11');
+    });
+  });
+
+  describe('Issue #88: 自分自身の手札をアタック対象に指定でき自作自演的中・実績ファーミングが可能な脆弱性 (Self-Attack Exploit) の防止', () => {
+    beforeEach(() => {
+      clearAuditLogs();
+      vi.clearAllMocks();
+      vi.mocked(useUserSessionModule.useUserSession).mockReturnValue({
+        userId: 'p1',
+        isNew: false,
+        isLoading: false,
+      });
+    });
+
+    it('handleSelectTargetCard: ターゲットに人間プレイヤー（自分自身）を指定しても selectedTarget に設定されず phase も遷移しないこと', () => {
+      const initialGameState: GameState = {
+        playerCount: 2,
+        difficulty: 'easy',
+        timeLimit: 30,
+        remainingTime: 30,
+        deck: [{ id: 'd-1', color: 'black', number: 5, isOpen: false }],
+        players: [
+          {
+            id: 'p1',
+            name: 'あなた',
+            isHuman: true,
+            avatarColor: 'from-blue-500 to-indigo-600',
+            isEliminated: false,
+            cards: [{ id: 'p-c1', color: 'black', number: 2, isOpen: false }],
+          },
+          {
+            id: 'cpu1',
+            name: 'CPU 1',
+            isHuman: false,
+            avatarColor: 'from-purple-500 to-indigo-600',
+            isEliminated: false,
+            cards: [{ id: 'cpu-c1', color: 'white', number: 8, isOpen: false }],
+          },
+        ],
+        activePlayerIndex: 0,
+        drawnCard: { id: 'p-drawn', color: 'black', number: 4, isOpen: false },
+        phase: 'PLAYER_SELECT_TARGET',
+        selectedTarget: null,
+        logs: [],
+        winner: null,
+      };
+
+      // HintModal 経由で targetPlayerId: 'p1'（自分自身）を選択するシミュレーション
+      render(
+        <GameBoard
+          initialState={initialGameState}
+          initialIsHintModalOpen={true}
+          initialActiveHint={{
+            targetPlayerId: 'p1',
+            targetPlayerName: 'あなた',
+            targetCardIndex: 0,
+            color: 'black',
+            possibleNumbers: [2],
+            isDefinite: true,
+            adviceText: '自分自身の手札に対する不正なヒント',
+          }}
+        />
+      );
+
+      // ヒントの「このカードを選択」ボタンをクリック
+      const selectBtn = screen.getByTestId('btn-hint-select-target');
+      act(() => {
+        fireEvent.click(selectBtn);
+      });
+
+      // 自分自身の手札はターゲットとして選択されず、AttackModal も表示されないこと
+      expect(screen.queryByTestId('attack-modal')).toBeNull();
+      const currentState = (window as any).__algoGameState as GameState;
+      expect(currentState.selectedTarget).toBeNull();
+      expect(currentState.phase).toBe('PLAYER_SELECT_TARGET');
+    });
+
+    it('handleConfirmGuess: 不正に自分自身が selectedTarget に設定された場合でもアタック確定が中断され、監査ログ (auditLogger.warn) が記録されること', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      vi.spyOn(console, 'info').mockImplementation(() => {});
+
+      const initialGameState: GameState = {
+        playerCount: 2,
+        difficulty: 'easy',
+        timeLimit: 30,
+        remainingTime: 30,
+        deck: [{ id: 'd-1', color: 'black', number: 5, isOpen: false }],
+        players: [
+          {
+            id: 'p1',
+            name: 'あなた',
+            isHuman: true,
+            avatarColor: 'from-blue-500 to-indigo-600',
+            isEliminated: false,
+            cards: [{ id: 'p-c1', color: 'black', number: 2, isOpen: false }],
+          },
+          {
+            id: 'cpu1',
+            name: 'CPU 1',
+            isHuman: false,
+            avatarColor: 'from-purple-500 to-indigo-600',
+            isEliminated: false,
+            cards: [{ id: 'cpu-c1', color: 'white', number: 8, isOpen: false }],
+          },
+        ],
+        activePlayerIndex: 0,
+        drawnCard: { id: 'p-drawn', color: 'black', number: 4, isOpen: false },
+        phase: 'PLAYER_GUESS_NUMBER',
+        selectedTarget: { playerId: 'p1', cardIndex: 0 }, // 不正に自身の手札がターゲット
+        logs: [],
+        winner: null,
+      };
+
+      render(<GameBoard initialState={initialGameState} />);
+
+      // AttackModal が表示されている
+      expect(screen.getByTestId('attack-modal')).toBeInTheDocument();
+
+      // 数字「2」を選択してアタック確定ボタンをクリック
+      const numBtn = screen.getByTestId('btn-guess-num-2');
+      fireEvent.click(numBtn);
+
+      const confirmBtn = screen.getByTestId('btn-confirm-attack');
+      await act(async () => {
+        fireEvent.click(confirmBtn);
+      });
+
+      // 1. 自分自身へのアタックは拒否され、手札は開示されない（isOpen: false のまま）
+      const currentState = (window as any).__algoGameState as GameState;
+      const human = currentState.players.find((p) => p.id === 'p1');
+      expect(human?.cards[0].isOpen).toBe(false);
+
+      // 2. ログにアタック履歴が記録されない
+      expect(currentState.logs.length).toBe(0);
+
+      // 3. auditLogger.warn が呼ばれ、SECURITY_VIOLATION の監査ログが記録されていること
+      expect(warnSpy).toHaveBeenCalled();
+      const auditLogs = getAuditLogs();
+      const violationLog = auditLogs.find((l) => l.eventType === 'SECURITY_VIOLATION');
+      expect(violationLog).toBeDefined();
+      expect(violationLog?.userId).toBe('p1');
+      expect(violationLog?.payload.message).toContain('Self-attack');
+      expect(violationLog?.payload.attackerId).toBe('p1');
+      expect(violationLog?.payload.targetPlayerId).toBe('p1');
+      expect(violationLog?.payload.cardIndex).toBe(0);
+      expect(violationLog?.payload.guessedNumber).toBe(2);
+    });
+
+    it('handleSelectTargetCard: 相手（CPU）の伏せカードを選択した場合は正常に selectedTarget に設定され PLAYER_GUESS_NUMBER に遷移すること', () => {
+      const initialGameState: GameState = {
+        playerCount: 2,
+        difficulty: 'easy',
+        timeLimit: 30,
+        remainingTime: 30,
+        deck: [{ id: 'd-1', color: 'black', number: 5, isOpen: false }],
+        players: [
+          {
+            id: 'p1',
+            name: 'あなた',
+            isHuman: true,
+            avatarColor: 'from-blue-500 to-indigo-600',
+            isEliminated: false,
+            cards: [{ id: 'p-c1', color: 'black', number: 2, isOpen: false }],
+          },
+          {
+            id: 'cpu1',
+            name: 'CPU 1',
+            isHuman: false,
+            avatarColor: 'from-purple-500 to-indigo-600',
+            isEliminated: false,
+            cards: [{ id: 'cpu-c1', color: 'white', number: 8, isOpen: false }],
+          },
+        ],
+        activePlayerIndex: 0,
+        drawnCard: { id: 'p-drawn', color: 'black', number: 4, isOpen: false },
+        phase: 'PLAYER_SELECT_TARGET',
+        selectedTarget: null,
+        logs: [],
+        winner: null,
+      };
+
+      render(
+        <GameBoard
+          initialState={initialGameState}
+          initialIsHintModalOpen={true}
+          initialActiveHint={{
+            targetPlayerId: 'cpu1',
+            targetPlayerName: 'CPU 1',
+            targetCardIndex: 0,
+            color: 'white',
+            possibleNumbers: [8],
+            isDefinite: true,
+            adviceText: 'CPU 1 のカードに対する正常なヒント',
+          }}
+        />
+      );
+
+      const selectBtn = screen.getByTestId('btn-hint-select-target');
+      act(() => {
+        fireEvent.click(selectBtn);
+      });
+
+      // 相手カードの場合は正常に遷移
+      expect(screen.getByTestId('attack-modal')).toBeInTheDocument();
+      const currentState = (window as any).__algoGameState as GameState;
+      expect(currentState.selectedTarget).toEqual({ playerId: 'cpu1', cardIndex: 0 });
+      expect(currentState.phase).toBe('PLAYER_GUESS_NUMBER');
     });
   });
 });

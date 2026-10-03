@@ -32,6 +32,7 @@ import {
 import { HintModal } from './HintModal';
 import { getBestHint, HintResult } from '../lib/hintAdvisor';
 import { useUserSession } from '../hooks/useUserSession';
+import { auditLogger } from '../lib/auditLogger';
 import {
   Layers,
   Sparkles,
@@ -472,6 +473,14 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       return;
     }
 
+    const humanPlayer = gameState.players.find((p) => p.isHuman);
+    const currentUserId = userId || humanPlayer?.id || 'player';
+
+    // 自分自身の手札をアタック対象に指定することを拒否 (Issue #88: Self-Attack Exploit防止)
+    if (targetPlayer.isHuman || targetPlayer.id === currentUserId) {
+      return;
+    }
+
     setGameState((prev) => ({
       ...prev,
       selectedTarget: { playerId, cardIndex },
@@ -487,11 +496,26 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     const targetPlayer = gameState.players.find((p) => p.id === playerId);
     if (!targetPlayer) return;
 
-    const targetCard = targetPlayer.cards[cardIndex];
-    const isHit = checkAttack(targetCard, guessedNumber);
-
     const humanPlayer = gameState.players.find((p) => p.isHuman);
     const currentUserId = userId || humanPlayer?.id || 'player';
+
+    // 防御的プログラミング（多層防御）: ターゲットが自分自身である場合は不正操作として即座に中断（拒否）し、セキュリティ監査ログを記録 (Issue #88)
+    if (targetPlayer.isHuman || targetPlayer.id === currentUserId) {
+      auditLogger.warn(
+        'Self-attack attempt detected and blocked',
+        {
+          attackerId: currentUserId,
+          targetPlayerId: targetPlayer.id,
+          cardIndex,
+          guessedNumber,
+        },
+        currentUserId
+      );
+      return;
+    }
+
+    const targetCard = targetPlayer.cards[cardIndex];
+    const isHit = checkAttack(targetCard, guessedNumber);
 
     const log: AttackLog = {
       id: `log-${Date.now()}`,
