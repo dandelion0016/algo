@@ -160,3 +160,19 @@ export function getAuditLogs(): AuditEvent[] {
 export function clearAuditLogs(): void {
   auditLogBuffer.length = 0;
 }
+
+/**
+ * 監査ロガーオブジェクト (Issue #88)
+ * 構造化ログ出力と監査イベント記録（セキュリティ違反等）を統合
+ */
+export const auditLogger = {
+  record: recordAuditEvent,
+  warn: (message: string, payload?: Record<string, unknown>, userId = 'system'): AuditEvent => {
+    console.warn(`[AUDIT_WARN] ${message}`, payload);
+    return recordAuditEvent('SECURITY_VIOLATION', userId, { message, ...payload });
+  },
+  info: (message: string, payload?: Record<string, unknown>, userId = 'system'): AuditEvent => {
+    console.info(`[AUDIT_INFO] ${message}`, payload);
+    return recordAuditEvent('GAME_INIT', userId, { message, ...payload });
+  },
+};

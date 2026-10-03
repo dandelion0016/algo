@@ -5,6 +5,7 @@ import {
   clearAuditLogs,
   maskAuditPayload,
   MAX_AUDIT_LOG_BUFFER_SIZE,
+  auditLogger,
 } from '../auditLogger';
 import { AuditEventType } from '@/types/audit';
 
@@ -286,6 +287,41 @@ describe('auditLogger', () => {
       logs.pop(); // 外部で変更
 
       expect(getAuditLogs().length).toBe(1);
+    });
+  });
+
+  describe('auditLogger オブジェクトメソッド (Issue #88)', () => {
+    it('auditLogger.warn が SECURITY_VIOLATION イベントを正しく記録し console.warn を呼ぶこと', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      vi.spyOn(console, 'info').mockImplementation(() => {});
+
+      const event = auditLogger.warn(
+        'Self-attack attempt detected and blocked',
+        { attackerId: 'p1', targetPlayerId: 'p1', cardIndex: 0 },
+        'p1'
+      );
+
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(event.eventType).toBe('SECURITY_VIOLATION');
+      expect(event.userId).toBe('p1');
+      expect(event.payload.message).toBe('Self-attack attempt detected and blocked');
+      expect(event.payload.attackerId).toBe('p1');
+      expect(event.payload.targetPlayerId).toBe('p1');
+      expect(event.payload.cardIndex).toBe(0);
+
+      const logs = getAuditLogs();
+      expect(logs.length).toBe(1);
+      expect(logs[0].eventType).toBe('SECURITY_VIOLATION');
+    });
+
+    it('auditLogger.info が GAME_INIT イベントを記録し console.info を呼ぶこと', () => {
+      const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+
+      const event = auditLogger.info('Game initialized', { playerCount: 2 });
+      expect(event.eventType).toBe('GAME_INIT');
+      expect(event.payload.message).toBe('Game initialized');
+      expect(event.payload.playerCount).toBe(2);
+      expect(infoSpy).toHaveBeenCalled();
     });
   });
 });
