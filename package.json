@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "echo Lint check passed",
     "test": "vitest run",
+    "test:ci": "npm ci --dry-run && vitest run && node scripts/verify-test-integrity.js",
     "test:integrity": "node scripts/verify-test-integrity.js",
     "test:e2e": "playwright test"
   },
