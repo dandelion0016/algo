@@ -17,6 +17,8 @@ import { createDeck, setupGamePlayers, insertCardInOrder, isAllOpen, getNextActi
 import { getNextActionMessage } from '../CpuAttackModal';
 import { Card, GameState, AttackLog, Player } from '../../types/game';
 import { getAuditLogs, clearAuditLogs, auditLogger } from '../../lib/auditLogger';
+import { soundManager } from '../../lib/soundManager';
+import { haptics } from '../../lib/haptics';
 
 // useUserSession フックのモック化
 vi.mock('../../hooks/useUserSession', () => ({
@@ -1261,6 +1263,7 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(html).toMatch(/data-testid="btn-open-rules"[^>]*whitespace-nowrap[^>]*shrink-0/);
       expect(html).toMatch(/data-testid="btn-restart-game"[^>]*whitespace-nowrap[^>]*shrink-0/);
       expect(html).toMatch(/data-testid="btn-open-settings"[^>]*whitespace-nowrap[^>]*shrink-0/);
+      expect(html).toMatch(/data-testid="btn-sound-toggle"[^>]*whitespace-nowrap[^>]*shrink-0/);
       expect(html).toMatch(/data-testid="btn-toggle-log"[^>]*whitespace-nowrap[^>]*shrink-0/);
     });
 
@@ -3138,6 +3141,275 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(timerBtn.textContent).toContain('残り 27 秒');
 
       vi.useRealTimers();
+    });
+  });
+
+  describe('Sound Effects & Mobile Haptics Integration (Issue #63, #71)', () => {
+    beforeEach(() => {
+      localStorage.clear();
+      soundManager.resetContextForTesting();
+      soundManager.setSoundEnabled(true);
+      vi.clearAllMocks();
+    });
+
+    it('ヘッダーにサウンドON/OFFボタンが表示され、クリックでトグルおよびlocalStorage永続化される', () => {
+      const mockInitialState: GameState = {
+        playerCount: 2,
+        difficulty: 'NORMAL',
+        timeLimit: 0,
+        remainingTime: 0,
+        deck: [],
+        players: [
+          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false },
+          { id: 'p2', name: 'CPU 1', isHuman: false, cards: [], isEliminated: false },
+        ],
+        activePlayerIndex: 0,
+        drawnCard: null,
+        phase: 'PLAYER_TURN_START',
+        selectedTarget: null,
+        logs: [],
+        winner: null,
+      };
+
+      render(<GameBoard initialState={mockInitialState} />);
+
+      const soundBtn = screen.getByTestId('btn-sound-toggle');
+      expect(soundBtn).toBeInTheDocument();
+      expect(soundBtn.textContent).toContain('サウンド ON');
+      expect(soundManager.isSoundEnabled()).toBe(true);
+
+      // クリックしてミュートにトグル
+      fireEvent.click(soundBtn);
+      expect(soundBtn.textContent).toContain('サウンド OFF');
+      expect(soundManager.isSoundEnabled()).toBe(false);
+      expect(localStorage.getItem('algo_sound_enabled')).toBe('false');
+
+      // 再度クリックしてONに戻す
+      fireEvent.click(soundBtn);
+      expect(soundBtn.textContent).toContain('サウンド ON');
+      expect(soundManager.isSoundEnabled()).toBe(true);
+      expect(localStorage.getItem('algo_sound_enabled')).toBe('true');
+    });
+
+    it('プレイヤーが山札からドローした際に playDrawSound と vibrateLight が呼び出される', () => {
+      const playDrawSoundSpy = vi.spyOn(soundManager, 'playDrawSound');
+      const vibrateLightSpy = vi.spyOn(haptics, 'vibrateLight');
+
+      const mockInitialState: GameState = {
+        playerCount: 2,
+        difficulty: 'NORMAL',
+        timeLimit: 0,
+        remainingTime: 0,
+        deck: [{ id: 'card-1', color: 'black', number: 5, isOpen: false }],
+        players: [
+          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false },
+          { id: 'p2', name: 'CPU 1', isHuman: false, cards: [], isEliminated: false },
+        ],
+        activePlayerIndex: 0,
+        drawnCard: null,
+        phase: 'PLAYER_TURN_START',
+        selectedTarget: null,
+        logs: [],
+        winner: null,
+      };
+
+      render(<GameBoard initialState={mockInitialState} />);
+
+      const drawBtn = screen.getByTestId('btn-draw-card');
+      fireEvent.click(drawBtn);
+
+      expect(playDrawSoundSpy).toHaveBeenCalledTimes(1);
+      expect(vibrateLightSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('プレイヤーの推理的中時に playAttackSound, playHitSound, vibrateSuccess が呼び出される', async () => {
+      const playAttackSoundSpy = vi.spyOn(soundManager, 'playAttackSound');
+      const playHitSoundSpy = vi.spyOn(soundManager, 'playHitSound');
+      const vibrateSuccessSpy = vi.spyOn(haptics, 'vibrateSuccess');
+
+      const mockInitialState: GameState = {
+        playerCount: 2,
+        difficulty: 'NORMAL',
+        timeLimit: 0,
+        remainingTime: 0,
+        deck: [],
+        players: [
+          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false },
+          {
+            id: 'p2',
+            name: 'CPU 1',
+            isHuman: false,
+            cards: [{ id: 'c-target', color: 'black', number: 7, isOpen: false }],
+            isEliminated: false,
+          },
+        ],
+        activePlayerIndex: 0,
+        drawnCard: { id: 'c-drawn', color: 'white', number: 2, isOpen: false },
+        phase: 'PLAYER_GUESS_NUMBER',
+        selectedTarget: { playerId: 'p2', cardIndex: 0 },
+        logs: [],
+        winner: null,
+      };
+
+      render(<GameBoard initialState={mockInitialState} />);
+
+      // 数字7を選択して推理確定
+      const numButton = screen.getByTestId('btn-guess-num-7');
+      fireEvent.click(numButton);
+      const confirmButton = screen.getByTestId('btn-confirm-attack');
+      await act(async () => {
+        fireEvent.click(confirmButton);
+      });
+
+      expect(playAttackSoundSpy).toHaveBeenCalledTimes(1);
+      expect(playHitSoundSpy).toHaveBeenCalledTimes(1);
+      expect(vibrateSuccessSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('プレイヤーの推理ハズレ時に playAttackSound, playMissSound, vibrateFailure が呼び出される', async () => {
+      const playAttackSoundSpy = vi.spyOn(soundManager, 'playAttackSound');
+      const playMissSoundSpy = vi.spyOn(soundManager, 'playMissSound');
+      const vibrateFailureSpy = vi.spyOn(haptics, 'vibrateFailure');
+
+      const mockInitialState: GameState = {
+        playerCount: 2,
+        difficulty: 'NORMAL',
+        timeLimit: 0,
+        remainingTime: 0,
+        deck: [],
+        players: [
+          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false },
+          {
+            id: 'p2',
+            name: 'CPU 1',
+            isHuman: false,
+            cards: [{ id: 'c-target', color: 'black', number: 7, isOpen: false }],
+            isEliminated: false,
+          },
+        ],
+        activePlayerIndex: 0,
+        drawnCard: { id: 'c-drawn', color: 'white', number: 2, isOpen: false },
+        phase: 'PLAYER_GUESS_NUMBER',
+        selectedTarget: { playerId: 'p2', cardIndex: 0 },
+        logs: [],
+        winner: null,
+      };
+
+      render(<GameBoard initialState={mockInitialState} />);
+
+      // 数字3を選択してハズレ
+      const numButton = screen.getByTestId('btn-guess-num-3');
+      fireEvent.click(numButton);
+      const confirmButton = screen.getByTestId('btn-confirm-attack');
+      await act(async () => {
+        fireEvent.click(confirmButton);
+      });
+
+      expect(playAttackSoundSpy).toHaveBeenCalledTimes(1);
+      expect(playMissSoundSpy).toHaveBeenCalledTimes(1);
+      expect(vibrateFailureSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('タイマーの残り時間5秒以下で playTimeWarningSound と vibrateWarning が呼び出される', () => {
+      vi.useFakeTimers();
+      const warningSoundSpy = vi.spyOn(soundManager, 'playTimeWarningSound');
+      const warningHapticsSpy = vi.spyOn(haptics, 'vibrateWarning');
+
+      const mockInitialState: GameState = {
+        playerCount: 2,
+        difficulty: 'NORMAL',
+        timeLimit: 30,
+        remainingTime: 6,
+        deck: [{ id: 'c1', color: 'black', number: 1, isOpen: false }],
+        players: [
+          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false },
+          { id: 'p2', name: 'CPU 1', isHuman: false, cards: [], isEliminated: false },
+        ],
+        activePlayerIndex: 0,
+        drawnCard: null,
+        phase: 'PLAYER_TURN_START',
+        selectedTarget: null,
+        logs: [],
+        winner: null,
+      };
+
+      render(<GameBoard initialState={mockInitialState} />);
+
+      // 1秒進めて残り5秒に到達
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      expect(warningSoundSpy).toHaveBeenCalledTimes(1);
+      expect(warningHapticsSpy).toHaveBeenCalledTimes(1);
+
+      // さらに1秒進めて残り4秒
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      expect(warningSoundSpy).toHaveBeenCalledTimes(2);
+      expect(warningHapticsSpy).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
+    });
+
+    it('ゲームオーバー時に勝者が人間の場合は playVictorySound が再生される', () => {
+      const victorySpy = vi.spyOn(soundManager, 'playVictorySound');
+      const defeatSpy = vi.spyOn(soundManager, 'playDefeatSound');
+
+      const humanPlayer = { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: false };
+      const mockInitialState: GameState = {
+        playerCount: 2,
+        difficulty: 'NORMAL',
+        timeLimit: 0,
+        remainingTime: 0,
+        deck: [],
+        players: [
+          humanPlayer,
+          { id: 'p2', name: 'CPU 1', isHuman: false, cards: [], isEliminated: true },
+        ],
+        activePlayerIndex: 0,
+        drawnCard: null,
+        phase: 'GAME_OVER',
+        selectedTarget: null,
+        logs: [],
+        winner: humanPlayer,
+      };
+
+      render(<GameBoard initialState={mockInitialState} />);
+
+      expect(victorySpy).toHaveBeenCalledTimes(1);
+      expect(defeatSpy).not.toHaveBeenCalled();
+    });
+
+    it('ゲームオーバー時に勝者がCPUの場合は playDefeatSound が再生される', () => {
+      const victorySpy = vi.spyOn(soundManager, 'playVictorySound');
+      const defeatSpy = vi.spyOn(soundManager, 'playDefeatSound');
+
+      const cpuPlayer = { id: 'p2', name: 'CPU 1', isHuman: false, cards: [], isEliminated: false };
+      const mockInitialState: GameState = {
+        playerCount: 2,
+        difficulty: 'NORMAL',
+        timeLimit: 0,
+        remainingTime: 0,
+        deck: [],
+        players: [
+          { id: 'p1', name: 'あなた', isHuman: true, cards: [], isEliminated: true },
+          cpuPlayer,
+        ],
+        activePlayerIndex: 1,
+        drawnCard: null,
+        phase: 'GAME_OVER',
+        selectedTarget: null,
+        logs: [],
+        winner: cpuPlayer,
+      };
+
+      render(<GameBoard initialState={mockInitialState} />);
+
+      expect(defeatSpy).toHaveBeenCalledTimes(1);
+      expect(victorySpy).not.toHaveBeenCalled();
     });
   });
 });
