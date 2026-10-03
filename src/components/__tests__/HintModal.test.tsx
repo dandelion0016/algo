@@ -101,4 +101,27 @@ describe('HintModal Component (Issue #44: AIヒント機能)', () => {
     expect(html).toContain('現在、相手の手札に推理可能な伏せカードがありません。');
     expect(html).toContain('data-testid="btn-close-hint"');
   });
+
+  it('isTimedMatch が true の場合、持ち時間対戦中のタイマー進行警告バナーが表示される (Issue #86)', () => {
+    const html = renderToString(
+      <HintModal
+        {...defaultProps}
+        isTimedMatch={true}
+      />
+    );
+
+    expect(html).toContain('data-testid="timed-match-warning"');
+    expect(html).toContain('持ち時間対戦中のためタイマーは進行しています');
+  });
+
+  it('isTimedMatch が false の場合、タイマー進行警告バナーは表示されない', () => {
+    const html = renderToString(
+      <HintModal
+        {...defaultProps}
+        isTimedMatch={false}
+      />
+    );
+
+    expect(html).not.toContain('data-testid="timed-match-warning"');
+  });
 });

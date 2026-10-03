@@ -158,6 +158,8 @@ export interface GameBoardProps {
   initialHintCount?: number;
   initialActiveHint?: HintResult | null;
   initialIsHintModalOpen?: boolean;
+  initialIsRuleModalOpen?: boolean;
+  initialIsTutorialOpen?: boolean;
 }
 
 export const GameBoard: React.FC<GameBoardProps> = ({
@@ -166,6 +168,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   initialHintCount = 3,
   initialActiveHint = null,
   initialIsHintModalOpen = false,
+  initialIsRuleModalOpen = false,
+  initialIsTutorialOpen = false,
 }) => {
   const { userId } = useUserSession();
 
@@ -185,8 +189,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     ...initialState,
   }));
 
-  const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
-  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
+  const [isRuleModalOpen, setIsRuleModalOpen] = useState(initialIsRuleModalOpen);
+  const [isTutorialOpen, setIsTutorialOpen] = useState(initialIsTutorialOpen);
   const [isTutorialPromptOpen, setIsTutorialPromptOpen] = useState(false);
   const [isResultModalOpen, setIsResultModalOpen] = useState(true);
   const [isManualPaused, setIsManualPaused] = useState(false);
@@ -348,9 +352,21 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     gameState.phase !== 'GAME_OVER' &&
     gameState.winner === null;
 
-  // タイマー一時停止（Pause）判定: ルールモーダル、チュートリアルモーダル、HITL確認モーダル、または手動ポーズ時
+  const isTimedMatch = gameState.timeLimit > 0;
+
+  // 情報閲覧モーダル（ルール・ヒント・チュートリアル）が開いているか
+  const isInformationModalOpen = Boolean(
+    isRuleModalOpen || isHintModalOpen || isTutorialOpen || isTutorialPromptOpen
+  );
+
+  // タイマー一時停止（Pause）判定:
+  // 持ち時間制（isTimedMatch）の場合、情報閲覧モーダル（ルール、ヒント、チュートリアル）ではタイマーを停止させずカウントダウンを継続する。
+  // 明示的なゲーム中断（手動ポーズ isManualPaused、離脱確認 confirmModal.isOpen）のみでタイマーを停止させる（Issue #86 タイマーストール防止）。
+  // 時間無制限モード（!isTimedMatch）では、情報閲覧モーダル表示中もポーズ状態として扱う。
   const isTimerPaused = Boolean(
-    (isRuleModalOpen || isTutorialOpen || confirmModal.isOpen || isManualPaused) &&
+    (isManualPaused ||
+      confirmModal.isOpen ||
+      (!isTimedMatch && isInformationModalOpen)) &&
       isGameInProgress &&
       gameState.phase !== 'CPU_ACTING'
   );
@@ -1409,7 +1425,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           onOpenRules={() => setIsRuleModalOpen(true)}
           onOpenTutorial={() => setIsTutorialOpen(true)}
         />
-        <RuleGuideModal isOpen={isRuleModalOpen} onClose={() => setIsRuleModalOpen(false)} />
+        <RuleGuideModal
+          isOpen={isRuleModalOpen}
+          onClose={() => setIsRuleModalOpen(false)}
+          isTimedMatch={isTimedMatch}
+        />
         <TutorialPromptModal
           isOpen={isTutorialPromptOpen}
           onStartTutorial={() => {
@@ -1422,6 +1442,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           isOpen={isTutorialOpen}
           onClose={() => setIsTutorialOpen(false)}
           onComplete={() => setIsTutorialOpen(false)}
+          isTimedMatch={isTimedMatch}
         />
       </div>
     );
@@ -2065,11 +2086,16 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         />
       )}
 
-      <RuleGuideModal isOpen={isRuleModalOpen} onClose={() => setIsRuleModalOpen(false)} />
+      <RuleGuideModal
+        isOpen={isRuleModalOpen}
+        onClose={() => setIsRuleModalOpen(false)}
+        isTimedMatch={isTimedMatch}
+      />
       <TutorialModal
         isOpen={isTutorialOpen}
         onClose={() => setIsTutorialOpen(false)}
         onComplete={() => setIsTutorialOpen(false)}
+        isTimedMatch={isTimedMatch}
       />
 
       <ConfirmModal
@@ -2124,6 +2150,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         onSelectTarget={(targetPlayerId, cardIndex) => {
           handleSelectTargetCard(targetPlayerId, cardIndex);
         }}
+        isTimedMatch={isTimedMatch}
       />
     </div>
   );

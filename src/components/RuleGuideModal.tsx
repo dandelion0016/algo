@@ -6,9 +6,14 @@ import { BookOpen, X, Award, CheckCircle2, AlertCircle } from 'lucide-react';
 interface RuleGuideModalProps {
   isOpen: boolean;
   onClose: () => void;
+  isTimedMatch?: boolean;
 }
 
-export const RuleGuideModal: React.FC<RuleGuideModalProps> = ({ isOpen, onClose }) => {
+export const RuleGuideModal: React.FC<RuleGuideModalProps> = ({
+  isOpen,
+  onClose,
+  isTimedMatch = false,
+}) => {
   React.useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -52,6 +57,16 @@ export const RuleGuideModal: React.FC<RuleGuideModalProps> = ({ isOpen, onClose 
             <X className="w-5 h-5" />
           </button>
         </div>
+        {/* 持ち時間対戦中のタイマー進行警告（Issue #86 タイマーストール防止） */}
+        {isTimedMatch && (
+          <div
+            data-testid="timed-match-warning"
+            className="mx-6 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-2 text-amber-800 text-xs font-bold shrink-0 animate-in fade-in"
+          >
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>⚠️ 持ち時間対戦中のためタイマーは進行しています（タイマーストール防止）</span>
+          </div>
+        )}
 
         {/* Content */}
         <div className="p-6 overflow-y-auto space-y-6 text-xs sm:text-sm text-slate-600 leading-relaxed">

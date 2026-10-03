@@ -43,14 +43,17 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
     });
   });
 
-  describe('タイマーPause/Resume判定ロジックの仕様検証', () => {
+  describe('タイマーPause/Resume判定ロジックの仕様検証 (Issue #86 タイマーストール防止改修)', () => {
     // isTimerPaused の条件:
-    // (isRuleModalOpen || confirmModal.isOpen || isManualPaused) && isGameInProgress && phase !== 'CPU_ACTING'
+    // (isManualPaused || confirmModal.isOpen || (!isTimedMatch && isInformationModalOpen)) && isGameInProgress && phase !== 'CPU_ACTING'
 
     const checkTimerPaused = (params: {
-      isRuleModalOpen: boolean;
-      isConfirmModalOpen: boolean;
-      isManualPaused: boolean;
+      isRuleModalOpen?: boolean;
+      isHintModalOpen?: boolean;
+      isTutorialOpen?: boolean;
+      isTutorialPromptOpen?: boolean;
+      isConfirmModalOpen?: boolean;
+      isManualPaused?: boolean;
       phase: GameState['phase'];
       timeLimit: number;
     }) => {
@@ -58,14 +61,35 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
         params.phase !== 'SETUP' &&
         params.phase !== 'GAME_OVER';
 
+      const isTimedMatch = params.timeLimit > 0;
+      const isInformationModalOpen = Boolean(
+        params.isRuleModalOpen ||
+        params.isHintModalOpen ||
+        params.isTutorialOpen ||
+        params.isTutorialPromptOpen
+      );
+
       return Boolean(
-        (params.isRuleModalOpen || params.isConfirmModalOpen || params.isManualPaused) &&
+        (params.isManualPaused ||
+          params.isConfirmModalOpen ||
+          (!isTimedMatch && isInformationModalOpen)) &&
           isGameInProgress &&
           params.phase !== 'CPU_ACTING'
       );
     };
 
-    it('ルールモーダルが開いている時はタイマーが一時停止（isTimerPaused = true）となる', () => {
+    it('時間無制限（timeLimit = 0）の時はルールモーダル等が開いているとタイマーは一時停止扱い（isTimerPaused = true）となる', () => {
+      const isPaused = checkTimerPaused({
+        isRuleModalOpen: true,
+        isConfirmModalOpen: false,
+        isManualPaused: false,
+        phase: 'PLAYER_TURN_START',
+        timeLimit: 0,
+      });
+      expect(isPaused).toBe(true);
+    });
+
+    it('【Issue #86 脆弱性解消】持ち時間対戦（timeLimit = 30）でルールモーダルが開いてもタイマーは停止せず継続（isTimerPaused = false）となる', () => {
       const isPaused = checkTimerPaused({
         isRuleModalOpen: true,
         isConfirmModalOpen: false,
@@ -73,21 +97,32 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
         phase: 'PLAYER_TURN_START',
         timeLimit: 30,
       });
-      expect(isPaused).toBe(true);
+      expect(isPaused).toBe(false);
     });
 
-    it('HITL確認モーダルが開いている時はタイマーが一時停止（isTimerPaused = true）となる', () => {
+    it('【Issue #86 脆弱性解消】持ち時間対戦（timeLimit = 15）でヒントモーダルが開いてもタイマーは停止せず継続（isTimerPaused = false）となる', () => {
       const isPaused = checkTimerPaused({
-        isRuleModalOpen: false,
-        isConfirmModalOpen: true,
+        isHintModalOpen: true,
+        isConfirmModalOpen: false,
+        isManualPaused: false,
+        phase: 'PLAYER_TURN_START',
+        timeLimit: 15,
+      });
+      expect(isPaused).toBe(false);
+    });
+
+    it('【Issue #86 脆弱性解消】持ち時間対戦でチュートリアルモーダルが開いてもタイマーは停止せず継続（isTimerPaused = false）となる', () => {
+      const isPaused = checkTimerPaused({
+        isTutorialOpen: true,
+        isConfirmModalOpen: false,
         isManualPaused: false,
         phase: 'PLAYER_TURN_START',
         timeLimit: 30,
       });
-      expect(isPaused).toBe(true);
+      expect(isPaused).toBe(false);
     });
 
-    it('手動ポーズが有効な時はタイマーが一時停止（isTimerPaused = true）となる', () => {
+    it('持ち時間対戦中であっても、手動ポーズ（isManualPaused = true）の時は明示的中断としてタイマーが一時停止（isTimerPaused = true）となる', () => {
       const isPaused = checkTimerPaused({
         isRuleModalOpen: false,
         isConfirmModalOpen: false,
@@ -98,7 +133,18 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(isPaused).toBe(true);
     });
 
-    it('すべてのモーダルが閉じ手動ポーズも解除されている時はタイマーが再開（isTimerPaused = false）となる', () => {
+    it('持ち時間対戦中であっても、離脱確認（isConfirmModalOpen = true）の時は明示的中断としてタイマーが一時停止（isTimerPaused = true）となる', () => {
+      const isPaused = checkTimerPaused({
+        isRuleModalOpen: false,
+        isConfirmModalOpen: true,
+        isManualPaused: false,
+        phase: 'PLAYER_TURN_START',
+        timeLimit: 30,
+      });
+      expect(isPaused).toBe(true);
+    });
+
+    it('すべてのモーダルが閉じ手動ポーズも解除されている時はタイマーが通常稼働（isTimerPaused = false）となる', () => {
       const isPaused = checkTimerPaused({
         isRuleModalOpen: false,
         isConfirmModalOpen: false,
@@ -147,11 +193,11 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(remainingTime).toBe(27);
     });
 
-    it('モーダル表示中（isTimerPaused = true）は残り時間が減算されない', () => {
+    it('手動ポーズまたは確認モーダル中（isTimerPaused = true）は残り時間が減算されない', () => {
       let remainingTime = 25;
       const isTimerPaused = true;
 
-      // 5秒経過シミュレーション（モーダルを開いたまま放置）
+      // 5秒経過シミュレーション（手動ポーズ状態）
       for (let i = 0; i < 5; i++) {
         if (!isTimerPaused) {
           remainingTime -= 1;
@@ -162,7 +208,32 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(remainingTime).toBe(25);
     });
 
-    it('モーダルを閉じた後は中断された時点の残り秒数から正確に再開（Resume）する', () => {
+    it('【Issue #86】持ち時間対戦中にルールモーダルやヒントモーダルを開いたまま放置してもタイマー減算が進行する（タイマーストール防止）', () => {
+      let remainingTime = 30;
+      const isTimedMatch = true;
+      const isRuleModalOpen = true;
+      const isManualPaused = false;
+      const isConfirmModalOpen = false;
+
+      // isTimerPaused は false となる
+      const isTimerPaused = Boolean(
+        isManualPaused || isConfirmModalOpen || (!isTimedMatch && isRuleModalOpen)
+      );
+
+      expect(isTimerPaused).toBe(false);
+
+      // 10秒放置シミュレーション
+      for (let i = 0; i < 10; i++) {
+        if (!isTimerPaused) {
+          remainingTime -= 1;
+        }
+      }
+
+      // 放置してもタイマーストールせず20秒まで減算される
+      expect(remainingTime).toBe(20);
+    });
+
+    it('手動ポーズを解除した後は中断された時点の残り秒数から正確に再開（Resume）する', () => {
       let remainingTime = 20;
 
       // 1. 最初は通常進行（2秒経過）
@@ -172,14 +243,14 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       }
       expect(remainingTime).toBe(18);
 
-      // 2. ルールモーダルを開く（一時停止、4秒経過）
+      // 2. 手動ポーズをクリック（一時停止、4秒経過）
       isTimerPaused = true;
       for (let i = 0; i < 4; i++) {
         if (!isTimerPaused) remainingTime -= 1;
       }
       expect(remainingTime).toBe(18); // 減算されない
 
-      // 3. ルールモーダルを閉じる（再開、3秒経過）
+      // 3. 手動ポーズを解除（再開、3秒経過）
       isTimerPaused = false;
       for (let i = 0; i < 3; i++) {
         if (!isTimerPaused) remainingTime -= 1;
@@ -2523,10 +2594,10 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(warnSpy).toHaveBeenCalled();
       const auditLogs = getAuditLogs();
       const violationLog = auditLogs.find(
-        (l) => l.eventType === 'SECURITY_VIOLATION' && l.payload.message?.includes('INVALID_ATTACK_INPUT')
+        (l) => l.eventType === 'SECURITY_VIOLATION' && (l.payload as any).message?.includes('INVALID_ATTACK_INPUT')
       );
       expect(violationLog).toBeDefined();
-      expect(violationLog?.payload.guessedNumber).toBe(-1);
+      expect((violationLog?.payload as any)?.guessedNumber).toBe(-1);
 
       // 2. ターゲットカードが開示されず、ログも追加されず、状態が壊れていないこと
       const currentState = (window as any).__algoGameState as GameState;
@@ -2549,10 +2620,10 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(warnSpy).toHaveBeenCalled();
       const auditLogs = getAuditLogs();
       const violationLog = auditLogs.find(
-        (l) => l.eventType === 'SECURITY_VIOLATION' && l.payload.message?.includes('INVALID_ATTACK_INPUT')
+        (l) => l.eventType === 'SECURITY_VIOLATION' && (l.payload as any).message?.includes('INVALID_ATTACK_INPUT')
       );
       expect(violationLog).toBeDefined();
-      expect(violationLog?.payload.guessedNumber).toBe(12);
+      expect((violationLog?.payload as any)?.guessedNumber).toBe(12);
 
       const currentState = (window as any).__algoGameState as GameState;
       expect(currentState.logs.length).toBe(0);
@@ -2572,10 +2643,10 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(warnSpy).toHaveBeenCalled();
       const auditLogs = getAuditLogs();
       const violationLog = auditLogs.find(
-        (l) => l.eventType === 'SECURITY_VIOLATION' && l.payload.message?.includes('INVALID_ATTACK_INPUT')
+        (l) => l.eventType === 'SECURITY_VIOLATION' && (l.payload as any).message?.includes('INVALID_ATTACK_INPUT')
       );
       expect(violationLog).toBeDefined();
-      expect(violationLog?.payload.guessedNumber).toBe(3.5);
+      expect((violationLog?.payload as any)?.guessedNumber).toBe(3.5);
 
       const currentState = (window as any).__algoGameState as GameState;
       expect(currentState.logs.length).toBe(0);
@@ -2597,11 +2668,11 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       const violationLog = auditLogs.find(
         (l) =>
           l.eventType === 'SECURITY_VIOLATION' &&
-          l.payload.message?.includes('already known')
+          (l.payload as any).message?.includes('already known')
       );
       expect(violationLog).toBeDefined();
-      expect(violationLog?.payload.guessedNumber).toBe(7);
-      expect(violationLog?.payload.targetColor).toBe('white');
+      expect((violationLog?.payload as any)?.guessedNumber).toBe(7);
+      expect((violationLog?.payload as any)?.targetColor).toBe('white');
 
       // カード開示やログ追加がブロックされること
       const currentState = (window as any).__algoGameState as GameState;
@@ -2633,11 +2704,11 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       const violationLog = auditLogs.find(
         (l) =>
           l.eventType === 'SECURITY_VIOLATION' &&
-          l.payload.message?.includes('already known')
+          (l.payload as any).message?.includes('already known')
       );
       expect(violationLog).toBeDefined();
-      expect(violationLog?.payload.guessedNumber).toBe(10);
-      expect(violationLog?.payload.targetColor).toBe('black');
+      expect((violationLog?.payload as any)?.guessedNumber).toBe(10);
+      expect((violationLog?.payload as any)?.targetColor).toBe('black');
     });
   });
 
@@ -2750,6 +2821,159 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
         vi.advanceTimersByTime(1000);
       });
       expect(container.textContent).toContain('残り 29 秒');
+
+      vi.useRealTimers();
+    });
+  });
+
+  describe('モーダル表示時のタイマーストール脆弱性防止と手動ポーズ境界検証 (Issue #86)', () => {
+    const baseTimedState: Partial<GameState> = {
+      phase: 'PLAYER_TURN_START',
+      timeLimit: 30,
+      remainingTime: 30,
+      activePlayerIndex: 0,
+      players: [
+        {
+          id: 'p1',
+          name: 'あなた',
+          isHuman: true,
+          cards: [{ id: 'c1', color: 'black', number: 3, isOpen: false }],
+          isEliminated: false,
+          avatarColor: 'from-blue-500 to-indigo-600',
+        },
+        {
+          id: 'p2',
+          name: 'CPU 1',
+          isHuman: false,
+          cards: [{ id: 'c2', color: 'white', number: 7, isOpen: false }],
+          isEliminated: false,
+          avatarColor: 'from-amber-500 to-orange-600',
+        },
+      ],
+      deck: [{ id: 'd1', color: 'black', number: 5, isOpen: false }],
+      winner: null,
+    };
+
+    it('持ち時間制（30秒）でルールモーダルを開いていてもタイマーは停止せず毎秒カウントダウンが進行すること', () => {
+      vi.useFakeTimers();
+
+      const { container } = render(
+        <GameBoard
+          initialState={baseTimedState}
+          initialIsRuleModalOpen={true}
+        />
+      );
+
+      // ルールモーダルが表示されていること
+      expect(screen.getByTestId('rule-guide-modal')).toBeDefined();
+
+      // 持ち時間警告が表示されていること
+      expect(screen.getByTestId('timed-match-warning')).toBeDefined();
+      expect(container.textContent).toContain('持ち時間対戦中のためタイマーは進行しています');
+
+      // タイマーは PAUSED ではなく「残り 30 秒」と表示されていること
+      const timerBtn = screen.getByTestId('timer-display');
+      expect(timerBtn.textContent).toContain('残り 30 秒');
+      expect(timerBtn.textContent).not.toContain('PAUSED');
+
+      // 3秒経過させる
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
+
+      // ルールモーダルを開いたままでもタイマーが27秒へ進行していること（タイマーストール防止）
+      expect(timerBtn.textContent).toContain('残り 27 秒');
+
+      vi.useRealTimers();
+    });
+
+    it('持ち時間制（30秒）でヒントモーダルを開いていてもタイマーは停止せず毎秒カウントダウンが進行すること', () => {
+      vi.useFakeTimers();
+
+      const { container } = render(
+        <GameBoard
+          initialState={baseTimedState}
+          initialIsHintModalOpen={true}
+          initialActiveHint={{
+            targetPlayerId: 'p2',
+            targetPlayerName: 'CPU 1',
+            targetCardIndex: 0,
+            color: 'white',
+            possibleNumbers: [7],
+            isDefinite: true,
+            adviceText: 'CPU 1のカードは7です',
+          }}
+        />
+      );
+
+      // ヒントモーダルが表示されていること
+      expect(screen.getByTestId('modal-hint')).toBeDefined();
+
+      // 持ち時間警告が表示されていること
+      expect(screen.getByTestId('timed-match-warning')).toBeDefined();
+      expect(container.textContent).toContain('持ち時間対戦中のためタイマーは進行しています');
+
+      // タイマーは PAUSED ではなく「残り 30 秒」
+      const timerBtn = screen.getByTestId('timer-display');
+      expect(timerBtn.textContent).toContain('残り 30 秒');
+      expect(timerBtn.textContent).not.toContain('PAUSED');
+
+      // 5秒経過させる
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+
+      // ヒントを開いたままでもタイマーが25秒へ進行していること
+      expect(timerBtn.textContent).toContain('残り 25 秒');
+
+      vi.useRealTimers();
+    });
+
+    it('持ち時間制中であっても、手動ポーズボタンをクリックした場合は明示的な中断としてタイマーが一時停止すること', () => {
+      vi.useFakeTimers();
+
+      render(
+        <GameBoard
+          initialState={baseTimedState}
+        />
+      );
+
+      const timerBtn = screen.getByTestId('timer-display');
+      expect(timerBtn.textContent).toContain('残り 30 秒');
+
+      // 2秒進行
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(timerBtn.textContent).toContain('残り 28 秒');
+
+      // 手動ポーズをクリック
+      act(() => {
+        fireEvent.click(timerBtn);
+      });
+
+      // PAUSED表示となりタイマーが一時停止
+      expect(timerBtn.textContent).toContain('PAUSED');
+      expect(timerBtn.textContent).toContain('(28秒)');
+
+      // 5秒経過させてもタイマーは減算されない
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+      expect(timerBtn.textContent).toContain('PAUSED');
+      expect(timerBtn.textContent).toContain('(28秒)');
+
+      // 再度クリックしてポーズ解除
+      act(() => {
+        fireEvent.click(timerBtn);
+      });
+      expect(timerBtn.textContent).toContain('残り 28 秒');
+
+      // 再開後1秒進行
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(timerBtn.textContent).toContain('残り 27 秒');
 
       vi.useRealTimers();
     });

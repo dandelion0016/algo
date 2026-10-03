@@ -117,4 +117,21 @@ describe('TutorialModal Component (Issue #41: インタラクティブチュー�
       expect(STORAGE_KEY_TUTORIAL_COMPLETED).toBe('algo_tutorial_completed');
     });
   });
+
+  describe('持ち時間対戦中のタイマー進行警告 (Issue #86)', () => {
+    it('isTimedMatch が true の場合、警告バナーが表示される', () => {
+      const html = renderToString(
+        <TutorialModal isOpen={true} onClose={vi.fn()} isTimedMatch={true} />
+      );
+      expect(html).toContain('data-testid="timed-match-warning"');
+      expect(html).toContain('持ち時間対戦中のためタイマーは進行しています');
+    });
+
+    it('isTimedMatch が false または未指定の場合、警告バナーは表示されない', () => {
+      const html = renderToString(
+        <TutorialModal isOpen={true} onClose={vi.fn()} isTimedMatch={false} />
+      );
+      expect(html).not.toContain('data-testid="timed-match-warning"');
+    });
+  });
 });

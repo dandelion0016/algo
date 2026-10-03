@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Lightbulb, Target, CheckCircle2, Sparkles, X } from 'lucide-react';
+import { Lightbulb, Target, CheckCircle2, Sparkles, X, AlertCircle } from 'lucide-react';
 import { HintResult } from '../lib/hintAdvisor';
 
 export interface HintModalProps {
@@ -11,6 +11,7 @@ export interface HintModalProps {
   remainingHints: number;
   onSelectTarget?: (playerId: string, cardIndex: number) => void;
   canSelectTarget?: boolean;
+  isTimedMatch?: boolean;
 }
 
 export const HintModal: React.FC<HintModalProps> = ({
@@ -20,6 +21,7 @@ export const HintModal: React.FC<HintModalProps> = ({
   remainingHints,
   onSelectTarget,
   canSelectTarget = false,
+  isTimedMatch = false,
 }) => {
   if (!isOpen) return null;
 
@@ -66,6 +68,17 @@ export const HintModal: React.FC<HintModalProps> = ({
               <X className="w-5 h-5" />
             </button>
           </div>
+
+          {/* 持ち時間対戦中のタイマー進行警告（Issue #86 タイマーストール防止） */}
+          {isTimedMatch && (
+            <div
+              data-testid="timed-match-warning"
+              className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-amber-800 text-xs font-bold animate-in fade-in"
+            >
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>⚠️ 持ち時間対戦中のためタイマーは進行しています（時間切れにご注意ください）</span>
+            </div>
+          )}
 
           {/* ヒント本文 */}
           {hint ? (
