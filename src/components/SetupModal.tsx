@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { PlayerCount, Difficulty, TimeLimit } from '../types/game';
-import { Users, Brain, Timer, BookOpen, ArrowRight, Sparkles, GraduationCap, Trophy } from 'lucide-react';
+import { Users, Brain, Timer, BookOpen, ArrowRight, Sparkles, GraduationCap, Trophy, Volume2, VolumeX } from 'lucide-react';
 import { useUserSession } from '../hooks/useUserSession';
 import { getAppVersion } from '../lib/version';
 
@@ -17,6 +17,9 @@ export interface SetupModalProps {
   onOpenRules: () => void;
   onOpenTutorial?: () => void;
   onOpenStats?: () => void;
+  isSoundMuted?: boolean;
+  isSoundEnabled?: boolean;
+  onToggleSound?: () => void;
   userId?: string;
 }
 
@@ -82,11 +85,20 @@ export const SetupModal: React.FC<SetupModalProps> = ({
   onOpenRules,
   onOpenTutorial,
   onOpenStats,
+  isSoundMuted,
+  isSoundEnabled,
+  onToggleSound,
   userId: propUserId,
 }) => {
   const session = useUserSession();
   const displayUserId = propUserId || session.userId || 'usr_xxxxxxxx';
   const { players: rosterPlayers, deckCount } = getPlayerRoster(playerCount);
+  const isSoundOn =
+    isSoundEnabled !== undefined
+      ? isSoundEnabled
+      : isSoundMuted !== undefined
+      ? !isSoundMuted
+      : true;
 
   return (
     <div className="w-full max-w-lg sm:max-w-2xl mx-auto bg-white rounded-2xl sm:rounded-3xl shadow-xl border border-slate-200 overflow-hidden flex flex-col max-h-full my-auto animate-in fade-in zoom-in-95 duration-200">
@@ -341,6 +353,29 @@ export const SetupModal: React.FC<SetupModalProps> = ({
               >
                 <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600 shrink-0" />
                 <span>戦績・実績</span>
+              </button>
+            )}
+
+            {onToggleSound && (
+              <button
+                type="button"
+                data-testid="btn-setup-sound"
+                onClick={onToggleSound}
+                aria-label={`サウンド効果音: ${isSoundOn ? 'ON' : 'OFF'}`}
+                aria-pressed={isSoundOn}
+                className={`py-2 sm:py-3 px-2 sm:px-3.5 rounded-xl sm:rounded-2xl border font-bold text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-1.5 transition-all shadow-2xs whitespace-nowrap ${
+                  isSoundOn
+                    ? 'border-algo-blue/40 bg-algo-blue-light/30 text-algo-navy hover:bg-algo-blue-light/50 ring-1 ring-algo-blue/20'
+                    : 'border-slate-300 bg-slate-50 text-slate-500 hover:bg-slate-100'
+                }`}
+                title={isSoundOn ? 'サウンドON（クリックでミュート）' : 'サウンドOFF（クリックでON）'}
+              >
+                {isSoundOn ? (
+                  <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-algo-blue shrink-0" />
+                ) : (
+                  <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 shrink-0" />
+                )}
+                <span>サウンド {isSoundOn ? 'ON' : 'OFF'}</span>
               </button>
             )}
           </div>
