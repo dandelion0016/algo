@@ -87,7 +87,7 @@ describe('AttackModal Component (SCR-004 & Issue #17: data-testid and a11y)', ()
 
     it('Escapeキーで onCancel が呼ばれる', () => {
       const onCancel = vi.fn();
-      render(<AttackModal {...defaultProps} onCancel={onCancel} />);
+      render(<AttackModal {...defaultProps} disabledNumbers={[]} onCancel={onCancel} />);
 
       fireEvent.keyDown(window, { key: 'Escape' });
 
@@ -95,7 +95,7 @@ describe('AttackModal Component (SCR-004 & Issue #17: data-testid and a11y)', ()
     });
 
     it('通常数字キー（0〜9）で対応する数字が選択される', () => {
-      render(<AttackModal {...defaultProps} />);
+      render(<AttackModal {...defaultProps} disabledNumbers={[]} />);
 
       for (let i = 2; i <= 9; i++) {
         fireEvent.keyDown(window, { key: `${i}` });
@@ -105,7 +105,7 @@ describe('AttackModal Component (SCR-004 & Issue #17: data-testid and a11y)', ()
     });
 
     it('テンキー（Numpad0〜Numpad9）で対応する数字が選択される', () => {
-      render(<AttackModal {...defaultProps} />);
+      render(<AttackModal {...defaultProps} disabledNumbers={[]} />);
 
       fireEvent.keyDown(window, { key: 'Unidentified', code: 'Numpad3' });
       const btn = screen.getByTestId('btn-guess-num-3');
@@ -113,7 +113,7 @@ describe('AttackModal Component (SCR-004 & Issue #17: data-testid and a11y)', ()
     });
 
     it('キーボード「1」→「0」の連続入力で数字「10」が選択される (Issue #70)', () => {
-      render(<AttackModal {...defaultProps} />);
+      render(<AttackModal {...defaultProps} disabledNumbers={[]} />);
 
       // 「1」を押下
       fireEvent.keyDown(window, { key: '1' });
@@ -126,7 +126,7 @@ describe('AttackModal Component (SCR-004 & Issue #17: data-testid and a11y)', ()
     });
 
     it('キーボード「1」→「1」の連続入力で数字「11」が選択される (Issue #70)', () => {
-      render(<AttackModal {...defaultProps} />);
+      render(<AttackModal {...defaultProps} disabledNumbers={[]} />);
 
       // 「1」を押下
       fireEvent.keyDown(window, { key: '1' });
@@ -139,7 +139,7 @@ describe('AttackModal Component (SCR-004 & Issue #17: data-testid and a11y)', ()
     });
 
     it('「1」入力後に600ms待機時間が経過した場合、バッファが破棄されて次の数字が単独選択される (Issue #70)', () => {
-      render(<AttackModal {...defaultProps} />);
+      render(<AttackModal {...defaultProps} disabledNumbers={[]} />);
 
       fireEvent.keyDown(window, { key: '1' });
       expect(screen.getByTestId('btn-guess-num-1')).toHaveAttribute('aria-pressed', 'true');
@@ -156,7 +156,7 @@ describe('AttackModal Component (SCR-004 & Issue #17: data-testid and a11y)', ()
     });
 
     it('矢印キー（ArrowLeft / ArrowRight / ArrowUp / ArrowDown）で選択数字が移動する (Issue #70)', () => {
-      render(<AttackModal {...defaultProps} />);
+      render(<AttackModal {...defaultProps} disabledNumbers={[]} />);
 
       // 初期未選択から ArrowRight を押すと 0 が選択される
       fireEvent.keyDown(window, { key: 'ArrowRight' });
@@ -193,7 +193,7 @@ describe('AttackModal Component (SCR-004 & Issue #17: data-testid and a11y)', ()
 
     it('矢印キーで数字選択後、Enterキーでアタックが実行される (Issue #70)', () => {
       const onConfirmGuess = vi.fn();
-      render(<AttackModal {...defaultProps} onConfirmGuess={onConfirmGuess} />);
+      render(<AttackModal {...defaultProps} disabledNumbers={[]} onConfirmGuess={onConfirmGuess} />);
 
       // ArrowRight で 0 を選択
       fireEvent.keyDown(window, { key: 'ArrowRight' });
@@ -208,10 +208,139 @@ describe('AttackModal Component (SCR-004 & Issue #17: data-testid and a11y)', ()
 
     it('数字未選択（null）の状態でEnterキーを押しても onConfirmGuess は発火しない', () => {
       const onConfirmGuess = vi.fn();
-      render(<AttackModal {...defaultProps} onConfirmGuess={onConfirmGuess} />);
+      render(<AttackModal {...defaultProps} disabledNumbers={[]} onConfirmGuess={onConfirmGuess} />);
 
       fireEvent.keyDown(window, { key: 'Enter' });
 
+      expect(onConfirmGuess).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Issue #85: disabledNumbers に対するキーボード操作および確定送信のバリデーション', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('通常数字キーで disabledNumbers に含まれる数字を押しても選択状態にならない', () => {
+      render(<AttackModal {...defaultProps} disabledNumbers={[3, 5, 8]} />);
+
+      // 数字「3」を押下
+      fireEvent.keyDown(window, { key: '3' });
+      expect(screen.getByTestId('btn-guess-num-3')).toHaveAttribute('aria-pressed', 'false');
+
+      // 数字「5」を押下
+      fireEvent.keyDown(window, { key: '5' });
+      expect(screen.getByTestId('btn-guess-num-5')).toHaveAttribute('aria-pressed', 'false');
+
+      // 有効な数字「4」を押下すると正常に選択される
+      fireEvent.keyDown(window, { key: '4' });
+      expect(screen.getByTestId('btn-guess-num-4')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('テンキー（Numpad）で disabledNumbers に含まれる数字を押しても選択状態にならない', () => {
+      render(<AttackModal {...defaultProps} disabledNumbers={[3, 5]} />);
+
+      // テンキー「3」を押下
+      fireEvent.keyDown(window, { key: 'Unidentified', code: 'Numpad3' });
+      expect(screen.getByTestId('btn-guess-num-3')).toHaveAttribute('aria-pressed', 'false');
+
+      // テンキー「2」を押下すると正常に選択される
+      fireEvent.keyDown(window, { key: 'Unidentified', code: 'Numpad2' });
+      expect(screen.getByTestId('btn-guess-num-2')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('矢印キー移動時、disabledNumbers に含まれる数字が自動的にスキップされる', () => {
+      // 1 と 2 が disabled
+      render(<AttackModal {...defaultProps} disabledNumbers={[1, 2]} />);
+
+      // 初期未選択から ArrowRight を押すと 0 が選択される
+      fireEvent.keyDown(window, { key: 'ArrowRight' });
+      expect(screen.getByTestId('btn-guess-num-0')).toHaveAttribute('aria-pressed', 'true');
+
+      // 0 から ArrowRight を押すと、1 と 2 をスキップして 3 が選択される
+      fireEvent.keyDown(window, { key: 'ArrowRight' });
+      expect(screen.getByTestId('btn-guess-num-3')).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByTestId('btn-guess-num-1')).toHaveAttribute('aria-pressed', 'false');
+      expect(screen.getByTestId('btn-guess-num-2')).toHaveAttribute('aria-pressed', 'false');
+
+      // 3 から ArrowLeft を押すと、2 と 1 をスキップして 0 に戻る
+      fireEvent.keyDown(window, { key: 'ArrowLeft' });
+      expect(screen.getByTestId('btn-guess-num-0')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('矢印キー上・下移動時、disabledNumbers に含まれる数字が縦方向でもスキップされる', () => {
+      // 4列グリッド: 1の4つ下は5
+      render(<AttackModal {...defaultProps} disabledNumbers={[5]} />);
+
+      // 1 を選択
+      fireEvent.keyDown(window, { key: '1' });
+      expect(screen.getByTestId('btn-guess-num-1')).toHaveAttribute('aria-pressed', 'true');
+
+      // ArrowDown で 5 をスキップして 9 に移動
+      fireEvent.keyDown(window, { key: 'ArrowDown' });
+      expect(screen.getByTestId('btn-guess-num-9')).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByTestId('btn-guess-num-5')).toHaveAttribute('aria-pressed', 'false');
+
+      // ArrowUp で 5 をスキップして 1 に戻る
+      fireEvent.keyDown(window, { key: 'ArrowUp' });
+      expect(screen.getByTestId('btn-guess-num-1')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('未選択状態で矢印キーを押した際、「0」が disabledNumbers の場合はスキップして有効な最小数字が選択される', () => {
+      render(<AttackModal {...defaultProps} disabledNumbers={[0, 1]} />);
+
+      fireEvent.keyDown(window, { key: 'ArrowRight' });
+      // 0 と 1 がスキップされ 2 が選択される
+      expect(screen.getByTestId('btn-guess-num-2')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('数字「1」が disabledNumbers でもバッファリングは動作し、有効な「10」が入力できる', () => {
+      render(<AttackModal {...defaultProps} disabledNumbers={[1]} />);
+
+      // 「1」を押下 -> 1 は disabledNumbers なので選択されない
+      fireEvent.keyDown(window, { key: '1' });
+      expect(screen.getByTestId('btn-guess-num-1')).toHaveAttribute('aria-pressed', 'false');
+
+      // 続いて「0」を押下 -> 10 は有効なので 10 が選択される
+      fireEvent.keyDown(window, { key: '0' });
+      expect(screen.getByTestId('btn-guess-num-10')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('2桁数字「10」または「11」が disabledNumbers の場合、2桁入力しても選択されない', () => {
+      render(<AttackModal {...defaultProps} disabledNumbers={[10, 11]} />);
+
+      // 「1」を押下 -> 1 は有効なので一旦 1 が選択される
+      fireEvent.keyDown(window, { key: '1' });
+      expect(screen.getByTestId('btn-guess-num-1')).toHaveAttribute('aria-pressed', 'true');
+
+      // 続いて「0」を押下 -> 10 は disabledNumbers なので 10 は選択されず、1のまま
+      fireEvent.keyDown(window, { key: '0' });
+      expect(screen.getByTestId('btn-guess-num-10')).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    it('Enterキー押下時、選択数字が disabledNumbers の場合は onConfirmGuess が呼ばれない', () => {
+      const onConfirmGuess = vi.fn();
+      const { rerender } = render(
+        <AttackModal {...defaultProps} disabledNumbers={[]} onConfirmGuess={onConfirmGuess} />
+      );
+
+      // 有効な状態で「3」を選択
+      fireEvent.keyDown(window, { key: '3' });
+      expect(screen.getByTestId('btn-guess-num-3')).toHaveAttribute('aria-pressed', 'true');
+
+      // 途中で props の disabledNumbers が更新され 3 が含まれた状況をシミュレート
+      rerender(
+        <AttackModal {...defaultProps} disabledNumbers={[3]} onConfirmGuess={onConfirmGuess} />
+      );
+
+      // Enterキーを押下
+      fireEvent.keyDown(window, { key: 'Enter' });
+
+      // onConfirmGuess は呼び出されないこと
       expect(onConfirmGuess).not.toHaveBeenCalled();
     });
   });
