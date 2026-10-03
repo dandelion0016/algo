@@ -20,11 +20,13 @@
 
 | キー名 | 型・スキーマ | 説明 |
 | :--- | :--- | :--- |
-| `algo_player_stats_v1` | `PlayerStats` (JSON) | 通算戦績オブジェクト。<br>・`totalMatches`: 試合総数<br>・`wins` / `losses`: 勝敗数<br>・`winRate`: 勝率 (0〜100%)<br>・`winStreak` / `maxWinStreak`: 現在/最高連勝数<br>・`totalAttacks` / `successfulAttacks`: アタック総数/的中数<br>・`accuracy`: 的中率 (0〜100%)<br>・`difficultyStats`: 難易度別勝敗マップ |
-| `algo_achievements_v1` | `Achievement[]` (JSON) | 全10大実績トロフィー配列。<br>各要素: `{ id, title, description, icon, unlockedAt, progress }` |
+| `algo_player_stats` / `algo_player_stats_v1` | `PlayerStats` (JSON) | 通算戦績オブジェクト。<br>・`totalGames`: 試合総数<br>・`totalWins`: 勝利数<br>・`winRate`: 勝率 (0〜100%)<br>・`currentWinStreak` / `bestWinStreak`: 現在/最高連勝数<br>・`totalAttacks` / `totalHits`: アタック総数/的中数<br>・`hitAccuracy`: 的中率 (0〜100%)<br>・`byDifficulty`: 難易度別勝敗マップ |
+| `algo_player_achievements` / `algo_achievements_v1` | `Achievement[]` (JSON) | 全10大実績トロフィー配列。<br>各要素: `{ id, title, description, icon, unlockedAt }` |
 | `algo_tutorial_completed` | `string` (`"true"` / ISO日時) | チュートリアル完了フラグ。未設定時は初回チュートリアルプロンプトを表示。 |
 | `algo_tutorial_skip_prompt` | `string` (`"true"`) | チュートリアル開始確認プロンプトの「次回から表示しない」設定。 |
 | `algo_sound_enabled` | `string` (`"true"` / `"false"`) | Web Audio API サウンド効果音の有効/無効設定（デフォルト `true`）。 |
+| `algo_assist_enabled` | `string` (`"true"` / `"false"`) | 推理アシスト（候補数字ハイライト・失策除外バッジ）の有効/無効設定（デフォルト `true`）。 |
+| `algo_session_id` | `string` (`usr_xxxxxxxx`) | ゲストセッション識別子（`algo_user_id` のフォールバック/互換キーストア）。 |
 
 ---
 

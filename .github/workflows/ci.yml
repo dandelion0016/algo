@@ -32,6 +32,12 @@ jobs:
       - name: Run TypeScript TypeCheck
         run: npx tsc --noEmit
 
+      - name: Run Test Integrity Verification
+        run: npm run test:integrity
+
+      - name: Run Doc Integrity Verification
+        run: npm run test:doc-integrity
+
       - name: Run Vitest Unit Tests
         run: npm run test
 
@@ -79,6 +85,8 @@ jobs:
             | :--- | :--- | :---: | :--- |
             | **コード品質** | ESLint / Formatter | ✅ PASS | コーディング規約準拠 |
             | **型安全性** | TypeScript TypeCheck | ✅ PASS | 型エラー 0件 |
+            | **テスト完全性** | Test Integrity (改ざん・骨抜き防止) | ✅ PASS | スキップ・ダミー検証 0件 |
+            | **ドキュメント整合性** | Doc Integrity (Atomic Sync 監査) | ✅ PASS | コンポーネント・モジュール・キー完全一致 |
             | **単体ロジック** | Vitest (アルゴルール・CPU推論) | ✅ PASS | 全226件合格 |
             | **静的ビルド** | Next.js Static Export | ✅ PASS | \`out/\` 出力完了 |
             | **課金ガード** | FinOps Bundle Size Check | ✅ PASS | 容量制限（50MB）以内 |

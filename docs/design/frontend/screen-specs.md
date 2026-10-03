@@ -357,6 +357,20 @@
   - 「チュートリアルを始める」「スキップして対戦へ」の選択肢。
   - 「次回から表示しない」チェックボックス（`algo_tutorial_skip_prompt`）。
 
+### 3.13 `SCR-017: ErrorBoundary.tsx`
+- **役割**: クライアント全体のランタイムエラー捕捉・クラッシュ遮断コンポーネント。
+- **Props 仕様**:
+  ```typescript
+  export interface ErrorBoundaryProps {
+    children: ReactNode;
+    fallback?: ReactNode;
+  }
+  ```
+- **UI機能**:
+  - `componentDidCatch` により未処理例外を捕捉し、ユーザーフレンドリーなフォールバック画面を表示。
+  - 監査ロガー（`auditLogger`）と連携し、`CLIENT_CRASH` 監査イベント（エラー名、スタック、URL、ユーザーID）を自動送信。
+  - 「ページを再読み込みする」ボタンによる安全なセッション復旧機能。
+
 ---
 
 ## 4. レスポンシブ ＆ アクセシビリティ設計
