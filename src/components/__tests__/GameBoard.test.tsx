@@ -3140,4 +3140,139 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       vi.useRealTimers();
     });
   });
+
+  describe('【Issue #66】相手（CPU）ドローカードの色表示と手札挿入位置ハイライト', () => {
+    const cpuDrawState: Partial<GameState> = {
+      playerCount: 2,
+      difficulty: 'easy',
+      timeLimit: 0,
+      phase: 'CPU_ACTING',
+      activePlayerIndex: 1,
+      players: [
+        {
+          id: 'player',
+          name: 'あなた',
+          isHuman: true,
+          cards: [{ id: 'c1', color: 'black', number: 3, isOpen: false }],
+          isEliminated: false,
+          avatarColor: 'from-blue-500 to-indigo-600',
+        },
+        {
+          id: 'cpu-1',
+          name: 'CPU アル',
+          isHuman: false,
+          cards: [
+            { id: 'c2', color: 'black', number: 2, isOpen: false },
+            { id: 'c3', color: 'white', number: 8, isOpen: false },
+          ],
+          isEliminated: false,
+          avatarColor: 'from-amber-500 to-orange-600',
+        },
+      ],
+      deck: [{ id: 'd2', color: 'white', number: 10, isOpen: false }],
+      drawnCard: { id: 'd1', color: 'black', number: 5, isOpen: false },
+      winner: null,
+      logs: [],
+    };
+
+    it('CPUドロー時に中央エリアに引いたカードの色（黒）とバッジが表示され、数字はマスキング（?）される（Information Hiding）', () => {
+      const { container } = render(<GameBoard initialState={cpuDrawState} />);
+
+      // 中央の引いたカードエリア
+      const drawnArea = screen.getByTestId('drawn-card-area');
+      expect(drawnArea).toBeDefined();
+
+      // CPUドローカードのバッジが表示されること
+      const badge = screen.getByTestId('cpu-drawn-card-badge');
+      expect(badge.textContent).toBe('CPU アル が引いたカード [黒]');
+
+      // Information Hiding: 数字の「5」は画面上に表示されず、「?」として描画されること
+      expect(drawnArea.textContent).toContain('?');
+      expect(drawnArea.textContent).not.toContain('5');
+
+      // カード要素自体の属性やアクセシビリティ表示の確認
+      const drawnCardEl = screen.getByTestId('drawn-card');
+      expect(drawnCardEl.getAttribute('aria-label')).toContain('黒カード');
+      expect(drawnCardEl.getAttribute('aria-label')).toContain('伏せカード');
+      expect(drawnCardEl.getAttribute('aria-label')).not.toContain('5');
+    });
+
+    it('CPUが白カードを引いた場合、バッジに [白] と表示され、数字はマスキングされる', () => {
+      const whiteCardState: Partial<GameState> = {
+        ...cpuDrawState,
+        drawnCard: { id: 'd3', color: 'white', number: 7, isOpen: false },
+      };
+
+      const { container } = render(<GameBoard initialState={whiteCardState} />);
+
+      const badge = screen.getByTestId('cpu-drawn-card-badge');
+      expect(badge.textContent).toBe('CPU アル が引いたカード [白]');
+
+      const drawnArea = screen.getByTestId('drawn-card-area');
+      expect(drawnArea.textContent).toContain('?');
+      expect(drawnArea.textContent).not.toContain('7');
+    });
+
+    it('対戦ログに「CPU {名前} が山札から [{黒/白}] を引き、左から {N} 番目に挿入しました」が記録されること', () => {
+      const stateWithLog: Partial<GameState> = {
+        ...cpuDrawState,
+        phase: 'PLAYER_TURN_START',
+        activePlayerIndex: 0,
+        logs: [
+          {
+            id: 'log-1',
+            attackerId: 'cpu-1',
+            attackerName: 'CPU アル',
+            targetPlayerId: '',
+            targetPlayerName: '',
+            targetCardIndex: 0,
+            targetColor: 'black',
+            guessedNumber: 0,
+            isHit: true,
+            timestamp: Date.now(),
+            message: 'CPU アル が山札から [黒] を引き、左から 2 番目に挿入しました。',
+          },
+        ],
+      };
+
+      render(<GameBoard initialState={stateWithLog} />);
+
+      // デスクトップログエリアに対戦ログが明記されていること
+      const logText = screen.getByText('CPU アル が山札から [黒] を引き、左から 2 番目に挿入しました。');
+      expect(logText).toBeDefined();
+    });
+
+    it('相手の手札に新たに挿入されたカードに NEW! バッジとハイライトが付与されること', () => {
+      const stateForHighlight: Partial<GameState> = {
+        ...cpuDrawState,
+        phase: 'PLAYER_TURN_START',
+        activePlayerIndex: 0,
+      };
+
+      const { container } = render(
+        <GameBoard
+          initialState={stateForHighlight}
+          initialRecentlyInsertedCard={{ playerId: 'cpu-1', cardId: 'c2' }}
+        />
+      );
+
+      // CPUの手札エリアを取得
+      const cpuHand = screen.getByTestId('player-hand-cpu-1');
+      expect(cpuHand).toBeDefined();
+
+      // c2（0番目のカード）に NEW! バッジが表示されていること
+      const newBadge = cpuHand.querySelector('[data-testid="newly-inserted-badge"]');
+      expect(newBadge).not.toBeNull();
+      expect(newBadge?.textContent).toBe('NEW!');
+
+      // c2 のカード要素に data-newly-inserted="true" が付与されていること
+      const insertedCardEl = cpuHand.querySelector('[data-testid="opponent-card-0"]');
+      expect(insertedCardEl?.getAttribute('data-newly-inserted')).toBe('true');
+      expect(insertedCardEl?.className).toContain('ring-amber-400');
+
+      // c3（1番目のカード）には NEW! バッジが付与されていないこと
+      const nonInsertedCardEl = cpuHand.querySelector('[data-testid="opponent-card-1"]');
+      expect(nonInsertedCardEl?.getAttribute('data-newly-inserted')).toBeNull();
+    });
+  });
 });
