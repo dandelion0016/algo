@@ -3291,6 +3291,41 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(screen.queryByTestId('stats-modal')).not.toBeInTheDocument();
     });
 
+    it('セットアップ画面（SETUP フェーズ）の「🏆 戦績」ボタンクリックで StatsModal が開閉できること (Issue #114)', () => {
+      render(
+        <GameBoard
+          initialIsRuleModalOpen={false}
+          initialState={{
+            phase: 'SETUP',
+            playerCount: 2,
+            difficulty: 'normal',
+            timeLimit: 30,
+            remainingTime: 30,
+            deck: [],
+            players: [],
+            activePlayerIndex: 0,
+          }}
+        />
+      );
+
+      const statsBtn = screen.getByTestId('btn-setup-stats');
+      expect(statsBtn).toBeInTheDocument();
+      expect(statsBtn.textContent).toContain('戦績・実績');
+
+      // 初期状態ではモーダルは非表示
+      expect(screen.queryByTestId('stats-modal')).not.toBeInTheDocument();
+
+      // クリックでオープン
+      fireEvent.click(statsBtn);
+      expect(screen.getByTestId('stats-modal')).toBeInTheDocument();
+      expect(screen.getByTestId('stat-total-games')).toBeInTheDocument();
+
+      // 閉じるボタンで閉じてセットアップ画面に戻る
+      fireEvent.click(screen.getByTestId('close-stats-modal'));
+      expect(screen.queryByTestId('stats-modal')).not.toBeInTheDocument();
+      expect(screen.getByTestId('btn-setup-stats')).toBeInTheDocument();
+    });
+
     it('GAME_OVER 時に通算戦績が localStorage に自動更新されること', () => {
       localStorage.clear();
       render(
@@ -3384,6 +3419,51 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       // 再度クリックしてONに戻す
       fireEvent.click(soundBtn);
       expect(soundBtn.textContent).toContain('サウンド ON');
+      expect(soundManager.isSoundEnabled()).toBe(true);
+      expect(localStorage.getItem('algo_sound_enabled')).toBe('true');
+    });
+
+    it('セットアップ画面でサウンドトグル（btn-setup-sound）が表示され、クリックでトグルおよびlocalStorage永続化され、ゲーム開始後も保持される (Issue #114)', () => {
+      render(
+        <GameBoard
+          initialIsRuleModalOpen={false}
+          initialState={{
+            phase: 'SETUP',
+            playerCount: 2,
+            difficulty: 'normal',
+            timeLimit: 30,
+            remainingTime: 30,
+            deck: [],
+            players: [],
+            activePlayerIndex: 0,
+          }}
+        />
+      );
+
+      const setupSoundBtn = screen.getByTestId('btn-setup-sound');
+      expect(setupSoundBtn).toBeInTheDocument();
+      expect(setupSoundBtn.textContent).toContain('サウンド ON');
+      expect(soundManager.isSoundEnabled()).toBe(true);
+
+      // クリックしてミュートにトグル
+      fireEvent.click(setupSoundBtn);
+      expect(setupSoundBtn.textContent).toContain('サウンド OFF');
+      expect(soundManager.isSoundEnabled()).toBe(false);
+      expect(localStorage.getItem('algo_sound_enabled')).toBe('false');
+
+      // 対戦を開始する！ボタンをクリックしてゲームを開始
+      const startBtn = screen.getByTestId('btn-start-game');
+      fireEvent.click(startBtn);
+
+      // ゲーム盤面ヘッダーのサウンドボタンも OFF になっていることを確認
+      const headerSoundBtn = screen.getByTestId('btn-sound-toggle');
+      expect(headerSoundBtn).toBeInTheDocument();
+      expect(headerSoundBtn.textContent).toContain('サウンド OFF');
+      expect(soundManager.isSoundEnabled()).toBe(false);
+
+      // ヘッダー側で再度クリックして ON に戻す
+      fireEvent.click(headerSoundBtn);
+      expect(headerSoundBtn.textContent).toContain('サウンド ON');
       expect(soundManager.isSoundEnabled()).toBe(true);
       expect(localStorage.getItem('algo_sound_enabled')).toBe('true');
     });

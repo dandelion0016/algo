@@ -1780,6 +1780,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           onOpenRules={() => setIsRuleModalOpen(true)}
           onOpenTutorial={() => setIsTutorialOpen(true)}
           onOpenStats={() => setIsStatsModalOpen(true)}
+          isSoundEnabled={isSoundEnabled}
+          isSoundMuted={!isSoundEnabled}
+          onToggleSound={handleToggleSound}
         />
         <RuleGuideModal
           isOpen={isRuleModalOpen}

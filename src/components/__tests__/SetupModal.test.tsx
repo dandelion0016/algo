@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { renderToString } from 'react-dom/server';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { SetupModal, getPlayerRoster, SetupModalProps } from '../SetupModal';
 import * as useUserSessionModule from '../../hooks/useUserSession';
 
@@ -208,13 +209,44 @@ describe('SetupModal Component', () => {
       expect(html).toContain('無制限（じっくり思考）');
     });
 
-    it('onOpenStatsが渡された場合、戦績・実績ボタン（btn-setup-stats）が表示される', () => {
+    it('onOpenStatsが渡された場合、戦績・実績ボタン（btn-setup-stats）が表示され、クリック時に呼ばれる', () => {
       const onOpenStats = vi.fn();
-      const html = renderToString(
-        <SetupModal {...defaultProps} onOpenStats={onOpenStats} />
+      render(<SetupModal {...defaultProps} onOpenStats={onOpenStats} />);
+      const statsBtn = screen.getByTestId('btn-setup-stats');
+      expect(statsBtn).toBeInTheDocument();
+      expect(statsBtn.textContent).toContain('戦績・実績');
+
+      fireEvent.click(statsBtn);
+      expect(onOpenStats).toHaveBeenCalledTimes(1);
+    });
+
+    it('onToggleSoundが渡された場合、サウンドトグルボタン（btn-setup-sound）が表示され、クリック時に呼ばれる', () => {
+      const onToggleSound = vi.fn();
+      const { rerender } = render(
+        <SetupModal {...defaultProps} onToggleSound={onToggleSound} isSoundEnabled={true} />
       );
-      expect(html).toContain('data-testid="btn-setup-stats"');
-      expect(html).toContain('戦績・実績');
+
+      const soundBtn = screen.getByTestId('btn-setup-sound');
+      expect(soundBtn).toBeInTheDocument();
+      expect(soundBtn.textContent).toContain('サウンド ON');
+      expect(soundBtn.getAttribute('aria-pressed')).toBe('true');
+
+      fireEvent.click(soundBtn);
+      expect(onToggleSound).toHaveBeenCalledTimes(1);
+
+      // isSoundEnabled=false の表示検証
+      rerender(
+        <SetupModal {...defaultProps} onToggleSound={onToggleSound} isSoundEnabled={false} />
+      );
+      expect(soundBtn.textContent).toContain('サウンド OFF');
+      expect(soundBtn.getAttribute('aria-pressed')).toBe('false');
+
+      // isSoundMuted=true の表示検証
+      rerender(
+        <SetupModal {...defaultProps} onToggleSound={onToggleSound} isSoundMuted={true} />
+      );
+      expect(soundBtn.textContent).toContain('サウンド OFF');
+      expect(soundBtn.getAttribute('aria-pressed')).toBe('false');
     });
   });
 });
