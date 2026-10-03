@@ -4134,5 +4134,146 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(cardLabels[0].textContent).toBe('#1');
       expect(cardLabels[0].className).toContain('leading-none');
     });
+
+    it('【Issue #117】4人対戦時、相手手札カードコンテナが flex-nowrap かつ overflow-x-auto で1列整列が強制され、カードが2xsサイズ（w-7）であること', () => {
+      const fourPlayerState: Partial<GameState> = {
+        ...baseGameState,
+        playerCount: 4,
+        players: [
+          {
+            id: 'player-1',
+            name: 'あなた',
+            isHuman: true,
+            cards: [
+              { id: 'p-1', color: 'black', number: 2, isOpen: false },
+              { id: 'p-2', color: 'white', number: 5, isOpen: false },
+              { id: 'p-3', color: 'black', number: 8, isOpen: false },
+            ],
+            isEliminated: false,
+            avatarColor: 'indigo',
+          },
+          {
+            id: 'cpu1',
+            name: 'アル',
+            isHuman: false,
+            cards: [
+              { id: 'c1-1', color: 'black', number: 1, isOpen: false },
+              { id: 'c1-2', color: 'white', number: 4, isOpen: false },
+              { id: 'c1-3', color: 'black', number: 7, isOpen: false },
+            ],
+            isEliminated: false,
+            avatarColor: 'emerald',
+          },
+          {
+            id: 'cpu2',
+            name: 'ゴオ',
+            isHuman: false,
+            cards: [
+              { id: 'c2-1', color: 'white', number: 3, isOpen: false },
+              { id: 'c2-2', color: 'black', number: 6, isOpen: false },
+              { id: 'c2-3', color: 'white', number: 9, isOpen: false },
+            ],
+            isEliminated: false,
+            avatarColor: 'rose',
+          },
+          {
+            id: 'cpu3',
+            name: 'ルウ',
+            isHuman: false,
+            cards: [
+              { id: 'c3-1', color: 'black', number: 0, isOpen: false },
+              { id: 'c3-2', color: 'white', number: 8, isOpen: false },
+              { id: 'c3-3', color: 'black', number: 11, isOpen: false },
+            ],
+            isEliminated: false,
+            avatarColor: 'amber',
+          },
+        ],
+      };
+
+      render(<GameBoard initialState={fourPlayerState} />);
+
+      // 各相手の手札カードコンテナが flex-nowrap かつ overflow-x-auto であること（ピラミッド改行防止）
+      const cpu1CardsContainer = screen.getByTestId('cards-container-cpu1');
+      expect(cpu1CardsContainer).toBeInTheDocument();
+      expect(cpu1CardsContainer.className).toContain('flex-nowrap');
+      expect(cpu1CardsContainer.className).toContain('overflow-x-auto');
+      expect(cpu1CardsContainer.className).toContain('gap-0.5');
+
+      // 相手カードが 2xs サイズ（w-7, h-10）でレンダリングされていること
+      const opponentCards = screen.getAllByTestId('opponent-card-0');
+      expect(opponentCards.length).toBeGreaterThan(0);
+      expect(opponentCards[0].className).toContain('w-7');
+      expect(opponentCards[0].className).toContain('h-10');
+    });
+
+    it('【Issue #117】2人対戦時は相手手札がsmサイズ、3人対戦時はxsサイズとなり、他モードの表示に悪影響を与えないこと', () => {
+      // 2人対戦
+      const twoPlayerState: Partial<GameState> = {
+        ...baseGameState,
+        playerCount: 2,
+        players: [
+          {
+            id: 'player-1',
+            name: 'あなた',
+            isHuman: true,
+            cards: [{ id: 'p-1', color: 'black', number: 2, isOpen: false }],
+            isEliminated: false,
+            avatarColor: 'indigo',
+          },
+          {
+            id: 'cpu1',
+            name: 'アル',
+            isHuman: false,
+            cards: [{ id: 'c1-1', color: 'black', number: 1, isOpen: false }],
+            isEliminated: false,
+            avatarColor: 'emerald',
+          },
+        ],
+      };
+
+      const { unmount } = render(<GameBoard initialState={twoPlayerState} />);
+      const card2p = screen.getByTestId('opponent-card-0');
+      // 2人対戦時は sm サイズ (w-10)
+      expect(card2p.className).toContain('w-10');
+      unmount();
+
+      // 3人対戦
+      const threePlayerState: Partial<GameState> = {
+        ...baseGameState,
+        playerCount: 3,
+        players: [
+          {
+            id: 'player-1',
+            name: 'あなた',
+            isHuman: true,
+            cards: [{ id: 'p-1', color: 'black', number: 2, isOpen: false }],
+            isEliminated: false,
+            avatarColor: 'indigo',
+          },
+          {
+            id: 'cpu1',
+            name: 'アル',
+            isHuman: false,
+            cards: [{ id: 'c1-1', color: 'black', number: 1, isOpen: false }],
+            isEliminated: false,
+            avatarColor: 'emerald',
+          },
+          {
+            id: 'cpu2',
+            name: 'ゴオ',
+            isHuman: false,
+            cards: [{ id: 'c2-1', color: 'white', number: 3, isOpen: false }],
+            isEliminated: false,
+            avatarColor: 'rose',
+          },
+        ],
+      };
+
+      render(<GameBoard initialState={threePlayerState} />);
+      const cards3p = screen.getAllByTestId('opponent-card-0');
+      // 3人対戦時は xs サイズ (w-8)
+      expect(cards3p[0].className).toContain('w-8');
+    });
   });
 });
