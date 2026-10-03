@@ -3140,4 +3140,100 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       vi.useRealTimers();
     });
   });
+
+  describe('残弾デッキトラッカー (Deck Tracker) HUD (Issue #65)', () => {
+    const baseGameState: GameState = {
+      playerCount: 2,
+      difficulty: 'easy',
+      timeLimit: 0,
+      remainingTime: 0,
+      deck: [{ id: 'd-1', color: 'black', number: 8, isOpen: false }],
+      players: [
+        {
+          id: 'p1',
+          name: 'あなた',
+          isHuman: true,
+          avatarColor: 'from-blue-500 to-indigo-600',
+          isEliminated: false,
+          cards: [
+            { id: 'c1', color: 'black', number: 2, isOpen: false },
+            { id: 'c2', color: 'white', number: 5, isOpen: true },
+          ],
+        },
+        {
+          id: 'cpu1',
+          name: 'CPU 1',
+          isHuman: false,
+          avatarColor: 'from-purple-500 to-indigo-600',
+          isEliminated: false,
+          cards: [
+            { id: 'c3', color: 'black', number: 7, isOpen: false },
+            { id: 'c4', color: 'white', number: 10, isOpen: true },
+          ],
+        },
+      ],
+      activePlayerIndex: 0,
+      drawnCard: { id: 'd-drawn', color: 'black', number: 0, isOpen: false },
+      phase: 'PLAYER_SELECT_TARGET',
+      selectedTarget: null,
+      logs: [],
+      winner: null,
+    };
+
+    it('プレイ画面にDeckTrackerが表示され、確定・未確定が反映されること', () => {
+      render(<GameBoard initialState={baseGameState} />);
+
+      // デスクトップのトラッカーが表示されていること
+      const tracker = screen.getByTestId('deck-tracker');
+      expect(tracker).toBeInTheDocument();
+
+      // 確定カード（自分の黒2、自分の白5、相手オープン白10、ドロー黒0）
+      expect(screen.getByTestId('tracker-card-black-2')).toHaveAttribute('data-status', 'confirmed');
+      expect(screen.getByTestId('tracker-card-white-5')).toHaveAttribute('data-status', 'confirmed');
+      expect(screen.getByTestId('tracker-card-white-10')).toHaveAttribute('data-status', 'confirmed');
+      expect(screen.getByTestId('tracker-card-black-0')).toHaveAttribute('data-status', 'confirmed');
+
+      // 相手の伏せカード（黒7）は未確定（remaining）
+      expect(screen.getByTestId('tracker-card-black-7')).toHaveAttribute('data-status', 'remaining');
+
+      // サマリ確認: 確定4枚、残弾20枚
+      const summary = screen.getByTestId('tracker-summary');
+      expect(summary.textContent).toContain('20');
+    });
+
+    it('モバイルトグルボタンをクリックするとモバイルトラッカードロワーが開閉できること', () => {
+      render(<GameBoard initialState={baseGameState} />);
+
+      // 初期状態ではモバイルドロワーは非表示
+      expect(screen.queryByTestId('mobile-tracker-drawer')).not.toBeInTheDocument();
+
+      // トグルボタンをクリックしてドロワーを開く
+      const toggleBtn = screen.getByTestId('btn-toggle-tracker');
+      expect(toggleBtn).toBeInTheDocument();
+      fireEvent.click(toggleBtn);
+
+      // モバイルドロワーが表示されること
+      expect(screen.getByTestId('mobile-tracker-drawer')).toBeInTheDocument();
+
+      // ドロワー内の閉じるボタンをクリック
+      const closeBtn = screen.getByTestId('close-mobile-tracker');
+      fireEvent.click(closeBtn);
+
+      // ドロワーが閉じること
+      expect(screen.queryByTestId('mobile-tracker-drawer')).not.toBeInTheDocument();
+    });
+
+    it('相手伏せカード選択時に候補数字ハイライトが連動すること', () => {
+      const targetState: GameState = {
+        ...baseGameState,
+        phase: 'PLAYER_GUESS_NUMBER',
+        selectedTarget: { playerId: 'cpu1', cardIndex: 0 }, // CPUの黒7（黒の1枚目）
+      };
+
+      render(<GameBoard initialState={targetState} />);
+
+      // 候補連動バッジが表示されること
+      expect(screen.getByTestId('tracker-assist-active')).toBeInTheDocument();
+    });
+  });
 });
