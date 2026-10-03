@@ -353,6 +353,30 @@ describe('CpuAttackModal / AttackResultModal Component Rendering', () => {
       expect(html).toContain('山札がないため、手札の伏せカードがオープンされました');
       expect(html).not.toContain('CPU 1 の引いたカードがオープンされました');
     });
+
+    it('アタック失敗時に actualNumber が undefined（伏せカード正解数字の漏洩防止）でもモーダルが正常に描画される (Issue #84)', () => {
+      const secureMissData: AttackResultData = {
+        attackerName: 'あなた',
+        isHuman: true,
+        targetPlayerName: 'CPU 1',
+        targetCardIndex: 1,
+        targetColor: 'white',
+        guessedNumber: 4,
+        isHit: false,
+        actualNumber: undefined,
+        nextAction: 'TURN_END',
+        nextPlayerName: 'CPU 1',
+      };
+
+      const html = renderToString(
+        <AttackResultModal isOpen={true} data={secureMissData} onConfirm={vi.fn()} />
+      );
+
+      expect(html).toContain('❌ ハズレ（失敗）');
+      expect(html).toContain('あなたの引いたカードがオープンされました');
+      expect(html).toContain('あなたのターンが終了しました。次は CPU 1 の番です');
+      expect(html).not.toContain('正解');
+    });
   });
 
   describe('AttackResultModal.tsx プロキシ再エクスポート検証', () => {
