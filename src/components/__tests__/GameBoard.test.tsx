@@ -4198,13 +4198,12 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       expect(cpu1CardsContainer).toBeInTheDocument();
       expect(cpu1CardsContainer.className).toContain('flex-nowrap');
       expect(cpu1CardsContainer.className).toContain('overflow-x-auto');
-      expect(cpu1CardsContainer.className).toContain('gap-0.5');
 
-      // 相手カードが 2xs サイズ（w-7, h-10）でレンダリングされていること
+      // Issue #131: 縦並び化に伴い相手カードが xs サイズ（w-8, h-12）に拡大されていること
       const opponentCards = screen.getAllByTestId('opponent-card-0');
       expect(opponentCards.length).toBeGreaterThan(0);
-      expect(opponentCards[0].className).toContain('w-7');
-      expect(opponentCards[0].className).toContain('h-10');
+      expect(opponentCards[0].className).toContain('w-8');
+      expect(opponentCards[0].className).toContain('h-12');
     });
 
     it('【Issue #117】2人対戦時は相手手札がsmサイズ、3人対戦時はxsサイズとなり、他モードの表示に悪影響を与えないこと', () => {
@@ -4489,6 +4488,179 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       fireEvent.click(reopenBtn);
       expect(screen.getByTestId('result-modal')).toBeInTheDocument();
       expect(screen.queryByTestId('modal-mobile-menu')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('【Issue #131】4人・3人対戦時の相手手札縦並び化・中央エリア整理および山札の自手札直上配置', () => {
+    const createTestPlayer = (id: string, name: string, isHuman: boolean, cardCount: number): Player => ({
+      id,
+      name,
+      isHuman,
+      cards: Array.from({ length: cardCount }, (_, i) => ({
+        id: `${id}-c${i}`,
+        color: i % 2 === 0 ? 'black' : 'white',
+        number: i * 2,
+        isOpen: false,
+      })),
+      isEliminated: false,
+      avatarColor: 'indigo',
+    });
+
+    it('4人対戦時、相手3人の手札エリアが縦3段（flex-col）に並び、カードがxsサイズ（w-8, h-12）で描画されること', () => {
+      const fourPlayerState: Partial<GameState> = {
+        playerCount: 4,
+        difficulty: 'easy',
+        deck: [{ id: 'd-1', color: 'black', number: 7, isOpen: false }],
+        players: [
+          createTestPlayer('p-1', 'あなた', true, 3),
+          createTestPlayer('cpu-1', 'CPU 1', false, 3),
+          createTestPlayer('cpu-2', 'CPU 2', false, 3),
+          createTestPlayer('cpu-3', 'CPU 3', false, 3),
+        ],
+        activePlayerIndex: 0,
+        phase: 'PLAYER_TURN_START',
+      };
+
+      const { container } = render(<GameBoard initialState={fourPlayerState} />);
+
+      // 相手手札が3人分存在すること
+      expect(screen.getByTestId('player-hand-cpu-1')).toBeInTheDocument();
+      expect(screen.getByTestId('player-hand-cpu-2')).toBeInTheDocument();
+      expect(screen.getByTestId('player-hand-cpu-3')).toBeInTheDocument();
+
+      // 相手カードコンテナのカードが xs サイズ（w-8, h-12）であること（横幅を活かして見やすく拡大）
+      const opponentCards = screen.getAllByTestId('opponent-card-0');
+      expect(opponentCards.length).toBe(3);
+      expect(opponentCards[0].className).toContain('w-8');
+      expect(opponentCards[0].className).toContain('h-12');
+
+      // 相手エリアコンテナが flex-col であること
+      const opponentsContainer = screen.getByTestId('player-hand-cpu-1').parentElement;
+      expect(opponentsContainer?.className).toContain('flex-col');
+    });
+
+    it('3人対戦時、相手2人の手札エリアが縦2段（flex-col）に並び、カードがxsサイズ（w-8, h-12）で描画されること', () => {
+      const threePlayerState: Partial<GameState> = {
+        playerCount: 3,
+        difficulty: 'easy',
+        deck: [{ id: 'd-1', color: 'black', number: 7, isOpen: false }],
+        players: [
+          createTestPlayer('p-1', 'あなた', true, 4),
+          createTestPlayer('cpu-1', 'CPU 1', false, 4),
+          createTestPlayer('cpu-2', 'CPU 2', false, 4),
+        ],
+        activePlayerIndex: 0,
+        phase: 'PLAYER_TURN_START',
+      };
+
+      render(<GameBoard initialState={threePlayerState} />);
+
+      // 相手手札が2人分存在すること
+      expect(screen.getByTestId('player-hand-cpu-1')).toBeInTheDocument();
+      expect(screen.getByTestId('player-hand-cpu-2')).toBeInTheDocument();
+
+      // 相手カードが xs サイズ（w-8, h-12）であること
+      const opponentCards = screen.getAllByTestId('opponent-card-0');
+      expect(opponentCards.length).toBe(2);
+      expect(opponentCards[0].className).toContain('w-8');
+      expect(opponentCards[0].className).toContain('h-12');
+
+      // 相手エリアコンテナが flex-col であること
+      const opponentsContainer = screen.getByTestId('player-hand-cpu-1').parentElement;
+      expect(opponentsContainer?.className).toContain('flex-col');
+    });
+
+    it('2人対戦時、相手1人の手札カードがsmサイズ（w-10, h-16）で描画されること', () => {
+      const twoPlayerState: Partial<GameState> = {
+        playerCount: 2,
+        difficulty: 'easy',
+        deck: [{ id: 'd-1', color: 'black', number: 7, isOpen: false }],
+        players: [
+          createTestPlayer('p-1', 'あなた', true, 4),
+          createTestPlayer('cpu-1', 'CPU 1', false, 4),
+        ],
+        activePlayerIndex: 0,
+        phase: 'PLAYER_TURN_START',
+      };
+
+      render(<GameBoard initialState={twoPlayerState} />);
+
+      const opponentCard = screen.getByTestId('opponent-card-0');
+      expect(opponentCard.className).toContain('w-10');
+      expect(opponentCard.className).toContain('h-16');
+    });
+
+    it('山札・引いたカード・手番ガイダンスがコンパクトなバー（deck-action-bar）として自手札の直上に配置されていること', () => {
+      const state: Partial<GameState> = {
+        playerCount: 4,
+        deck: [{ id: 'd-1', color: 'black', number: 7, isOpen: false }],
+        players: [
+          createTestPlayer('p-1', 'あなた', true, 3),
+          createTestPlayer('cpu-1', 'CPU 1', false, 3),
+          createTestPlayer('cpu-2', 'CPU 2', false, 3),
+          createTestPlayer('cpu-3', 'CPU 3', false, 3),
+        ],
+        activePlayerIndex: 0,
+        phase: 'PLAYER_TURN_START',
+      };
+
+      render(<GameBoard initialState={state} />);
+
+      const deckActionBar = screen.getByTestId('deck-action-bar');
+      expect(deckActionBar).toBeInTheDocument();
+
+      // deck-action-bar の内部に山札ボタン、引いたカードエリア、ステータスメッセージが収まっていること
+      const drawBtn = screen.getByTestId('btn-draw-card');
+      const drawnCardArea = screen.getByTestId('drawn-card-area');
+      const statusMessage = screen.getByTestId('status-message');
+
+      expect(deckActionBar).toContainElement(drawBtn);
+      expect(deckActionBar).toContainElement(drawnCardArea);
+      expect(deckActionBar).toContainElement(statusMessage);
+
+      // deck-action-bar の直後に自手札エリアが配置されていること
+      const playerHandHeading = screen.getByText(/の手札/);
+      const playerHandSection = playerHandHeading.closest('section');
+      expect(deckActionBar.nextElementSibling).toBe(playerHandSection);
+    });
+
+    it('自分と相手のカードサイズおよび左右スペーサー構造が完全一致し、垂直列位置の揃えと1画面収まりが維持されていること', () => {
+      const state: Partial<GameState> = {
+        playerCount: 4,
+        players: [
+          createTestPlayer('p-1', 'あなた', true, 3),
+          createTestPlayer('cpu-1', 'CPU 1', false, 3),
+          createTestPlayer('cpu-2', 'CPU 2', false, 3),
+          createTestPlayer('cpu-3', 'CPU 3', false, 3),
+        ],
+        activePlayerIndex: 0,
+        phase: 'PLAYER_TURN_START',
+      };
+
+      render(<GameBoard initialState={state} />);
+
+      // 4人対戦時、相手手札コンテナのカードサイズが xs（w-8, h-12）であること
+      const opponentCards = screen.getAllByTestId('opponent-card-0');
+      expect(opponentCards[0].className).toContain('w-8');
+      expect(opponentCards[0].className).toContain('h-12');
+
+      const playerHandHeading = screen.getByText(/の手札/);
+      const playerHandSection = playerHandHeading.closest('section')!;
+      expect(playerHandSection).toBeInTheDocument();
+
+      const humanCardsContainer = playerHandSection.querySelector('[data-testid^="cards-container-"]')!;
+      expect(humanCardsContainer).toBeInTheDocument();
+      // 自手札のカードも xs（w-8, h-12）であること
+      const humanCard = screen.getByTestId('player-card-0');
+      expect(humanCard.className).toContain('w-8');
+      expect(humanCard.className).toContain('h-12');
+
+      // 相手手札コンテナと自分手札コンテナの整列クラスが一致していること
+      const cpu1CardsContainer = screen.getByTestId('cards-container-cpu-1');
+      expect(cpu1CardsContainer.className).toContain('justify-center');
+      expect(humanCardsContainer.className).toContain('justify-center');
+      expect(cpu1CardsContainer.className).toContain('gap-1 sm:gap-2');
+      expect(humanCardsContainer.className).toContain('gap-1 sm:gap-2');
     });
   });
 });

@@ -1835,6 +1835,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   // 2. 対戦盤面
   const activePlayer = gameState.players[gameState.activePlayerIndex];
   const opponents = gameState.players.filter((p) => !p.isHuman);
+  const activeCardSize = opponents.length === 1 ? 'sm' : 'xs';
   const isGameOver = gameState.phase === 'GAME_OVER';
 
   const isHumanTurn = Boolean(
@@ -1847,7 +1848,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   return (
     <div
       data-testid="board-outer-container"
-      className={`w-full max-w-7xl mx-auto px-1.5 sm:px-4 lg:px-6 py-1 sm:py-2.5 lg:py-4 min-h-full flex-1 flex flex-col justify-between overflow-y-auto lg:overflow-visible overscroll-contain gap-1 sm:gap-2.5 lg:gap-4 ${
+      className={`w-full max-w-7xl mx-auto px-1.5 sm:px-4 lg:px-6 py-1 sm:py-2 lg:py-2.5 min-h-full flex-1 flex flex-col justify-between overflow-y-auto lg:overflow-visible overscroll-contain gap-1 sm:gap-2 lg:gap-2.5 ${
         isScreenShaking ? 'animate-shake' : ''
       }`}
     >
@@ -1887,10 +1888,10 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         </div>
       )}
       {/* Top Header */}
-      <header className="bg-white border border-slate-200 rounded-xl sm:rounded-3xl shadow-sm overflow-hidden shrink-0">
-        <div className="w-full h-1 sm:h-3.5 algo-diamond-pattern border-b border-slate-100" />
+      <header className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl shadow-sm overflow-hidden shrink-0">
+        <div className="w-full h-1 sm:h-2 algo-diamond-pattern border-b border-slate-100" />
 
-        <div className="p-1.5 sm:p-3 lg:p-4 flex flex-wrap items-center justify-between gap-1.5 sm:gap-3">
+        <div className="p-1.5 sm:p-2 lg:p-2.5 flex flex-wrap items-center justify-between gap-1.5 sm:gap-2.5">
           <div className="flex items-center gap-1.5 sm:gap-3">
             <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-2xl overflow-hidden shadow-sm border border-slate-200 shrink-0">
               <img src="/app-icon.jpg" alt="algo" className="w-full h-full object-cover" />
@@ -2252,19 +2253,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       )}
 
       {/* Main Game Field Grid */}
-      <div className="flex-1 min-h-0 flex flex-col justify-between gap-1 sm:gap-2.5 lg:grid lg:grid-cols-4 lg:gap-4 lg:justify-normal">
+      <div className="flex-1 min-h-0 flex flex-col justify-start gap-1.5 sm:gap-2.5 lg:grid lg:grid-cols-4 lg:gap-4 lg:justify-normal">
         {/* Left 3 cols: Board Field */}
-        <div className="flex-1 min-h-0 flex flex-col justify-between gap-1 sm:gap-2.5 lg:col-span-3 lg:space-y-4 lg:justify-normal">
-          {/* Opponents Area */}
-          <div
-            className={`gap-1 sm:gap-3 ${
-              opponents.length === 1
-                ? 'grid grid-cols-1'
-                : opponents.length === 2
-                ? 'grid grid-cols-2'
-                : 'flex overflow-x-auto no-scrollbar gap-1.5 sm:grid sm:grid-cols-3'
-            }`}
-          >
+        <div className="flex-1 min-h-0 flex flex-col justify-start gap-1 sm:gap-2 lg:col-span-3 lg:space-y-2 lg:justify-normal">
+          {/* Opponents Area: 2人(相手1人) / 3人(縦2人) / 4人(縦3人) 全モード縦積みスタック */}
+          <div className={`flex flex-col ${opponents.length >= 3 ? 'gap-1 sm:gap-1.5' : 'gap-1 sm:gap-1.5 lg:gap-2'}`}>
             {opponents.map((opp) => {
               const isCurrentTurn = activePlayer?.id === opp.id;
               const openCount = opp.cards.filter((c) => c.isOpen).length;
@@ -2273,10 +2266,12 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 <div
                   key={opp.id}
                   data-testid={`player-hand-${opp.id}`}
-                  className={`bg-white rounded-xl sm:rounded-2xl lg:rounded-3xl border transition-all relative ${
+                  className={`bg-white rounded-xl sm:rounded-2xl border transition-all relative ${
                     opponents.length >= 3
-                      ? 'min-w-[115px] flex-1 sm:min-w-0 shrink-0 sm:shrink p-1.5 sm:p-2.5 lg:p-3'
-                      : 'p-2 sm:p-3 lg:p-4'
+                      ? 'p-1.5 sm:p-2.5 lg:p-2 shadow-2xs'
+                      : opponents.length === 2
+                      ? 'p-1.5 sm:p-2.5 lg:p-2.5 shadow-2xs'
+                      : 'p-2 sm:p-3 lg:p-3.5 shadow-xs'
                   } ${
                     opp.isEliminated
                       ? 'border-slate-200 bg-slate-50/60 opacity-60'
@@ -2285,99 +2280,106 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                       : 'border-slate-200 shadow-sm'
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-1 sm:mb-2">
-                    <div className="flex items-center gap-1 sm:gap-2">
-                      <div
-                        className={`w-5 h-5 sm:w-7 sm:h-7 rounded-lg sm:rounded-xl bg-gradient-to-br ${opp.avatarColor} text-white flex items-center justify-center font-bold text-xs shadow-2xs shrink-0`}
-                      >
-                        <Bot className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-2">
+                    {/* Left: Player Info & Status */}
+                    <div className="flex items-center justify-between sm:justify-start sm:w-36 lg:w-44 shrink-0 gap-1 sm:gap-1.5">
+                      <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
+                        <div
+                          className={`${
+                            opponents.length > 1
+                              ? 'w-4 h-4 sm:w-5 sm:h-5 text-[10px]'
+                              : 'w-5 h-5 sm:w-6 sm:h-6 text-xs'
+                          } rounded-lg bg-gradient-to-br ${opp.avatarColor} text-white flex items-center justify-center font-bold shadow-2xs shrink-0`}
+                        >
+                          <Bot className={opponents.length > 1 ? 'w-2.5 h-2.5 sm:w-3.5 sm:h-3.5' : 'w-3 h-3 sm:w-4 sm:h-4'} />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="font-black text-[10px] sm:text-xs text-slate-900 block leading-tight truncate">{opp.name}</span>
+                          <span className="text-[8px] sm:text-[9.5px] text-slate-400 font-semibold block leading-none">
+                            ({openCount}/{opp.cards.length} 枚OPEN)
+                          </span>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <span className="font-black text-[10px] sm:text-xs text-slate-900 block leading-tight truncate">{opp.name}</span>
-                        <span className="text-[8.5px] sm:text-[10px] text-slate-400 font-semibold block leading-none">
-                          ({openCount}/{opp.cards.length} 枚OPEN)
+
+                      {opp.isEliminated ? (
+                        <span className="text-[8px] sm:text-[10px] px-1 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-rose-100 text-rose-700 font-bold shrink-0">
+                          脱落
                         </span>
-                      </div>
+                      ) : isCurrentTurn ? (
+                        <span className="text-[8px] sm:text-[10px] px-1 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-algo-blue text-white font-bold animate-pulse shrink-0">
+                          思考中
+                        </span>
+                      ) : null}
                     </div>
 
-                    {opp.isEliminated ? (
-                      <span className="text-[8px] sm:text-[10px] px-1 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-rose-100 text-rose-700 font-bold shrink-0">
-                        脱落
-                      </span>
-                    ) : isCurrentTurn ? (
-                      <span className="text-[8px] sm:text-[10px] px-1 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-algo-blue text-white font-bold animate-pulse shrink-0">
-                        思考中
-                      </span>
-                    ) : null}
-                  </div>
+                    {/* Center: Cards */}
+                    <div
+                      data-testid={`cards-container-${opp.id}`}
+                      className="items-center py-0.5 flex flex-nowrap overflow-x-auto no-scrollbar justify-center gap-1 sm:gap-2 min-w-0 flex-1"
+                    >
+                      {opp.cards.map((card, idx) => {
+                        const candidateHint =
+                          !isGameOver && isAssistEnabled && !card.isOpen && !opp.isEliminated
+                            ? formatCandidateRange(
+                                getPossibleNumbersForCard({
+                                  targetIndex: idx,
+                                  targetHand: opp.cards,
+                                  allPlayers: gameState.players,
+                                  drawnCard: gameState.drawnCard,
+                                  logs: gameState.logs,
+                                  targetPlayerId: opp.id,
+                                })
+                              )
+                            : undefined;
 
-                  <div
-                    data-testid={`cards-container-${opp.id}`}
-                    className={`items-center pt-1 sm:pt-1.5 pb-0.5 sm:pb-1 min-h-12 sm:min-h-20 lg:min-h-24 ${
-                      opponents.length >= 3
-                        ? 'flex flex-nowrap overflow-x-auto no-scrollbar justify-center gap-0.5 sm:gap-1.5 max-w-full'
-                        : 'flex flex-wrap items-center justify-center gap-1 sm:gap-2'
-                    }`}
-                  >
-                    {opp.cards.map((card, idx) => {
-                      const candidateHint =
-                        !isGameOver && isAssistEnabled && !card.isOpen && !opp.isEliminated
-                          ? formatCandidateRange(
-                              getPossibleNumbersForCard({
-                                targetIndex: idx,
-                                targetHand: opp.cards,
-                                allPlayers: gameState.players,
-                                drawnCard: gameState.drawnCard,
-                                logs: gameState.logs,
-                                targetPlayerId: opp.id,
-                              })
-                            )
-                          : undefined;
+                        const failedNumbers = !isGameOver ? getFailedNumbersForCard(gameState.logs, opp.id, idx) : undefined;
+                        const isHintTarget = Boolean(
+                          !isGameOver &&
+                          activeHint &&
+                          activeHint.targetPlayerId === opp.id &&
+                          activeHint.targetCardIndex === idx &&
+                          !card.isOpen &&
+                          !opp.isEliminated
+                        );
 
-                      const failedNumbers = !isGameOver ? getFailedNumbersForCard(gameState.logs, opp.id, idx) : undefined;
-                      const isHintTarget = Boolean(
-                        !isGameOver &&
-                        activeHint &&
-                        activeHint.targetPlayerId === opp.id &&
-                        activeHint.targetCardIndex === idx &&
-                        !card.isOpen &&
-                        !opp.isEliminated
-                      );
+                        return (
+                          <CardComponent
+                            key={card.id}
+                            card={isGameOver ? card : maskCardForPlayer(card, false)}
+                            isOwner={false}
+                            isRevealed={isGameOver}
+                            size={activeCardSize}
+                            label={`#${idx + 1}`}
+                            testId={`opponent-card-${idx}`}
+                            candidateHint={candidateHint}
+                            failedGuesses={failedNumbers}
+                            isEliminated={opp.isEliminated}
+                            isHintTarget={isHintTarget}
+                            isNewlyInserted={
+                              !isGameOver &&
+                              recentlyInsertedCard?.playerId === opp.id &&
+                              recentlyInsertedCard?.cardId === card.id
+                            }
+                            isSelectable={
+                              !isGameOver &&
+                              activePlayer?.isHuman &&
+                              gameState.phase === 'PLAYER_SELECT_TARGET' &&
+                              !opp.isEliminated &&
+                              !card.isOpen
+                            }
+                            isSelected={
+                              !isGameOver &&
+                              gameState.selectedTarget?.playerId === opp.id &&
+                              gameState.selectedTarget?.cardIndex === idx
+                            }
+                            onClick={() => handleSelectTargetCard(opp.id, idx)}
+                          />
+                        );
+                      })}
+                    </div>
 
-                      return (
-                        <CardComponent
-                          key={card.id}
-                          card={isGameOver ? card : maskCardForPlayer(card, false)}
-                          isOwner={false}
-                          isRevealed={isGameOver}
-                          size={opponents.length >= 3 ? '2xs' : opponents.length === 2 ? 'xs' : 'sm'}
-                          label={`#${idx + 1}`}
-                          testId={`opponent-card-${idx}`}
-                          candidateHint={candidateHint}
-                          failedGuesses={failedNumbers}
-                          isEliminated={opp.isEliminated}
-                          isHintTarget={isHintTarget}
-                          isNewlyInserted={
-                            !isGameOver &&
-                            recentlyInsertedCard?.playerId === opp.id &&
-                            recentlyInsertedCard?.cardId === card.id
-                          }
-                          isSelectable={
-                            !isGameOver &&
-                            activePlayer?.isHuman &&
-                            gameState.phase === 'PLAYER_SELECT_TARGET' &&
-                            !opp.isEliminated &&
-                            !card.isOpen
-                          }
-                          isSelected={
-                            !isGameOver &&
-                            gameState.selectedTarget?.playerId === opp.id &&
-                            gameState.selectedTarget?.cardIndex === idx
-                          }
-                          onClick={() => handleSelectTargetCard(opp.id, idx)}
-                        />
-                      );
-                    })}
+                    {/* Right: Dummy spacer for perfect centering on desktop */}
+                    <div className="hidden sm:block shrink-0 sm:w-36 lg:w-44" aria-hidden="true" />
                   </div>
                 </div>
               );
@@ -2387,16 +2389,19 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           {/* Player Attack Notice */}
           {gameState.phase === 'PLAYER_SELECT_TARGET' && (
             <div className="text-center my-0 sm:my-0.5 shrink-0">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-4 sm:py-1.5 rounded-lg sm:rounded-2xl bg-algo-blue-light border border-algo-blue/30 text-algo-navy text-[10px] sm:text-xs font-black shadow-xs animate-attack-pulse">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 sm:px-4 sm:py-1 rounded-lg sm:rounded-2xl bg-algo-blue-light border border-algo-blue/30 text-algo-navy text-[10px] sm:text-xs font-black shadow-xs animate-attack-pulse">
                 <span>👆 推理したい相手の伏せカード（?）をクリック！</span>
               </span>
             </div>
           )}
 
-          {/* Center Table */}
-          <section className="bg-white rounded-xl sm:rounded-2xl lg:rounded-3xl p-1.5 sm:p-3.5 lg:p-5 border border-slate-200 shadow-sm flex flex-row items-center justify-between sm:justify-around gap-1.5 sm:gap-4 lg:gap-6 shrink-0">
-            {/* Deck Pile */}
-            <div className="flex flex-col items-center gap-0.5 sm:gap-1 shrink-0">
+          {/* Deck & Action Bar (自手札直上配置・コンパクトバー形式で中央のデッドスペースを解消) */}
+          <section
+            data-testid="deck-action-bar"
+            className="bg-white rounded-xl sm:rounded-2xl p-1.5 sm:px-3 sm:py-2 border border-slate-200 shadow-xs flex items-center justify-between gap-1.5 sm:gap-3 shrink-0"
+          >
+            {/* 1. 山札 (Deck Pile) */}
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
               <div
                 data-testid="btn-draw-card"
                 role={gameState.phase === 'PLAYER_TURN_START' && gameState.deck.length > 0 ? 'button' : undefined}
@@ -2415,28 +2420,32 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     : undefined
                 }
                 onClick={gameState.phase === 'PLAYER_TURN_START' && gameState.deck.length > 0 ? handlePlayerDraw : undefined}
-                className={`relative w-12 h-16 sm:w-20 sm:h-28 lg:w-24 lg:h-32 rounded-lg sm:rounded-2xl border-2 flex flex-col items-center justify-center select-none transition-all ${
+                className={`relative w-12 h-14 sm:w-14 sm:h-14 lg:w-16 lg:h-14 rounded-lg sm:rounded-xl border flex flex-col items-center justify-start pt-1 sm:pt-1.5 select-none transition-all ${
                   gameState.phase === 'PLAYER_TURN_START' && gameState.deck.length > 0
-                    ? 'border-algo-yellow-dark bg-algo-yellow-light/80 shadow-lg shadow-amber-200/50 cursor-pointer hover:scale-105 animate-bounce'
+                    ? 'border-algo-yellow-dark bg-algo-yellow-light/80 shadow-md shadow-amber-200/50 cursor-pointer hover:scale-105 animate-bounce'
                     : 'border-slate-200 bg-slate-50 text-slate-400'
                 }`}
               >
-                <Layers className="w-4 h-4 sm:w-7 sm:h-7 mb-0.5 text-algo-blue" />
-                <span className="text-[8px] sm:text-[10px] font-bold text-slate-500">山札</span>
-                <span className="text-xs sm:text-base lg:text-lg font-black text-slate-900">{gameState.deck.length} 枚</span>
+                <div className="flex items-center gap-0.5 text-slate-500 leading-none mb-0.5">
+                  <Layers className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-algo-blue shrink-0" />
+                  <span className="text-[7.5px] sm:text-[9px] font-bold">山札</span>
+                </div>
+                <span className="text-[10.5px] sm:text-xs lg:text-sm font-black text-slate-900 leading-none">
+                  {gameState.deck.length}枚
+                </span>
                 {gameState.phase === 'PLAYER_TURN_START' && gameState.deck.length > 0 && (
-                  <span className="absolute -bottom-1 sm:-bottom-2 px-1.5 sm:px-2.5 py-0.2 sm:py-0.5 rounded-full bg-algo-yellow text-slate-950 text-[8px] sm:text-[10px] font-black border border-amber-300 shadow-xs">
+                  <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-1.5 py-0.2 rounded-full bg-algo-yellow text-slate-950 text-[7.5px] sm:text-[9px] font-black border border-amber-300 shadow-2xs whitespace-nowrap z-10">
                     引く
                   </span>
                 )}
               </div>
             </div>
 
-            {/* Drawn Card display */}
-            <div data-testid="drawn-card-area" className="flex flex-col items-center gap-0.5 sm:gap-1 shrink-0">
-              <span className="text-[9px] sm:text-xs font-bold text-slate-500">引いたカード</span>
+            {/* 2. 引いたカード (Drawn Card Slot) */}
+            <div data-testid="drawn-card-area" className="flex flex-col items-center justify-center shrink-0">
+              <span className="text-[7.5px] sm:text-[9px] font-bold text-slate-400 mb-0.5 leading-none">引いたカード</span>
               {gameState.drawnCard ? (
-                <div className="scale-100 sm:scale-105 transition-transform animate-card-draw flex flex-col items-center gap-1">
+                <div className="flex flex-col items-center gap-0.5 animate-card-draw">
                   <CardComponent
                     card={
                       isGameOver
@@ -2445,39 +2454,39 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     }
                     isOwner={Boolean(activePlayer?.isHuman)}
                     isRevealed={isGameOver}
-                    size="sm"
+                    size="xs"
                     testId="drawn-card"
                   />
                   {!activePlayer?.isHuman && (
                     <span
                       data-testid="cpu-drawn-card-badge"
-                      className="text-[8px] sm:text-[10px] font-bold px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-slate-800 text-white shadow-xs whitespace-nowrap"
+                      className="text-[7.5px] sm:text-[9px] font-bold px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-slate-800 text-white shadow-2xs whitespace-nowrap"
                     >
                       {activePlayer?.name} が引いたカード [{gameState.drawnCard.color === 'black' ? '黒' : '白'}]
                     </span>
                   )}
                 </div>
               ) : (
-                <div className="w-10 h-16 sm:w-14 sm:h-22 lg:w-16 lg:h-24 rounded-lg sm:rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center text-[10px] sm:text-xs text-slate-400 font-semibold bg-slate-50/50">
+                <div className="w-8 h-12 sm:w-9 sm:h-14 rounded-md sm:rounded-lg border-2 border-dashed border-slate-200 flex items-center justify-center text-[9px] sm:text-[10px] text-slate-400 font-semibold bg-slate-50/50">
                   なし
                 </div>
               )}
             </div>
 
-            {/* Turn Guidance */}
-            <div data-testid="status-message" className="flex-1 min-w-0 max-w-xs sm:max-w-md text-left space-y-1 sm:space-y-2">
+            {/* 3. 手番ステータス・ガイダンス ＆ 操作ボタン */}
+            <div data-testid="status-message" className="flex-1 min-w-0 text-left">
               {gameState.phase === 'PLAYER_TURN_START' && (
-                <div className="p-1.5 sm:p-3.5 bg-algo-blue-light/50 border border-algo-blue/20 rounded-lg sm:rounded-2xl space-y-0.5 sm:space-y-1">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-black text-slate-900 text-[11px] sm:text-sm flex items-center gap-1 sm:gap-1.5">
-                      <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 text-algo-blue" />
+                <div className="p-1 sm:p-1.5 bg-algo-blue-light/50 border border-algo-blue/20 rounded-lg sm:rounded-xl">
+                  <div className="flex items-center justify-between gap-1">
+                    <h4 className="font-black text-slate-900 text-[10px] sm:text-xs flex items-center gap-1 truncate">
+                      <Sparkles className="w-3 h-3 text-algo-blue shrink-0" />
                       <span>あなたのターン</span>
                     </h4>
                     {gameState.timeLimit > 0 && (
-                      <span className="text-[9px] sm:text-xs font-bold text-algo-blue">残り {gameState.remainingTime}秒</span>
+                      <span className="text-[8.5px] sm:text-[10px] font-bold text-algo-blue shrink-0">残り {gameState.remainingTime}秒</span>
                     )}
                   </div>
-                  <p className="text-[10px] sm:text-xs text-slate-600 font-medium leading-tight">
+                  <p className="text-[9px] sm:text-[10.5px] text-slate-600 font-medium leading-tight truncate sm:whitespace-normal">
                     {gameState.deck.length === 0
                       ? '山札がありません。相手の伏せカードを選んでアタックしてください。'
                       : '山札をクリックしてカードを引いてください。'}
@@ -2486,14 +2495,14 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               )}
 
               {gameState.phase === 'PLAYER_SELECT_TARGET' && (
-                <div className="p-1.5 sm:p-3.5 bg-algo-blue-light/50 border border-algo-blue/20 rounded-lg sm:rounded-2xl space-y-0.5 sm:space-y-1">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-black text-slate-900 text-[11px] sm:text-sm">アタック対象を選択</h4>
+                <div className="p-1 sm:p-1.5 bg-algo-blue-light/50 border border-algo-blue/20 rounded-lg sm:rounded-xl">
+                  <div className="flex items-center justify-between gap-1">
+                    <h4 className="font-black text-slate-900 text-[10px] sm:text-xs truncate">アタック対象を選択</h4>
                     {gameState.timeLimit > 0 && (
-                      <span className="text-[9px] sm:text-xs font-bold text-algo-blue">残り {gameState.remainingTime}秒</span>
+                      <span className="text-[8.5px] sm:text-[10px] font-bold text-algo-blue shrink-0">残り {gameState.remainingTime}秒</span>
                     )}
                   </div>
-                  <p className="text-[10px] sm:text-xs text-slate-600 font-medium leading-tight">
+                  <p className="text-[9px] sm:text-[10.5px] text-slate-600 font-medium leading-tight truncate sm:whitespace-normal">
                     {gameState.deck.length === 0 && !gameState.drawnCard
                       ? '山札がありません。相手の伏せカードを選んでアタックしてください。'
                       : '相手の伏せカード（?）をクリック。'}
@@ -2502,20 +2511,19 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               )}
 
               {gameState.phase === 'PLAYER_DECIDE_NEXT' && (
-                <div className="p-1.5 sm:p-3.5 bg-algo-yellow-light/80 border border-algo-yellow-dark/40 rounded-lg sm:rounded-2xl space-y-0.5 sm:space-y-2 shadow-sm">
-                  <h4 className="font-black text-slate-900 text-[11px] sm:text-sm flex items-center gap-1">
-                    <Flame className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-500" />
-                    <span>✨ アタック的中！お見事！</span>
-                  </h4>
-                  <p className="text-[9px] sm:text-xs text-slate-700 font-medium leading-tight">
-                    続けてアタックしますか？ステイしますか？
-                  </p>
-                  <div className="flex gap-1 sm:gap-2 pt-0.5">
+                <div className="p-1 sm:p-1.5 bg-algo-yellow-light/80 border border-algo-yellow-dark/40 rounded-lg sm:rounded-xl shadow-2xs">
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <h4 className="font-black text-slate-900 text-[10px] sm:text-xs flex items-center gap-1 truncate">
+                      <Flame className="w-3 h-3 text-amber-500 shrink-0" />
+                      <span>的中！続けてアタック？</span>
+                    </h4>
+                  </div>
+                  <div className="flex gap-1 sm:gap-2">
                     <button
                       type="button"
                       data-testid="btn-continue-attack"
                       onClick={handlePlayerContinue}
-                      className="flex-1 py-1 sm:py-1.5 px-1.5 sm:px-2 rounded-lg sm:rounded-xl bg-gradient-to-r from-algo-blue to-algo-blue-dark text-white font-black text-[10px] sm:text-xs hover:brightness-105 shadow-sm transition-all text-center whitespace-nowrap"
+                      className="flex-1 py-1 px-1.5 sm:px-2 rounded-md sm:rounded-lg bg-gradient-to-r from-algo-blue to-algo-blue-dark text-white font-black text-[9px] sm:text-xs hover:brightness-105 shadow-2xs transition-all text-center whitespace-nowrap"
                     >
                       続けてアタック
                     </button>
@@ -2523,46 +2531,45 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                       type="button"
                       data-testid="btn-stay"
                       onClick={handlePlayerStay}
-                      className="flex-1 py-1 sm:py-1.5 px-1.5 sm:px-2 rounded-lg sm:rounded-xl bg-white border border-slate-300 text-slate-800 font-bold text-[10px] sm:text-xs hover:bg-slate-50 transition-all shadow-2xs text-center whitespace-nowrap"
+                      className="flex-1 py-1 px-1.5 sm:px-2 rounded-md sm:rounded-lg bg-white border border-slate-300 text-slate-800 font-bold text-[9px] sm:text-xs hover:bg-slate-50 transition-all shadow-2xs text-center whitespace-nowrap"
                     >
-                      ステイ（手札に加える）
+                      ステイ
                     </button>
                   </div>
                 </div>
               )}
 
               {gameState.phase === 'CPU_ACTING' && (
-                <div className="p-1.5 sm:p-3 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-2xl space-y-0.5 sm:space-y-1">
-                  <h4 className="font-black text-slate-900 text-[11px] sm:text-sm flex items-center gap-1 sm:gap-1.5">
-                    <Bot className="w-3 h-3 sm:w-3.5 sm:h-4 text-algo-blue" />
+                <div className="p-1 sm:p-1.5 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl">
+                  <h4 className="font-black text-slate-900 text-[10px] sm:text-xs flex items-center gap-1 truncate">
+                    <Bot className="w-3 h-3 text-algo-blue shrink-0" />
                     <span>{activePlayer?.name} の手番</span>
                   </h4>
-                  <p className="text-[10px] sm:text-xs text-slate-600 font-medium animate-pulse leading-tight">{cpuStatusMessage}</p>
+                  <p className="text-[9px] sm:text-[10.5px] text-slate-600 font-medium animate-pulse leading-tight truncate sm:whitespace-normal">
+                    {cpuStatusMessage}
+                  </p>
                 </div>
               )}
 
               {gameState.phase === 'GAME_OVER' && (
-                <div className="p-2 sm:p-4 bg-gradient-to-br from-algo-yellow/40 to-algo-blue/20 border border-amber-300 rounded-lg sm:rounded-2xl space-y-1 sm:space-y-2 text-center shadow-md">
-                  <div className="w-6 h-6 sm:w-10 sm:h-10 mx-auto rounded-full bg-amber-400 text-slate-950 flex items-center justify-center shadow-md">
-                    <Trophy className="w-3.5 h-3.5 sm:w-6 sm:h-6" />
+                <div className="p-1 sm:p-1.5 bg-gradient-to-br from-algo-yellow/40 to-algo-blue/20 border border-amber-300 rounded-lg sm:rounded-xl flex items-center justify-between gap-1 sm:gap-2">
+                  <div className="min-w-0">
+                    <h4 className="font-black text-[10px] sm:text-xs text-slate-900 truncate">
+                      {gameState.winner?.isHuman ? '🎉 完全勝利！' : `💀 ${gameState.winner?.name} の勝利`}
+                    </h4>
                   </div>
-                  <h4 className="font-black text-xs sm:text-base text-slate-900 leading-tight">
-                    {gameState.winner?.isHuman
-                      ? '🎉 おめでとうございます！あなたの完全勝利！'
-                      : `💀 ${gameState.winner?.name} の勝利！`}
-                  </h4>
-                  <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 pt-0.5">
+                  <div className="flex gap-1 shrink-0">
                     <button
                       type="button"
                       onClick={() => setIsResultModalOpen(true)}
-                      className="flex-1 py-1 sm:py-2.5 px-2 rounded-lg sm:rounded-xl bg-algo-blue hover:bg-algo-blue-dark text-white font-black text-[10px] sm:text-xs shadow-sm transition-all whitespace-nowrap"
+                      className="py-1 px-1.5 sm:px-2 rounded-md bg-algo-blue hover:bg-algo-blue-dark text-white font-black text-[9px] sm:text-xs shadow-2xs whitespace-nowrap"
                     >
-                      🏆 戦績サマリを表示
+                      戦績サマリを表示
                     </button>
                     <button
                       type="button"
                       onClick={() => initializeGame()}
-                      className="flex-1 py-1 sm:py-2.5 px-2 rounded-lg sm:rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black text-[10px] sm:text-xs shadow-sm transition-all whitespace-nowrap"
+                      className="py-1 px-1.5 sm:px-2 rounded-md bg-slate-900 hover:bg-slate-800 text-white font-black text-[9px] sm:text-xs shadow-2xs whitespace-nowrap"
                     >
                       もう一度対戦する
                     </button>
@@ -2576,45 +2583,65 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           {humanPlayer && (
             <section
               data-testid={`player-hand-${humanPlayer.id}`}
-              className="bg-white rounded-xl sm:rounded-2xl lg:rounded-3xl p-1 sm:p-3 lg:p-4 border border-slate-200 shadow-sm relative overflow-hidden shrink-0"
+              className={`bg-white rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden shrink-0 ${
+                opponents.length >= 3
+                  ? 'p-1.5 sm:p-2.5 lg:p-2 shadow-2xs'
+                  : opponents.length === 2
+                  ? 'p-1.5 sm:p-2.5 lg:p-2.5 shadow-2xs'
+                  : 'p-2 sm:p-3 lg:p-3.5 shadow-xs'
+              }`}
             >
-              <div className="flex items-center justify-between mb-0.5 sm:mb-2">
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-lg sm:rounded-xl bg-algo-blue text-white flex items-center justify-center font-bold text-xs shadow-2xs">
-                    <User className="w-3 h-3 sm:w-4 sm:h-4" />
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-2">
+                {/* Left: Player Info & Status */}
+                <div className="flex items-center justify-between sm:justify-start sm:w-36 lg:w-44 shrink-0 gap-1 sm:gap-1.5">
+                  <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
+                    <div
+                      className={`${
+                        opponents.length > 1
+                          ? 'w-4 h-4 sm:w-5 sm:h-5 text-[10px]'
+                          : 'w-5 h-5 sm:w-6 sm:h-6 text-xs'
+                      } rounded-lg bg-algo-blue text-white flex items-center justify-center font-bold shadow-2xs shrink-0`}
+                    >
+                      <User className={opponents.length > 1 ? 'w-2.5 h-2.5 sm:w-3.5 sm:h-3.5' : 'w-3 h-3 sm:w-4 sm:h-4'} />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="font-black text-[10px] sm:text-xs text-slate-900 block leading-tight truncate">
+                        {humanPlayer.name} の手札
+                      </span>
+                      <span className="text-[8px] sm:text-[9.5px] text-slate-400 font-semibold block leading-none">
+                        ({humanPlayer.cards.filter((c) => c.isOpen).length}/{humanPlayer.cards.length} 枚OPEN)
+                      </span>
+                    </div>
                   </div>
-                  <h3 className="font-black text-xs sm:text-sm text-slate-900">{humanPlayer.name} の手札</h3>
-                  <span className="text-[9px] sm:text-xs font-semibold text-slate-400">
-                    ({humanPlayer.cards.filter((c) => c.isOpen).length}/{humanPlayer.cards.length} 枚OPEN)
-                  </span>
+
+                  {activePlayer?.isHuman && (
+                    <span className="flex items-center gap-1 px-1 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-algo-yellow text-slate-950 text-[8px] sm:text-[10px] font-black shadow-2xs whitespace-nowrap shrink-0">
+                      <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-amber-500 animate-ping" />
+                      自ターン
+                    </span>
+                  )}
                 </div>
 
-                {activePlayer?.isHuman && (
-                  <span className="flex items-center gap-1 px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-algo-yellow text-slate-950 text-[9px] sm:text-xs font-black shadow-2xs whitespace-nowrap">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
-                    あなたのターン
-                  </span>
-                )}
-              </div>
+                {/* Center: Cards */}
+                <div
+                  data-testid={`cards-container-${humanPlayer.id}`}
+                  className="items-center py-0.5 flex flex-nowrap overflow-x-auto no-scrollbar justify-center gap-1 sm:gap-2 min-w-0 flex-1"
+                >
+                  {humanPlayer.cards.map((card, idx) => (
+                    <CardComponent
+                      key={card.id}
+                      card={maskCardForPlayer(card, true)}
+                      isOwner={true}
+                      isRevealed={isGameOver}
+                      size={activeCardSize}
+                      label={`#${idx + 1}`}
+                      testId={`player-card-${idx}`}
+                    />
+                  ))}
+                </div>
 
-              {/* Player Cards */}
-              <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-2.5 lg:gap-3 py-0.5 sm:py-2 min-h-14 sm:min-h-24 lg:min-h-28">
-                {humanPlayer.cards.map((card, idx) => (
-                  <CardComponent
-                    key={card.id}
-                    card={maskCardForPlayer(card, true)}
-                    isOwner={true}
-                    isRevealed={isGameOver}
-                    size="sm"
-                    label={`#${idx + 1}`}
-                  />
-                ))}
-              </div>
-
-              <div className="mt-0.5 sm:mt-1.5 text-center hidden sm:block">
-                <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium">
-                  ※ 手札は左から小さい順（同数は黒が左）に並んでいます。「伏せ中」の数字は相手には見えていません。
-                </p>
+                {/* Right: Dummy spacer for perfect centering on desktop */}
+                <div className="hidden sm:block shrink-0 sm:w-36 lg:w-44" aria-hidden="true" />
               </div>
             </section>
           )}
