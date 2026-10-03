@@ -60,7 +60,7 @@ export interface AttackLog {
   targetColor: CardColor;
   guessedNumber: number;
   isHit: boolean;
-  actualNumber?: number;
+  actualNumber?: number; // 的中時（isHit === true）のみ開示カードの数字を記録。ハズレ時は漏洩防止のため undefined (Issue #84)
   drawnCard?: Card;
   timestamp: number;
   message: string;

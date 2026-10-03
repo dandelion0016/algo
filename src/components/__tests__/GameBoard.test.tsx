@@ -2096,4 +2096,164 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
       vi.useRealTimers();
     });
   });
+
+  describe('セキュリティ / 情報漏洩防止: アタック失敗時（AttackLog / モーダル）の相手伏せカード正解数字マスキング (Issue #84)', () => {
+    it('プレイヤーアタック失敗時（isHit === false）: AttackLog.actualNumber が undefined となり相手の伏せ数字が漏洩しないこと', () => {
+      const targetCard: Card = { id: 'c-secret', color: 'black', number: 7, isOpen: false };
+      const guessedNumber = 3;
+      const isHit = checkAttack(targetCard, guessedNumber);
+      expect(isHit).toBe(false);
+
+      const log: AttackLog = {
+        id: 'test-log-1',
+        attackerId: 'player',
+        attackerName: 'あなた',
+        targetPlayerId: 'cpu1',
+        targetPlayerName: 'CPU 1',
+        targetCardIndex: 0,
+        targetColor: targetCard.color,
+        guessedNumber,
+        isHit,
+        actualNumber: isHit ? targetCard.number : undefined,
+        timestamp: Date.now(),
+        message: 'テストメッセージ',
+      };
+
+      expect(log.actualNumber).toBeUndefined();
+      expect(JSON.stringify(log)).not.toContain('"actualNumber":7');
+    });
+
+    it('プレイヤーアタック的中時（isHit === true）: AttackLog.actualNumber に正解数字が記録されること', () => {
+      const targetCard: Card = { id: 'c-secret', color: 'black', number: 7, isOpen: false };
+      const guessedNumber = 7;
+      const isHit = checkAttack(targetCard, guessedNumber);
+      expect(isHit).toBe(true);
+
+      const log: AttackLog = {
+        id: 'test-log-2',
+        attackerId: 'player',
+        attackerName: 'あなた',
+        targetPlayerId: 'cpu1',
+        targetPlayerName: 'CPU 1',
+        targetCardIndex: 0,
+        targetColor: targetCard.color,
+        guessedNumber,
+        isHit,
+        actualNumber: isHit ? targetCard.number : undefined,
+        timestamp: Date.now(),
+        message: 'テストメッセージ',
+      };
+
+      expect(log.actualNumber).toBe(7);
+      expect(JSON.stringify(log)).toContain('"actualNumber":7');
+    });
+
+    it('プレイヤーアタック失敗時のモーダルデータ（waitForAttackOk Props）に相手の伏せカード正解数字が含まれないこと', () => {
+      const targetCard: Card = { id: 'c-secret', color: 'white', number: 9, isOpen: false };
+      const guessedNumber = 4;
+      const isHit = checkAttack(targetCard, guessedNumber);
+      expect(isHit).toBe(false);
+
+      // GameBoard.tsx の handleConfirmGuess 失敗時モーダルProps生成ロジックの検証
+      const modalProps = {
+        attackerName: 'あなた',
+        isHuman: true,
+        targetPlayerName: 'CPU 1',
+        targetCardIndex: 1,
+        targetColor: targetCard.color,
+        guessedNumber,
+        isHit: false,
+        actualNumber: undefined,
+        nextAction: 'TURN_END' as const,
+        nextPlayerName: 'CPU 1',
+        isDeckExhausted: false,
+      };
+
+      expect(modalProps.actualNumber).toBeUndefined();
+      expect(JSON.stringify(modalProps)).not.toContain('"actualNumber":9');
+    });
+
+    it('CPUアタック失敗時（isHit === false）: AttackLog およびモーダルデータで相手伏せ数字が undefined となり漏洩しないこと', () => {
+      const targetCard: Card = { id: 'p-secret', color: 'black', number: 5, isOpen: false };
+      const guessedNumber = 2;
+      const isHit = checkAttack(targetCard, guessedNumber);
+      expect(isHit).toBe(false);
+
+      // CPUアタックログ
+      const cpuLog: AttackLog = {
+        id: 'cpu-log-1',
+        attackerId: 'cpu1',
+        attackerName: 'CPU 1',
+        targetPlayerId: 'player',
+        targetPlayerName: 'あなた',
+        targetCardIndex: 0,
+        targetColor: targetCard.color,
+        guessedNumber,
+        isHit,
+        actualNumber: isHit ? targetCard.number : undefined,
+        timestamp: Date.now(),
+        message: 'CPUハズレログ',
+      };
+
+      expect(cpuLog.actualNumber).toBeUndefined();
+      expect(JSON.stringify(cpuLog)).not.toContain('"actualNumber":5');
+
+      // CPUモーダルデータ
+      const cpuModalProps = {
+        attackerName: 'CPU 1',
+        targetPlayerName: 'あなた',
+        targetCardIndex: 0,
+        targetColor: targetCard.color,
+        guessedNumber,
+        isHit: false,
+        actualNumber: undefined,
+        nextAction: 'TURN_END' as const,
+        isDeckExhausted: false,
+      };
+
+      expect(cpuModalProps.actualNumber).toBeUndefined();
+      expect(JSON.stringify(cpuModalProps)).not.toContain('"actualNumber":5');
+    });
+
+    it('実機DOM検証: プレイヤーアタックハズレ時に画面上のログやDOMに相手の未オープン数字が漏洩しないこと', () => {
+      const initialGameState: GameState = {
+        playerCount: 2,
+        difficulty: 'easy',
+        timeLimit: 0,
+        remainingTime: 0,
+        deck: [{ id: 'd1', color: 'black', number: 0, isOpen: false }],
+        players: [
+          {
+            id: 'p1',
+            name: 'あなた',
+            isHuman: true,
+            avatarColor: 'from-blue-500 to-indigo-600',
+            isEliminated: false,
+            cards: [{ id: 'p-card1', color: 'black', number: 2, isOpen: false }],
+          },
+          {
+            id: 'cpu1',
+            name: 'CPU 1',
+            isHuman: false,
+            avatarColor: 'from-purple-500 to-indigo-600',
+            isEliminated: false,
+            cards: [{ id: 'cpu-card1', color: 'white', number: 11, isOpen: false }], // 相手の伏せカードは 11
+          },
+        ],
+        activePlayerIndex: 0,
+        drawnCard: { id: 'p-draw', color: 'white', number: 4, isOpen: false },
+        phase: 'PLAYER_GUESS_NUMBER',
+        selectedTarget: { playerId: 'cpu1', cardIndex: 0 },
+        logs: [],
+        winner: null,
+      };
+
+      const { container } = render(
+        <GameBoard initialState={initialGameState} />
+      );
+
+      // モーダルや盤面に相手の伏せカードの数字「11」がテキストや属性として存在しないことを確認
+      expect(container.querySelector('[data-testid="game-log"]')?.textContent || '').not.toContain('11');
+    });
+  });
 });
