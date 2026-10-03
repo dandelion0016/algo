@@ -49,6 +49,8 @@ import {
   ScrollText,
   X,
   Lightbulb,
+  Eye,
+  FastForward,
 } from 'lucide-react';
 
 /**
@@ -106,6 +108,12 @@ export const TIME_UP_AUTO_DRAW_MESSAGE =
 
 export const TIME_UP_NO_DECK_MESSAGE =
   'TIME UP! 制限時間を超過し山札がないため、手札の伏せカードが強制オープンされました';
+
+/**
+ * プレイヤー脱落時の通知メッセージ定数 (Issue #61)
+ */
+export const ELIMINATION_MESSAGE =
+  '手札がすべてオープンされ、脱落しました！観戦モードに移行します';
 
 /**
  * ターゲットカードの色（黒または白）に応じた確認済み数字（既知数字）のリストを抽出する (Issue #38)
@@ -227,11 +235,20 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     });
   }, []);
 
+  // 観戦モード・自動観戦・スキップ状態 (Issue #61)
+  const [isAutoSpectate, setIsAutoSpectate] = useState<boolean>(true);
+  const [isSkippingToResult, setIsSkippingToResult] = useState<boolean>(false);
+  const isSkippingToResultRef = useRef<boolean>(false);
+  const [isEliminationDismissed, setIsEliminationDismissed] = useState<boolean>(false);
+
   // 推理結果確認モーダル用状態と非同期リゾルバ (CPU & プレイヤー)
   const [attackResult, setAttackResult] = useState<AttackResultData | null>(null);
   const attackResolverRef = useRef<(() => void) | null>(null);
 
   const waitForAttackOk = useCallback((data: AttackResultData) => {
+    if (isSkippingToResultRef.current) {
+      return Promise.resolve();
+    }
     return new Promise<void>((resolve) => {
       attackResolverRef.current = resolve;
       setAttackResult(data);
@@ -243,6 +260,18 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     if (attackResolverRef.current) {
       const resolve = attackResolverRef.current;
       attackResolverRef.current = null;
+      resolve();
+    }
+  }, []);
+
+  // 決着まで一括スキップハンドラ (Issue #61)
+  const handleSkipToResult = useCallback(() => {
+    isSkippingToResultRef.current = true;
+    setIsSkippingToResult(true);
+    if (attackResolverRef.current) {
+      const resolve = attackResolverRef.current;
+      attackResolverRef.current = null;
+      setAttackResult(null);
       resolve();
     }
   }, []);
@@ -325,6 +354,10 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       setHintCount(3);
       setActiveHint(null);
       setIsHintModalOpen(false);
+      // 観戦・スキップ状態のリセット (Issue #61)
+      setIsSkippingToResult(false);
+      isSkippingToResultRef.current = false;
+      setIsEliminationDismissed(false);
     },
     [gameState.playerCount, gameState.difficulty, gameState.timeLimit, userId]
   );
@@ -348,6 +381,16 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
   // ゲームが進行中（未決着かつセットアップ以外）かどうかの判定
   const isGameInProgress =
+    gameState.phase !== 'SETUP' &&
+    gameState.phase !== 'GAME_OVER' &&
+    gameState.winner === null;
+
+  // 人間プレイヤーの脱落状態・観戦モード判定 (Issue #61)
+  const isHumanEliminated = Boolean(
+    gameState.players.find((p) => p.isHuman)?.isEliminated
+  );
+  const isSpectating =
+    isHumanEliminated &&
     gameState.phase !== 'SETUP' &&
     gameState.phase !== 'GAME_OVER' &&
     gameState.winner === null;
@@ -953,10 +996,12 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     let isMounted = true;
     let timerId: ReturnType<typeof setTimeout> | null = null;
 
-    const delay = (ms: number) =>
-      new Promise<void>((resolve) => {
+    const delay = (ms: number) => {
+      if (isSkippingToResultRef.current) return Promise.resolve();
+      return new Promise<void>((resolve) => {
         timerId = setTimeout(resolve, ms);
       });
+    };
 
     const executeCpuTurn = async () => {
       let currentDeck = [...gameState.deck];
@@ -1697,6 +1742,54 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         </div>
       )}
 
+      {/* プレイヤー脱落通知バナー（観戦モード案内） (Issue #61) */}
+      {isSpectating && !isEliminationDismissed && (
+        <div
+          data-testid="elimination-banner"
+          role="alert"
+          className="bg-purple-50 border-2 border-purple-300 text-purple-900 px-3 py-1.5 sm:px-4 sm:py-2.5 rounded-xl sm:rounded-2xl shadow-md flex items-center justify-between gap-2 sm:gap-3 shrink-0 animate-fade-in"
+        >
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-base sm:text-lg">💥</span>
+            <span className="font-bold text-xs sm:text-sm">
+              {ELIMINATION_MESSAGE}
+            </span>
+            <div className="flex items-center gap-1.5 ml-1">
+              <button
+                type="button"
+                data-testid="banner-toggle-auto-advance"
+                onClick={() => setIsAutoSpectate((prev) => !prev)}
+                className={`text-[11px] font-bold px-2 py-0.5 rounded-md border flex items-center gap-1 transition-colors cursor-pointer ${
+                  isAutoSpectate
+                    ? 'bg-purple-600 text-white border-purple-600'
+                    : 'bg-white text-purple-700 border-purple-300 hover:bg-purple-100'
+                }`}
+              >
+                {isAutoSpectate ? '自動観戦: ON' : '自動観戦: OFF'}
+              </button>
+              <button
+                type="button"
+                data-testid="banner-skip-to-result"
+                onClick={handleSkipToResult}
+                className="text-[11px] font-black px-2 py-0.5 rounded-md bg-amber-500 hover:bg-amber-600 text-white shadow-xs flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
+              >
+                <FastForward className="w-3 h-3" />
+                <span>決着までスキップ</span>
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            data-testid="close-elimination-banner"
+            onClick={() => setIsEliminationDismissed(true)}
+            className="text-purple-500 hover:text-purple-700 font-black text-xs sm:text-sm p-1 rounded-lg hover:bg-purple-100 transition-colors cursor-pointer"
+            aria-label="通知を閉じる"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* ゲームオーバー時の全手札開示（答え合わせ）バナー (Issue #60) */}
       {isGameOver && (
         <div
@@ -2166,9 +2259,14 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
       {/* 推理結果確認モーダル (CPU & プレイヤー) */}
       <AttackResultModal
-        isOpen={attackResult !== null}
+        isOpen={attackResult !== null && !isSkippingToResult}
         data={attackResult}
         onConfirm={handleAttackOk}
+        isSpectating={isSpectating}
+        isAutoAdvance={isAutoSpectate}
+        onToggleAutoAdvance={() => setIsAutoSpectate((prev) => !prev)}
+        onSkipToResult={handleSkipToResult}
+        autoAdvanceDelayMs={1500}
       />
 
       {/* SCR-006: 決着リザルト＆祝祭演出モーダル */}
