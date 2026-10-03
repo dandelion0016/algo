@@ -21,7 +21,7 @@ GitHub Actions と **AWS IAM OIDC（OpenID Connect）キーレス認証** を採
    - 既存テストの改ざん、ダミー検証（`expect(true).toBe(true)`）、無効化（`.skip`）を機械的に検知・ブロック。
 4. **ドキュメント整合性・アトミック更新の機械的強制 (Doc Integrity & Diff Guard)**:
    - コミット前およびCI実行時に `npm run test:doc-integrity`（`scripts/verify-doc-integrity.js`）を実行。
-   - CIにて `src/` 変更時の `docs/` 同期ガード（Atomic Doc-Code Diff Guard）を実行し、未同期PRを機械的にブロック（`[skip-doc-sync]` 例外対応）。
+   - ローカル Git Native Pre-Push Hook（`.githooks/pre-push`）にて `src/` 変更時の `docs/` 同期ガード（Atomic Doc-Code Diff Guard）を実行し、未同期プッシュを機械的に即座にブロック（`[skip-doc-sync]` 例外対応）。
 5. **実機E2E ＆ スナップショットギャラリー自動検証**:
    - Playwright による主要対戦シナリオ（セットアップ、ドロー、アタック、決着）の自動E2E検証。
    - 実行時の実機画面スナップショットをアーティファクト保存し、PRコメントへ画像付きエビデンスを自動投稿。
@@ -37,11 +37,15 @@ GitHub Actions と **AWS IAM OIDC（OpenID Connect）キーレス認証** を採
 
 ```mermaid
 flowchart TD
+    subgraph LocalPush["ローカル Push イベント (Git Pre-Push Hook)"]
+        Push["git push"] --> Hook1["Branch Naming & Protected Branch Guard"]
+        Hook1 --> Hook2["Atomic Doc Diff Guard<br>(src/変更時 docs/同期検査, [skip-doc-sync]許容)"]
+    end
+
     subgraph PullRequest["Pull Request イベント (CI: ci.yml)"]
         PR["PR作成 / 更新コミットPush"] --> Step0a["0a. Branch Naming Guard<br>(feature/fix/chore 検査)"]
         Step0a --> Step0b["0b. ADR Requirement Guard<br>(featureブランチ ADR必須検査)"]
-        Step0b --> Step0c["0c. Atomic Doc Diff Guard<br>(src/変更時 docs/同期検査)"]
-        Step0c --> Step1["1. Lint & Format<br>(ESLint / Prettier)"]
+        Step0b --> Step1["1. Lint & Format<br>(ESLint / Prettier)"]
         Step1 --> Step2["2. TypeCheck<br>(tsc --noEmit)"]
         Step2 --> Step3["3. Test Integrity Verification<br>(npm run test:integrity)"]
         Step3 --> Step3b["3b. Doc Integrity Verification<br>(npm run test:doc-integrity)"]
@@ -61,6 +65,7 @@ flowchart TD
         CD_CFInvalidate --> CD_Notify["6. デプロイ完了検証・通知"]
     end
 
+    Hook2 --> PR
     Step8 -->|全PASS & レビュー承認| Merge
 ```
 
@@ -70,9 +75,9 @@ flowchart TD
 
 | ステージ名 | トリガー | 主な実行内容 | 使用コマンド / アクション | 失敗時の挙動 |
 | :--- | :--- | :--- | :--- | :--- |
-| **Branch Naming Guard** | PR | ブランチ名プレフィックス規約（`feature/*`, `fix/*`, `chore/*`）検証 | シェル検証スクリプト | PRマージをブロック |
+| **Branch Naming Guard** | PR / Push | ブランチ名プレフィックス規約（`feature/*`, `fix/*`, `chore/*`）検証 | シェル検証スクリプト / Pre-Push Hook | PRマージ / Push をブロック |
 | **ADR Requirement Guard** | PR (featureブランチ) | `feature/*` ブランチにおける `docs/adr/` 新規/更新ADRの存在検証 | `git diff origin/main...HEAD` | PRマージをブロック |
-| **Atomic Doc Diff Guard** | PR | `src/` コード変更時の `docs/` 同期検証（`[skip-doc-sync]` 対応） | `git diff origin/main...HEAD` | PRマージをブロック |
+| **Atomic Doc Diff Guard** | ローカル Push | `src/` コード変更時の `docs/` 同期検証（`[skip-doc-sync]` 対応） | `.githooks/pre-push` | git push を即座にブロック |
 | **Lint & Format** | PR / Push | ソースコード構文・フォーマット検証 | `npm run lint` | PRマージをブロック |
 | **TypeCheck** | PR / Push | TypeScript型の厳格チェック | `npx tsc --noEmit` | PRマージをブロック |
 | **Test Integrity** | PR / Push | テスト改ざん・骨抜き防止自動監査 | `npm run test:integrity` | PRマージをブロック |
@@ -89,10 +94,10 @@ flowchart TD
 
 ---
 
-## 4. GitHub Actions ワークフロー定義
+## 4. ワークフロー ＆ ガード定義
 
 ### 4.1 CI ワークフロー (`.github/workflows/ci.yml` 抜粋)
-- **ブランチ命名規約・ADR起票・Doc差分同期ガード**:
+- **ブランチ命名規約・ADR起票ガード**:
   ```yaml
   - name: Branch Naming Guard
     if: github.event_name == 'pull_request'
@@ -109,17 +114,6 @@ flowchart TD
         ADR_CHANGES=$(git diff --name-only origin/main...HEAD | grep '^docs/adr/' || true)
         if [ -z "${ADR_CHANGES}" ]; then
           echo "❌ featureブランチには docs/adr/ へのADR起票が必須です"; exit 1
-        fi
-      fi
-
-  - name: Atomic Doc-Code Diff Guard
-    if: github.event_name == 'pull_request'
-    run: |
-      SRC_CHANGES=$(git diff --name-only origin/main...HEAD | grep '^src/' || true)
-      DOCS_CHANGES=$(git diff --name-only origin/main...HEAD | grep '^docs/' || true)
-      if [ -n "${SRC_CHANGES}" ] && [ -z "${DOCS_CHANGES}" ]; then
-        if ! echo "${PR_BODY} ${COMMIT_LOGS}" | grep -Fq "[skip-doc-sync]"; then
-          echo "❌ src/ にコード変更がありますが、docs/ 配下の設計書更新が含まれていません"; exit 1
         fi
       fi
   ```
@@ -149,7 +143,22 @@ flowchart TD
         playwright-report/
   ```
 
-### 4.2 CD ワークフロー (`.github/workflows/deploy.yml` 抜粋)
+### 4.2 ローカル Git Hook ガード定義 (`.githooks/pre-push` 抜粋)
+- **Atomic Doc-Code Diff Guard (ローカルプッシュ時検証)**:
+  ```sh
+  # src/ 変更時に docs/ 同期が含まれているか検証 ([skip-doc-sync] 例外対応)
+  if [ -n "$src_changes" ] && [ -z "$docs_changes" ]; then
+    commit_logs=$(git log "$range" --format=%B 2>/dev/null || true)
+    if echo "$commit_logs" | grep -Fq "[skip-doc-sync]"; then
+      echo "⚠️ [Atomic Doc-Code Diff Guard] [skip-doc-sync] を検知したため、docs同期チェックをスキップします。"
+    else
+      echo "❌ [Atomic Doc-Code Diff Guard] src/ にコード変更がありますが、docs/ 配下の設計書更新が含まれていません！" >&2
+      exit 1
+    fi
+  fi
+  ```
+
+### 4.3 CD ワークフロー (`.github/workflows/deploy.yml` 抜粋)
 - **自動バージョニング ＆ GitHub Release**:
   - `main` マージ時に最新タグを取得・インクリメントし、Gitタグの作成とGitHub Releaseを発行。
   - バージョン番号をビルド時環境変数 `NEXT_PUBLIC_APP_VERSION` に注入して静的ビルド。

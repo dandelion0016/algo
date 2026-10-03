@@ -37,7 +37,7 @@ description: 実装と設計書の乖離検知時のADR（Architecture Decision 
 | ブランチ名 | 用途 | ADR要否 (`docs/adr/`) | 設計書同期 (`docs/design/`) | CI / Git Hook ガード |
 | :--- | :--- | :---: | :---: | :--- |
 | **`feature/*`** | **機能追加** (新機能・新コンポーネント・新ルール) | **必須** (ADR起票・承認が前提) | **必須** (該当設計書を同時更新) | `origin/main...HEAD` に `docs/adr/` の差分がなければ CI で FAIL |
-| **`fix/*`** | **軽微な修正** (バグ修正・UI崩れ・タイポ・軽微ロジック) | **不要** (ADRなしでOK) | 設計変更を伴う場合は更新、内部バグ修正は `[skip-doc-sync]` 許容 | `src/` 変更時に `docs/` 更新または `[skip-doc-sync]` が必須 |
+| **`fix/*`** | **軽微な修正** (バグ修正・UI崩れ・タイポ・軽微ロジック) | **不要** (ADRなしでOK) | 設計変更を伴う場合は更新、内部バグ修正は `[skip-doc-sync]` 許容 | `src/` 変更時に `docs/` 更新または `[skip-doc-sync]` が必須 (ローカル Pre-Push Hook) |
 | **`chore/*`** | **その他** (ガバナンス・CI/CD・依存更新・リファクタ・環境整備) | **不要** (ADRなしでOK) | 必要に応じて更新（SRE/インフラ等） | ブランチプレフィックス準拠を検証 |
 
 ※ 上記3つ以外のブランチ名（例: `test/*`, `update/*`, `bugfix/*` 等）は機械的に禁止されており、Git Native Pre-Push Hook および CI Branch Naming Guard によりブロックされる。

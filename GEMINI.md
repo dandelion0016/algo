@@ -44,7 +44,7 @@
      | **`feature/*`** | **機能追加** (新機能・新コンポーネント・新ルール) | **必須** (ADR起票・承認が前提) | **必須** (該当設計書を同時更新) |
      | **`fix/*`** | **軽微な修正** (バグ修正・UI崩れ・タイポ・軽微ロジック) | **不要** (ADRなしでOK) | 設計変更を伴う場合は更新、内部バグ修正は `[skip-doc-sync]` 許容 |
      | **`chore/*`** | **その他** (ガバナンス・CI/CD・依存更新・リファクタ・環境整備) | **不要** (ADRなしでOK) | 必要に応じて更新（SRE/インフラ等） |
-     - ※ 上記3つ以外のブランチ名（例: `test/*`, `update/*`, `bugfix/*` 等）は機械的に禁止（Git Pre-Push Hook ＆ CI Branch Naming Guard によりブロック）。
+     - ※ 上記3つ以外のブランチ名（例: `test/*`, `update/*`, `bugfix/*` 等）は機械的に禁止（Git Pre-Push Hook ＆ CI Branch Naming Guard によりブロック）。また、`src/` 変更時の設計書同時更新（Atomic Doc-Code Diff Guard）はローカル Git Native Pre-Push Hook（`.githooks/pre-push`）によりプッシュ時に機械的検証される。
    - 実装・検証（テスト、セキュリティ検査等）が完了後、作業ブランチをリモートへプッシュし、`main` を宛先（base）としたPull Requestを作成する。
    - PR本文に `Closes #<番号>` および実装サマリを明記すること。
    - **各チーム自動テスト結果の人間向けサマリ必須化**:
@@ -91,10 +91,10 @@
       - UIコンポーネント（`src/components/`）、コアライブラリ（`src/lib/`）、データ型・監査定義、永続化キー等の新規追加・変更を含むPRは、必ず対応する `docs/design/` の設計書更新を同一PR内にアトミック（不可分）に含めなければならない。コードのみの変更で設計書を形骸化させるPRの作成・マージを厳禁とする。
     - **DoD（完了の定義）への組み込み**:
       - タスク完了条件に「自動テスト全件合格」に加え「`npm run test:doc-integrity` 完全パス」を必須化する。
-    - **CIによる機械的ブロック (Doc Integrity & Diff Guard)**:
+    - **CI ＆ ローカルGit Hookによる機械的ブロック (Doc Integrity & Diff Guard)**:
       - CIワークフロー（GitHub Actions）で `verify-doc-integrity` が常時実行され、設計書追従漏れのあるPRは機械的にマージ不可（FAIL）となる。
-      - **差分ガード（Atomic Doc-Code Diff Guard）**: `src/` 配下にコード変更があるにもかかわらず `docs/` 配下に差分がない場合、PR本文またはコミットメッセージに `[skip-doc-sync]` が含まれていなければ機械的にエラー終了（FAIL）。
-      - **ADR強制フック（ADR Requirement Guard）**: `feature/*` ブランチのPRでは、`docs/adr/` への新規/更新ADRの差分が機械的に検証され、未起票のPRはブロックされる。
+      - **差分ガード（Atomic Doc-Code Diff Guard）**: ローカル Git Native Pre-Push Hook（`.githooks/pre-push`）にてプッシュ時に機械的検証され、`src/` 配下にコード変更があるにもかかわらず `docs/` 配下に差分がない場合、コミットメッセージに `[skip-doc-sync]` が含まれていなければプッシュを即時ブロック（FAIL）。
+      - **ADR強制フック（ADR Requirement Guard）**: CI（`ci.yml`）にて `feature/*` ブランチのPRでは、`docs/adr/` への新規/更新ADRの差分が機械的に検証され、未起票のPRはブロックされる。
 
 ---
 
