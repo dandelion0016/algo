@@ -244,4 +244,48 @@ describe('CardComponent (Issue #43: failed-guesses-badge)', () => {
       expect(container.querySelector('[data-testid="reveal-badge"]')).toBeNull();
     });
   });
+
+  describe('Issue #66: 新規挿入ハイライト (isNewlyInserted)', () => {
+    const hiddenCard: PublicCard = {
+      id: 'b-new',
+      color: 'black',
+      number: null,
+      isOpen: false,
+    };
+
+    it('isNewlyInserted: true の場合、data-newly-inserted="true" と NEW! バッジが表示される', () => {
+      const { container } = render(
+        <CardComponent
+          card={hiddenCard}
+          isOwner={false}
+          isNewlyInserted={true}
+        />
+      );
+
+      const cardEl = container.querySelector('[data-testid="card-black-hidden"]');
+      expect(cardEl).not.toBeNull();
+      expect(cardEl?.getAttribute('data-newly-inserted')).toBe('true');
+      expect(cardEl?.className).toContain('ring-amber-400');
+      expect(cardEl?.getAttribute('aria-label')).toContain('[新規挿入]');
+
+      const newBadge = container.querySelector('[data-testid="newly-inserted-badge"]');
+      expect(newBadge).not.toBeNull();
+      expect(newBadge?.textContent).toBe('NEW!');
+    });
+
+    it('isNewlyInserted: false または未指定の場合、NEW! バッジは表示されない', () => {
+      const { container } = render(
+        <CardComponent
+          card={hiddenCard}
+          isOwner={false}
+          isNewlyInserted={false}
+        />
+      );
+
+      const cardEl = container.querySelector('[data-testid="card-black-hidden"]');
+      expect(cardEl?.getAttribute('data-newly-inserted')).toBeNull();
+      expect(container.querySelector('[data-testid="newly-inserted-badge"]')).toBeNull();
+      expect(cardEl?.getAttribute('aria-label')).not.toContain('[新規挿入]');
+    });
+  });
 });

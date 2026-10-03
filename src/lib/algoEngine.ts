@@ -62,6 +62,21 @@ export function insertCardInOrder(hand: Card[], newCard: Card): Card[] {
 }
 
 /**
+ * 手札にカードを挿入し、挿入後のインデックス（0-indexed）および更新後の手札を返す
+ */
+export function insertCardInOrderWithIndex(
+  hand: Card[],
+  newCard: Card
+): {
+  newHand: Card[];
+  insertedIndex: number;
+} {
+  const newHand = insertCardInOrder(hand, newCard);
+  const insertedIndex = newHand.findIndex((c) => c.id === newCard.id);
+  return { newHand, insertedIndex };
+}
+
+/**
  * 人数に応じた初期手札枚数を取得（アルゴ公式ルール）
  * 2人: 4枚（山札 16枚）
  * 3人: 3枚（山札 15枚）

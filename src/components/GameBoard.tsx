@@ -7,6 +7,7 @@ import {
   createDeck,
   setupGamePlayers,
   insertCardInOrder,
+  insertCardInOrderWithIndex,
   isAllOpen,
   checkAttack,
   getNextActivePlayerIndex,
@@ -168,6 +169,7 @@ export interface GameBoardProps {
   initialIsHintModalOpen?: boolean;
   initialIsRuleModalOpen?: boolean;
   initialIsTutorialOpen?: boolean;
+  initialRecentlyInsertedCard?: { playerId: string; cardId: string } | null;
 }
 
 export const GameBoard: React.FC<GameBoardProps> = ({
@@ -178,6 +180,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   initialIsHintModalOpen = false,
   initialIsRuleModalOpen = false,
   initialIsTutorialOpen = false,
+  initialRecentlyInsertedCard = null,
 }) => {
   const { userId } = useUserSession();
 
@@ -215,6 +218,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const [cpuStatusMessage, setCpuStatusMessage] = useState<string>('');
   const [timeUpBanner, setTimeUpBanner] = useState<string | null>(initialTimeUpBanner);
   const [isMobileLogOpen, setIsMobileLogOpen] = useState(false);
+  // CPUが手札に挿入した直後のカード追跡用 (Issue #66)
+  const [recentlyInsertedCard, setRecentlyInsertedCard] = useState<{
+    playerId: string;
+    cardId: string;
+  } | null>(initialRecentlyInsertedCard);
   // 初心者向け推理候補アシストの有効状態（Issue #42: デフォルト true）
   const [isAssistEnabled, setIsAssistEnabled] = useState<boolean>(() => {
     try {
@@ -354,6 +362,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       setHintCount(3);
       setActiveHint(null);
       setIsHintModalOpen(false);
+      setRecentlyInsertedCard(null);
       // 観戦・スキップ状態のリセット (Issue #61)
       setIsSkippingToResult(false);
       isSkippingToResultRef.current = false;
@@ -1017,6 +1026,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       if (currentDeck.length > 0) {
         cpuDrawn = currentDeck[0];
         currentDeck = currentDeck.slice(1);
+        setGameState((prev) => ({
+          ...prev,
+          deck: currentDeck,
+          drawnCard: cpuDrawn,
+        }));
       }
 
       let currentPlayers = [...gameState.players];
@@ -1188,7 +1202,28 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             continue;
           } else {
             // ステイ (false)
-            // ログに「CPUは手札に加えてステイしました」を記録
+            // 引いたカードを手札に伏せて整列挿入し、次のプレイヤーへ手番を遷移
+            const cpuIdx = currentPlayers.findIndex((p) => p.id === currentCpu.id);
+            let insertedIdx = -1;
+            if (cpuDrawn && cpuIdx !== -1) {
+              const { newHand, insertedIndex } = insertCardInOrderWithIndex(currentPlayers[cpuIdx].cards, {
+                ...cpuDrawn,
+                isOpen: false,
+              });
+              currentPlayers[cpuIdx] = {
+                ...currentPlayers[cpuIdx],
+                cards: newHand,
+              };
+              insertedIdx = insertedIndex;
+              setRecentlyInsertedCard({ playerId: currentCpu.id, cardId: cpuDrawn.id });
+            }
+
+            // ログに「CPU {名前} が山札から [{黒/白}] を引き、左から {N} 番目に挿入しました」を記録 (Issue #66)
+            const colorText = cpuDrawn ? (cpuDrawn.color === 'black' ? '黒' : '白') : '';
+            const stayMessage = cpuDrawn
+              ? `${currentCpu.name} が山札から [${colorText}] を引き、左から ${insertedIdx + 1} 番目に挿入しました。`
+              : `${currentCpu.name} はステイしました`;
+
             const stayLog: AttackLog = {
               id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
               attackerId: currentCpu.id,
@@ -1200,30 +1235,19 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               guessedNumber: 0,
               isHit: true,
               timestamp: Date.now(),
-              message: cpuDrawn ? 'CPUは手札に加えてステイしました' : 'CPUはステイしました',
+              message: stayMessage,
             };
             currentLogs = [stayLog, ...currentLogs];
-
-            // 引いたカードを手札に伏せて整列挿入し、次のプレイヤーへ手番を遷移
-            const cpuIdx = currentPlayers.findIndex((p) => p.id === currentCpu.id);
-            if (cpuDrawn && cpuIdx !== -1) {
-              currentPlayers[cpuIdx] = {
-                ...currentPlayers[cpuIdx],
-                cards: insertCardInOrder(currentPlayers[cpuIdx].cards, {
-                  ...cpuDrawn,
-                  isOpen: false,
-                }),
-              };
-            }
 
             const nextIdx = getNextActivePlayerIndex(gameState.activePlayerIndex, currentPlayers);
             const nextPlayer = currentPlayers[nextIdx];
             const nextPlayerName = nextPlayer ? (nextPlayer.isHuman ? 'あなた' : nextPlayer.name) : undefined;
 
-            // 盤面を更新
+            // 盤面を更新（drawnCard を null にリセットして手札へ移動）
             setGameState((prev) => ({
               ...prev,
               deck: currentDeck,
+              drawnCard: null,
               players: currentPlayers,
               logs: currentLogs,
             }));
@@ -1265,16 +1289,38 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         } else {
           // ハズレ (isHit === false)
           const cpuIdx = currentPlayers.findIndex((p) => p.id === currentCpu.id);
+          let insertedIdx = -1;
           if (cpuDrawn && cpuIdx !== -1) {
-            const newCards = insertCardInOrder(currentPlayers[cpuIdx].cards, {
+            const { newHand, insertedIndex } = insertCardInOrderWithIndex(currentPlayers[cpuIdx].cards, {
               ...cpuDrawn,
               isOpen: true,
             });
             currentPlayers[cpuIdx] = {
               ...currentPlayers[cpuIdx],
-              cards: newCards,
-              isEliminated: isAllOpen(newCards),
+              cards: newHand,
+              isEliminated: isAllOpen(newHand),
             };
+            insertedIdx = insertedIndex;
+            setRecentlyInsertedCard({ playerId: currentCpu.id, cardId: cpuDrawn.id });
+
+            // ログに山札から引いたカードの挿入を明記 (Issue #66)
+            const colorText = cpuDrawn.color === 'black' ? '黒' : '白';
+            const insertLog: AttackLog = {
+              id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+              attackerId: currentCpu.id,
+              attackerName: currentCpu.name,
+              targetPlayerId: '',
+              targetPlayerName: '',
+              targetCardIndex: 0,
+              targetColor: cpuDrawn.color,
+              guessedNumber: 0,
+              isHit: false,
+              actualNumber: cpuDrawn.number,
+              drawnCard: cpuDrawn,
+              timestamp: Date.now(),
+              message: `${currentCpu.name} が山札から [${colorText}] を引き、左から ${insertedIdx + 1} 番目に挿入しました。`,
+            };
+            currentLogs = [insertLog, ...currentLogs];
           } else if (!cpuDrawn && cpuIdx !== -1) {
             // 山札0枚ペナルティ: 手札の最初の伏せカードをオープン (Issue #68)
             const firstClosedIdx = currentPlayers[cpuIdx].cards.findIndex((c) => !c.isOpen);
@@ -1297,10 +1343,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           const nextPlayer = currentPlayers[nextIdx];
           const nextPlayerName = nextPlayer ? (nextPlayer.isHuman ? 'あなた' : nextPlayer.name) : undefined;
 
-          // カードがオープンされた盤面を即座にUIへ反映
+          // カードがオープンされた盤面を即座にUIへ反映（drawnCard を null にリセットして手札へ移動）
           setGameState((prev) => ({
             ...prev,
             deck: currentDeck,
+            drawnCard: null,
             players: currentPlayers,
             logs: currentLogs,
           }));
@@ -1355,6 +1402,26 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       }
 
       // ループガード（最大10回）上限到達時のステイ処理
+      const cpuIdx = currentPlayers.findIndex((p) => p.id === currentCpu.id);
+      let insertedIdx = -1;
+      if (cpuDrawn && cpuIdx !== -1) {
+        const { newHand, insertedIndex } = insertCardInOrderWithIndex(currentPlayers[cpuIdx].cards, {
+          ...cpuDrawn,
+          isOpen: false,
+        });
+        currentPlayers[cpuIdx] = {
+          ...currentPlayers[cpuIdx],
+          cards: newHand,
+        };
+        insertedIdx = insertedIndex;
+        setRecentlyInsertedCard({ playerId: currentCpu.id, cardId: cpuDrawn.id });
+      }
+
+      const colorText = cpuDrawn ? (cpuDrawn.color === 'black' ? '黒' : '白') : '';
+      const stayMessage = cpuDrawn
+        ? `${currentCpu.name} が山札から [${colorText}] を引き、左から ${insertedIdx + 1} 番目に挿入しました。`
+        : `${currentCpu.name} はステイしました`;
+
       const stayLog: AttackLog = {
         id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         attackerId: currentCpu.id,
@@ -1366,20 +1433,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         guessedNumber: 0,
         isHit: true,
         timestamp: Date.now(),
-        message: cpuDrawn ? 'CPUは手札に加えてステイしました' : 'CPUはステイしました',
+        message: stayMessage,
       };
       currentLogs = [stayLog, ...currentLogs];
-
-      const cpuIdx = currentPlayers.findIndex((p) => p.id === currentCpu.id);
-      if (cpuDrawn && cpuIdx !== -1) {
-        currentPlayers[cpuIdx] = {
-          ...currentPlayers[cpuIdx],
-          cards: insertCardInOrder(currentPlayers[cpuIdx].cards, {
-            ...cpuDrawn,
-            isOpen: false,
-          }),
-        };
-      }
 
       const nextIdx = getNextActivePlayerIndex(gameState.activePlayerIndex, currentPlayers);
       const nextPlayer = currentPlayers[nextIdx];
@@ -1388,6 +1444,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       setGameState((prev) => ({
         ...prev,
         deck: currentDeck,
+        drawnCard: null,
         players: currentPlayers,
         logs: currentLogs,
       }));
@@ -1899,6 +1956,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                           failedGuesses={failedNumbers}
                           isEliminated={opp.isEliminated}
                           isHintTarget={isHintTarget}
+                          isNewlyInserted={
+                            !isGameOver &&
+                            recentlyInsertedCard?.playerId === opp.id &&
+                            recentlyInsertedCard?.cardId === card.id
+                          }
                           isSelectable={
                             !isGameOver &&
                             activePlayer?.isHuman &&
@@ -1973,13 +2035,26 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             <div data-testid="drawn-card-area" className="flex flex-col items-center gap-0.5 sm:gap-1 shrink-0">
               <span className="text-[9px] sm:text-xs font-bold text-slate-500">引いたカード</span>
               {gameState.drawnCard ? (
-                <div className="scale-100 sm:scale-105 transition-transform animate-card-draw">
+                <div className="scale-100 sm:scale-105 transition-transform animate-card-draw flex flex-col items-center gap-1">
                   <CardComponent
-                    card={isGameOver ? gameState.drawnCard : maskCardForPlayer(gameState.drawnCard, true)}
-                    isOwner={true}
+                    card={
+                      isGameOver
+                        ? gameState.drawnCard
+                        : maskCardForPlayer(gameState.drawnCard, Boolean(activePlayer?.isHuman))
+                    }
+                    isOwner={Boolean(activePlayer?.isHuman)}
                     isRevealed={isGameOver}
                     size="sm"
+                    testId="drawn-card"
                   />
+                  {!activePlayer?.isHuman && (
+                    <span
+                      data-testid="cpu-drawn-card-badge"
+                      className="text-[8px] sm:text-[10px] font-bold px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-slate-800 text-white shadow-xs whitespace-nowrap"
+                    >
+                      {activePlayer?.name} が引いたカード [{gameState.drawnCard.color === 'black' ? '黒' : '白'}]
+                    </span>
+                  )}
                 </div>
               ) : (
                 <div className="w-10 h-16 sm:w-14 sm:h-22 lg:w-16 lg:h-24 rounded-lg sm:rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center text-[10px] sm:text-xs text-slate-400 font-semibold bg-slate-50/50">
