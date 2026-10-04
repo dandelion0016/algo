@@ -28,6 +28,13 @@ description: 要件定義FIX後の水平タスク分解および初期フェー�
   - `role:ops`: 監視アラート実装、CI/CD脆弱性スキャン、Runbook検証
   - `role:agentic`: LLM連携、Guardrails、分散トレース
 
+### トピックブランチ命名規約（Branch Naming Convention）
+Issue対応時は、タスクの性質に応じて以下のプレフィックスを必ず付与して作業ブランチを作成すること：
+- **`feature/<issue番号>-<概要>`**: **機能追加** (新機能・新コンポーネント・新ルール) [ADR起票 ＆ 設計書同期 必須]
+- **`fix/<issue番号>-<概要>`**: **軽微な修正** (バグ修正・UI崩れ・タイポ・軽微ロジック) [ADR不要, 内部修正は `[skip-doc-sync]` 許容]
+- **`chore/<issue番号>-<概要>`**: **その他** (ガバナンス・CI/CD・依存更新・リファクタ・環境整備) [ADR不要]
+※ 上記3プレフィックス以外（例: `test/*`, `update/*`, `bugfix/*` 等）は機械的に禁止（Git Native Hook ＆ CI Guard により拒絶）。
+
 ### 起票フォーマット例
 ```bash
 gh issue create --title "<領域名>: <具体的な作業内容>" \

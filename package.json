@@ -8,8 +8,10 @@
     "start": "next start",
     "lint": "echo Lint check passed",
     "test": "vitest run",
-    "test:ci": "npm ci --dry-run && vitest run && node scripts/verify-test-integrity.js",
+    "test:ci": "npm ci --dry-run && vitest run && node scripts/verify-test-integrity.js && node scripts/verify-doc-integrity.js",
     "test:integrity": "node scripts/verify-test-integrity.js",
+    "test:doc-integrity": "node scripts/verify-doc-integrity.js",
+    "test:all": "npm run test && npm run test:integrity && npm run test:doc-integrity",
     "test:e2e": "playwright test"
   },
   "dependencies": {

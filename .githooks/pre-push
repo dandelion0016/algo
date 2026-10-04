@@ -1,9 +1,11 @@
 #!/bin/sh
 
 # ==============================================================================
-# Git Native Pre-Push Hook: Guard Against Destructive Push Operations
+# Git Native Pre-Push Hook: Guard Against Destructive Push Operations, Branch Convention & Atomic Doc Sync
 # ==============================================================================
-# Prevents direct pushes to protected branches (main, master) and force pushes.
+# Prevents direct pushes to protected branches (main, master), validates topic branch prefixes,
+# protects branch deletion, and enforces Atomic Doc-Code Sync (src/ changes require docs/ changes
+# unless [skip-doc-sync] is present in commit log).
 # Enable in repository via:
 #   git config core.hooksPath .githooks
 # ==============================================================================
@@ -27,8 +29,69 @@ do
     # Check for direct push to main / master
     if [ "$remote_ref" = "refs/heads/main" ] || [ "$remote_ref" = "refs/heads/master" ]; then
         echo "❌ [GIT GUARD ERROR] Direct push to protected branch '$remote_ref' is strictly prohibited!" >&2
-        echo "💡 [GUIDANCE] Please create a topic branch (e.g., feature/issue-<number>-<description>) and open a Pull Request." >&2
+        echo "💡 [GUIDANCE] Topic branches must follow the branch naming convention:" >&2
+        echo "   - feature/* : 機能追加 (新機能・新コンポーネント・新ルール) [ADR起票・設計書同期 必須]" >&2
+        echo "   - fix/*     : 軽微な修正 (バグ修正・UI崩れ・タイポ・軽微ロジック) [ADR不要, [skip-doc-sync]許容]" >&2
+        echo "   - chore/*   : その他 (ガバナンス・CI/CD・依存更新・リファクタ・環境整備) [ADR不要]" >&2
         exit 1
+    fi
+
+    # Validate topic branch naming convention for refs/heads/*
+    case "$remote_ref" in
+        refs/heads/*)
+            branch_name="${remote_ref#refs/heads/}"
+            case "$branch_name" in
+                feature/*|fix/*|chore/*)
+                    # Valid branch prefix
+                    ;;
+                *)
+                    echo "❌ [GIT GUARD ERROR] ブランチ名 '$branch_name' は規約違反です！" >&2
+                    echo "💡 [GUIDANCE] トピックブランチは以下のプレフィックスのいずれかで作成してください:" >&2
+                    echo "   - feature/* : 機能追加 (新機能・新コンポーネント・新ルール) [ADR起票・設計書同期 必須]" >&2
+                    echo "   - fix/*     : 軽微な修正 (バグ修正・UI崩れ・タイポ・軽微ロジック) [ADR不要, [skip-doc-sync]許容]" >&2
+                    echo "   - chore/*   : その他 (ガバナンス・CI/CD・依存更新・リファクタ・環境整備) [ADR不要]" >&2
+                    echo "   ※ 上記以外のプレフィックス（例: test/*, update/*, bugfix/* 等）は機械的に禁止されています。" >&2
+                    exit 1
+                    ;;
+            esac
+            ;;
+        *)
+            # Tags or other refs are not subject to topic branch naming rules
+            ;;
+    esac
+
+    # ==========================================================================
+    # Atomic Doc-Code Diff Guard (Local Pre-Push)
+    # ==========================================================================
+    # If src/ has changes but docs/ has NO changes in the commits being pushed,
+    # require [skip-doc-sync] in commit logs, otherwise reject push.
+    # ==========================================================================
+    base_ref="origin/main"
+    if ! git rev-parse --verify "$base_ref" >/dev/null 2>&1; then
+        if git rev-parse --verify "main" >/dev/null 2>&1; then
+            base_ref="main"
+        else
+            base_ref=""
+        fi
+    fi
+
+    if [ -n "$base_ref" ]; then
+        push_sha="${local_sha:-HEAD}"
+        range="${base_ref}...${push_sha}"
+        src_changes=$(git diff --name-only "$range" -- 'src' 2>/dev/null || true)
+        docs_changes=$(git diff --name-only "$range" -- 'docs' 2>/dev/null || true)
+
+        if [ -n "$src_changes" ] && [ -z "$docs_changes" ]; then
+            commit_logs=$(git log "$range" --format=%B 2>/dev/null || true)
+            if echo "$commit_logs" | grep -Fq "[skip-doc-sync]"; then
+                echo "⚠️ [Atomic Doc-Code Diff Guard] [skip-doc-sync] を検知したため、docs同期チェックをスキップします。"
+            else
+                echo "❌ [Atomic Doc-Code Diff Guard] src/ にコード変更がありますが、docs/ 配下の設計書更新が含まれていません！" >&2
+                echo "💡 [GUIDANCE] コードと設計書のアトミック更新（Atomic Doc-Code Sync）を維持するため、docs/ 配下の該当設計書を更新してコミットしてください。" >&2
+                echo "💡 軽微なバグ修正で設計変更を伴わない場合は、コミットメッセージに [skip-doc-sync] を含めてください。" >&2
+                exit 1
+            fi
+        fi
     fi
 done
 

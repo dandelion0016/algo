@@ -19,7 +19,32 @@ description: 実装と設計書の乖離検知時のADR（Architecture Decision 
 
 ---
 
-## 2. ADR 起票・同期ワークフロー
+## 2. 変更の粒度基準（Macro-decision vs Micro-sync）
+
+開発のアジリティとドキュメント整合性を両立するため、変更の性質に応じて以下の通り責任境界を明確に区別する。
+
+| 区分 | 変更の性質・トリガー | 対応方法 | 承認要件 | 具体例 |
+| :--- | :--- | :--- | :--- | :--- |
+| **マクロ方針決定<br>(Macro-decision)** | システム全体の構造、データモデル、技術選定、セキュリティ境界、通信プロトコルに影響する不可逆・高影響な変更 | `docs/adr/` に ADR を起票 (`PROPOSED`) し、人間ゲートキーパーの承認後に設計書を追従更新 | **人間ゲートキーパー承認必須** | ・AWS DynamoDB Single Table への設計変更 (ADR-0002)<br>・RESTからWebSocketへの通信方式移行<br>・認証方式や暗号化アルゴリズムの刷新 |
+| **日常同期<br>(Micro-sync)** | 既存アーキテクチャの範囲内における日常的なUIコンポーネント追加、内部ヘルパーモジュール追加、永続化キー追加、監査イベント追加 | ADR起票は不要。**PR内でコード変更と `docs/design/` の設計書更新を同一PR内でアトミックに不可分更新** | PRレビュー時の通常承認<br>（`test:doc-integrity` パス必須） | ・新モーダル（`StatsModal`, `TutorialModal`, `ErrorBoundary`）の画面設計書への追記<br>・新サポートモジュール（`candidateAssist`, `session`）のAPI仕様書への追記<br>・新永続化キー（`algo_assist_enabled`）のスキーマ定義書への追記 |
+
+---
+
+## 3. ブランチ命名プレフィックス ＆ ADR要否マトリクス
+
+トピックブランチの種類ごとに、ADR起票の要否および設計書同期の義務を以下の通り機械的に強制する。
+
+| ブランチ名 | 用途 | ADR要否 (`docs/adr/`) | 設計書同期 (`docs/design/`) | CI / Git Hook ガード |
+| :--- | :--- | :---: | :---: | :--- |
+| **`feature/*`** | **機能追加** (新機能・新コンポーネント・新ルール) | **必須** (ADR起票・承認が前提) | **必須** (該当設計書を同時更新) | `origin/main...HEAD` に `docs/adr/` の差分がなければ CI で FAIL |
+| **`fix/*`** | **軽微な修正** (バグ修正・UI崩れ・タイポ・軽微ロジック) | **不要** (ADRなしでOK) | 設計変更を伴う場合は更新、内部バグ修正は `[skip-doc-sync]` 許容 | `src/` 変更時に `docs/` 更新または `[skip-doc-sync]` が必須 (ローカル Pre-Push Hook) |
+| **`chore/*`** | **その他** (ガバナンス・CI/CD・依存更新・リファクタ・環境整備) | **不要** (ADRなしでOK) | 必要に応じて更新（SRE/インフラ等） | ブランチプレフィックス準拠を検証 |
+
+※ 上記3つ以外のブランチ名（例: `test/*`, `update/*`, `bugfix/*` 等）は機械的に禁止されており、Git Native Pre-Push Hook および CI Branch Naming Guard によりブロックされる。
+
+---
+
+## 4. ADR 起票・同期ワークフロー
 
 ```text
 【1. 課題検知】
@@ -42,7 +67,7 @@ description: 実装と設計書の乖離検知時のADR（Architecture Decision 
 
 ---
 
-## 3. ADR テンプレートの遵守
+## 5. ADR テンプレートの遵守
 新しく起票する ADR は、必ず [`docs/adr/template.md`](file:///docs/adr/template.md) の構成に従い、以下を漏れなく記述すること：
 - 意思決定の背景と解決すべき課題
 - 比較検討した選択肢（メリット・デメリット）

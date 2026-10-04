@@ -29,6 +29,7 @@
 │  │ stateReconciliation (不整合修復) │ │  - deckTracker / soundManager   │  │
 │  │  - validateAndReconcileState │ │  - haptics / statsManager       │  │
 │  │  - problemDetails (RFC 7807) │ │  - achievementManager / version │  │
+│  │                              │ │  - auditLogger / session        │  │
 │  └──────────────────────────────┘ └─────────────────────────────────┘  │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │ 将来拡張 (ADR-0002)
@@ -300,6 +301,20 @@ function checkAttack(targetCard: Card, guessedNumber: number): boolean
     1. 環境変数 `NEXT_PUBLIC_APP_VERSION`（CI/CDビルド時にGitタグ/コミットハッシュから動的注入）
     2. `package.json` の `version`（プレフィックス `v` 付与）
     3. デフォルトフォールバック（`v0.1.0`）
+
+### 3.7 セキュリティ・監査ロガー (`src/lib/auditLogger.ts`)
+- **役割**: クライアントおよび対戦中の操作・セキュリティ違反・クラッシュイベントを構造化記録する監査ログモジュール。
+- **主要関数**:
+  - `recordAuditEvent(eventType, payload, userId)`: 監査イベントの生成とメモリ/永続ログへのバッファリング。
+  - `getAuditEvents()`: 蓄積された監査イベント配列の取得。
+  - `clearAuditEvents()`: 監査イベントの消去。
+  - `maskPayload(payload)`: PIIおよび機密情報のマスキング（`docs/design/security/audit-logging.md` 準拠）。
+
+### 3.8 ゲストセッション・ユーザー管理 (`src/lib/session.ts`)
+- **役割**: クライアント側ゲストユーザーID（`usr_xxxxxxxx`）の自動発行・Cookie/LocalStorage保存およびセッション初期化を担当。
+- **主要関数**:
+  - `generateUserId()`: 8文字の暗号学的ランダム文字列を含むユニークユーザーIDを生成。
+  - `initUserSession()`: 既存Cookie/LocalStorageからユーザーIDを取得、存在しない場合は新規採番して永続化。
 
 ---
 
