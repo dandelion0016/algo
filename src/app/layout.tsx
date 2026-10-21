@@ -1,10 +1,8 @@
 import type { Metadata, Viewport } from 'next';
+import { buildJsonLd, buildMetadata } from '@/lib/seo';
 import './globals.css';
 
-export const metadata: Metadata = {
-  title: 'アルゴ（algo）Web - 頭脳派推理カードゲーム',
-  description: '算数オリンピック・ピーター・フランクル氏ら開発の頭脳派推理ゲーム「アルゴ（algo）」をWeb上で遊べる対戦システムです。',
-};
+export const metadata: Metadata = buildMetadata();
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -20,9 +18,15 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const jsonLd = buildJsonLd();
+
   return (
     <html lang="ja">
       <body className="antialiased bg-algo-sand text-slate-800 min-h-screen">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         {children}
       </body>
     </html>

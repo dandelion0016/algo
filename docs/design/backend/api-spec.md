@@ -316,6 +316,16 @@ function checkAttack(targetCard: Card, guessedNumber: number): boolean
   - `generateUserId()`: 8文字の暗号学的ランダム文字列を含むユニークユーザーIDを生成。
   - `initUserSession()`: 既存Cookie/LocalStorageからユーザーIDを取得、存在しない場合は新規採番して永続化。
 
+### 3.9 SEO・構造化データ・メタデータ管理 (`src/lib/seo.ts`)
+- **役割**: 検索エンジン最適化（SEO）、OGP（Open Graph Protocol）、Twitter Card、Schema.org JSON-LD 構造化データ、およびクローラー制御用ベースURLの正規化を一元管理する純粋関数モジュール（ADR-0003 準拠）。
+- **主要関数**:
+  - `getSiteUrl(envUrl?: string): string`:
+    - 引数または環境変数 `NEXT_PUBLIC_SITE_URL` からサイトURLを取得し、前後の空白と末尾スラッシュを除去して正規化。未設定・不正URL時は `DEFAULT_SITE_URL` (`https://algo-web.example.com`) にフォールバック。
+  - `buildMetadata(envUrl?: string): Metadata`:
+    - Next.js Metadata API 準拠のメタデータ定義（`metadataBase`, `title`, `description`, `keywords`, `alternates.canonical`, `openGraph`, `twitter`, `icons`, `manifest`, `robots`）を生成。
+  - `buildJsonLd(envUrl?: string): JsonLdDocument`:
+    - Schema.org 準拠の `@graph`（`WebApplication` および `VideoGame`）構造化データを生成（2〜4人プレイ、無料 Offer、日本語対応等のリッチリザルト属性を定義）。
+
 ---
 
 ## 4. オンライン対戦用 WebSocket API仕様 (ADR-0002 準拠)
