@@ -1,10 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { PlayerCount, Difficulty, TimeLimit } from '../types/game';
 import { Users, Brain, Timer, BookOpen, ArrowRight, Sparkles, GraduationCap, Trophy, Volume2, VolumeX } from 'lucide-react';
 import { useUserSession } from '../hooks/useUserSession';
 import { getAppVersion } from '../lib/version';
+import { AdBanner } from './AdBanner';
+import { LegalContentModal, LegalTabType } from './LegalContentModal';
 
 export interface SetupModalProps {
   playerCount: PlayerCount;
@@ -93,6 +95,10 @@ export const SetupModal: React.FC<SetupModalProps> = ({
   const session = useUserSession();
   const displayUserId = propUserId || session.userId || 'usr_xxxxxxxx';
   const { players: rosterPlayers, deckCount } = getPlayerRoster(playerCount);
+  const [legalModalState, setLegalModalState] = useState<{
+    isOpen: boolean;
+    tab: LegalTabType;
+  }>({ isOpen: false, tab: 'guide' });
   const isSoundOn =
     isSoundEnabled !== undefined
       ? isSoundEnabled
@@ -391,11 +397,50 @@ export const SetupModal: React.FC<SetupModalProps> = ({
           </button>
         </div>
 
-        {/* バージョン表記 (下部控えめ表示) */}
-        <div data-testid="setup-bottom-version" className="pt-1 sm:pt-2 text-center text-[10px] text-slate-400 font-mono">
-          algo {getAppVersion()}
+        {/* AdSense広告バナー (環境変数 NEXT_PUBLIC_ADSENSE_CLIENT_ID 設定時のみ表示) */}
+        <AdBanner />
+
+        {/* バージョン表記 ＆ 攻略解説・プライバシーポリシー・利用規約リンク (下部1行コンパクト表示) */}
+        <div
+          data-testid="setup-bottom-version"
+          className="pt-1 sm:pt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 text-center text-[10px] text-slate-400"
+        >
+          <span className="font-mono">algo {getAppVersion()}</span>
+          <span aria-hidden="true">·</span>
+          <button
+            type="button"
+            data-testid="btn-open-legal-guide"
+            onClick={() => setLegalModalState({ isOpen: true, tab: 'guide' })}
+            className="hover:text-slate-600 underline underline-offset-2 transition-colors"
+          >
+            アルゴ解説・攻略
+          </button>
+          <span aria-hidden="true">·</span>
+          <button
+            type="button"
+            data-testid="btn-open-legal-privacy"
+            onClick={() => setLegalModalState({ isOpen: true, tab: 'privacy' })}
+            className="hover:text-slate-600 underline underline-offset-2 transition-colors"
+          >
+            プライバシーポリシー
+          </button>
+          <span aria-hidden="true">·</span>
+          <button
+            type="button"
+            data-testid="btn-open-legal-terms"
+            onClick={() => setLegalModalState({ isOpen: true, tab: 'terms' })}
+            className="hover:text-slate-600 underline underline-offset-2 transition-colors"
+          >
+            利用規約
+          </button>
         </div>
       </div>
+
+      <LegalContentModal
+        isOpen={legalModalState.isOpen}
+        initialTab={legalModalState.tab}
+        onClose={() => setLegalModalState((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

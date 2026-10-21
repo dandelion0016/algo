@@ -37,8 +37,21 @@ Parameters:
       - 'false'
     Description: 'Whether to create GitHub OIDC Provider (set to false if token.actions.githubusercontent.com already exists in this account)'
 
+  CustomDomainName:
+    Type: String
+    Default: ''
+    Description: 'Optional custom domain name (e.g., algo-game.jp or www.algo-game.jp)'
+
+  AcmCertificateArn:
+    Type: String
+    Default: ''
+    Description: 'Optional ACM Certificate ARN in us-east-1 for custom domain'
+
 Conditions:
   ShouldCreateOIDCProvider: !Equals [!Ref CreateOIDCProvider, 'true']
+  HasCustomDomain: !And
+    - !Not [!Equals [!Ref CustomDomainName, '']]
+    - !Not [!Equals [!Ref AcmCertificateArn, '']]
 
 Resources:
   # =========================================================================
@@ -138,6 +151,10 @@ Resources:
         DefaultRootObject: 'index.html'
         HttpVersion: 'http2and3'
         PriceClass: 'PriceClass_100' # Lowest cost price class (US, Europe, Japan edges)
+        Aliases: !If
+          - HasCustomDomain
+          - - !Ref CustomDomainName
+          - !Ref 'AWS::NoValue'
         Origins:
           - Id: S3Origin
             DomainName: !GetAtt HostingBucket.RegionalDomainName
@@ -167,8 +184,12 @@ Resources:
             ResponseCode: 200
             ResponsePagePath: '/index.html'
             ErrorCachingMinTTL: 10
-        ViewerCertificate:
-          CloudFrontDefaultCertificate: true
+        ViewerCertificate: !If
+          - HasCustomDomain
+          - AcmCertificateArn: !Ref AcmCertificateArn
+            SslSupportMethod: 'sni-only'
+            MinimumProtocolVersion: 'TLSv1.2_2021'
+          - CloudFrontDefaultCertificate: true
       Tags:
         - Key: Project
           Value: !Ref ProjectName
