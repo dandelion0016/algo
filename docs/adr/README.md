@@ -56,3 +56,4 @@
 | :--- | :--- | :--- | :--- | :--- |
 | [0001](0001-record-architecture-decisions.md) | アーキテクチャ決定記録（ADR）の採用と設計書追従同期プロトコル | ACCEPTED | 2026-09-28 | 全設計書 (`docs/design/`) |
 | [0002](0002-online-multiplayer-architecture.md) | オンライン対戦機能のアーキテクチャ選定と処理方式（サーバー権威型 WebSocket 構成 ＆ プレイヤー識別・ニックネーム表示規約） | PROPOSED | - | API, DB, フロント, インフラ, セキュリティ, SRE |
+| [0003](0003-seo-metadata-and-structured-data.md) | メタデータ・OGP・JSON-LD構造化データ・クローラー制御によるSEO対策の実装 | ACCEPTED | 2026-10-21 | API (`api-spec.md`), フロント (`screen-specs.md`) |

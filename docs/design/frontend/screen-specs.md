@@ -380,3 +380,29 @@
 | **PC・デスクトップ**<br>(`lg`: 1025px以上) | 横並び 3カラムグリッド<br>（左: 相手手札・中央テーブル・自手札、右: 残弾トラッカー ＆ 対戦ログ） | `md` (64×104px)<br>自手札・中央カード | 中央ポップアップ（最大幅 `max-w-md` 〜 `max-w-2xl`） |
 | **タブレット**<br>(`md`〜`lg`: 641px〜1024px) | 1カラム垂直スタック<br>上部: 相手手札、中央: テーブル、下部: 自手札、右または下部: ログ | `sm`〜`md`<br>（画面幅に応じてフォント縮小） | 中央ポップアップ（画面マージン保持） |
 | **モバイル・スマートフォン**<br>(〜640px) | 1カラムコンパクトスタック<br>ヘッダーは `☰` メニューに格納、右下にFAB（トラッカー・ヒント）配置 | `sm` (40×64px)<br>タップしやすい最小高さを確保 | 全面・下部シートライク（`p-4` パディング、画面幅95%） |
+
+---
+
+## 5. SEO・OGP・JSON-LD構造化データ・クローラー制御仕様 (ADR-0003)
+
+### 5.1 メタデータ・OGP・Twitter Card (`src/lib/seo.ts`, `src/app/layout.tsx`)
+- **タイトル**:
+  - デフォルト: `アルゴ（algo）Web - 頭脳派推理カードゲーム | 無料ブラウザCPU対戦`
+  - テンプレート: `%s | アルゴ（algo）Web`
+- **ディスクリプション**:
+  - `算数オリンピック委員会・ピーター・フランクル氏らが開発した頭脳派推理カードゲーム「アルゴ（algo）」をWebブラウザで無料プレイ！2〜4人対戦、3段階の思考AI（初級・中級・上級）、残弾トラッカーや戦績システムを搭載した本格論理パズルゲームです。`
+- **OGP / Twitter Card**:
+  - `og:type`: `website` / `og:locale`: `ja_JP`
+  - `og:image`: `/hero-banner.jpg` (1200×630)
+  - `twitter:card`: `summary_large_image`
+  - アイコン / Apple Touch Icon: `/app-icon.jpg`
+
+### 5.2 JSON-LD 構造化データ (`buildJsonLd`)
+- `src/app/layout.tsx` の `<body>` 内に `<script type="application/ld+json">` として出力。
+- Schema.org の `@graph` に `WebApplication` と `VideoGame` を定義（カテゴリ `GameApplication`、プレイ人数 `2〜4人`、価格 `0 JPY`）。
+
+### 5.3 クローラー制御 ＆ PWAマニフェスト (`robots.ts`, `sitemap.ts`, `manifest.ts`)
+- Next.js `output: 'export'`（静的エクスポート）に対応するため、すべて `export const dynamic = 'force-static'` を指定：
+  - `src/app/robots.ts` (`/robots.txt`): 全クローラー許可（`Allow: /`）および `sitemap.xml` の絶対URLを指定。
+  - `src/app/sitemap.ts` (`/sitemap.xml`): トップページURL、`changeFrequency: 'weekly'`、`priority: 1.0` を出力。
+  - `src/app/manifest.ts` (`/manifest.webmanifest`): `standalone` 表示、テーマカラー `#fafaf7`、アイコン `/app-icon.jpg` (512×512) を定義。
