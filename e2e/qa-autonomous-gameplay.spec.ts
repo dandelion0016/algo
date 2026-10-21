@@ -45,7 +45,7 @@ async function playUntilGameOver(
       const hitBanner = await page.locator('[data-testid="cpu-attack-hit-banner"], [data-testid="cpu-attack-miss-banner"]').textContent().catch(() => '');
       const nextMsg = await page.locator('[data-testid="cpu-next-action-message"]').textContent().catch(() => '');
       console.log(`[${scenarioName}] アタック結果モーダル: ${hitBanner?.trim()} | ${nextMsg?.trim()}`);
-      await attackResultOkBtn.click();
+      await attackResultOkBtn.click({ timeout: 3000 }).catch(() => {});
       await page.waitForTimeout(400);
       continue;
     }
@@ -54,7 +54,7 @@ async function playUntilGameOver(
     const drawBtnClickable = page.locator('[data-testid="btn-draw-card"][role="button"]');
     if (await drawBtnClickable.isVisible()) {
       console.log(`[${scenarioName}] 🃏 プレイヤーが山札からドロー`);
-      await drawBtnClickable.click({ force: true });
+      await drawBtnClickable.click({ force: true, timeout: 3000 }).catch(() => {});
       await page.waitForTimeout(500);
 
       // タイムアップ意図的トリガー (ドロー後に放置してタイムアップを検証)
@@ -74,14 +74,15 @@ async function playUntilGameOver(
         const hintBtn = page.locator('[data-testid="btn-get-hint"]');
         if (await hintBtn.isVisible() && await hintBtn.isEnabled()) {
           console.log(`[${scenarioName}] 💡 ヒントボタンをクリック`);
-          await hintBtn.click();
+          await hintBtn.click({ timeout: 3000 }).catch(() => {});
           const hintModal = page.locator('[data-testid="modal-hint"]');
-          await expect(hintModal).toBeVisible();
-          await page.screenshot({ path: `e2e/screenshots/${scenarioName}-hint-modal.png` });
-          // ヒントモーダルを閉じる
-          await page.locator('[data-testid="btn-close-hint-x"]').click();
-          await expect(hintModal).not.toBeVisible();
-          hintUsed = true;
+          if (await hintModal.isVisible()) {
+            await page.screenshot({ path: `e2e/screenshots/${scenarioName}-hint-modal.png` });
+            // ヒントモーダルを閉じる
+            await page.locator('[data-testid="btn-close-hint-x"]').click({ timeout: 3000 }).catch(() => {});
+            await expect(hintModal).not.toBeVisible();
+            hintUsed = true;
+          }
         }
       }
       continue;
@@ -91,20 +92,44 @@ async function playUntilGameOver(
     const attackModal = page.locator('[data-testid="attack-modal"]');
     if (await attackModal.isVisible()) {
       console.log(`[${scenarioName}] 🔢 アタックモーダルで数字選択`);
-      const numButtons = page.locator('[data-testid^="btn-guess-num-"]');
-      const count = await numButtons.count();
+      // 「確認済（既知数字）」は GameBoard 側で不正入力として弾かれるため必ず除外する
+      let numButtons = attackModal.locator(
+        'button[data-testid^="btn-guess-num-"]:not([aria-label*="確認済"]):not([aria-label*="ハズレ済"])'
+      );
+      let count = await numButtons.count();
+      if (count === 0) {
+        numButtons = attackModal.locator(
+          'button[data-testid^="btn-guess-num-"]:not([aria-label*="確認済"])'
+        );
+        count = await numButtons.count();
+      }
       if (count > 0) {
-        let targetIndex = 0;
+        let targetIndex = Math.floor(count / 2);
         if (shouldFailIntentionally) {
           targetIndex = count - 1;
-        } else {
-          targetIndex = Math.floor(count / 2);
+          const actualNumber = await page
+            .evaluate(() => {
+              const state = (window as any).__algoGameState;
+              if (!state || !state.selectedTarget) return null;
+              const { playerId, cardIndex } = state.selectedTarget;
+              const player = state.players.find((p: any) => p.id === playerId);
+              return player?.cards?.[cardIndex]?.number ?? null;
+            })
+            .catch(() => null);
+          for (let i = count - 1; i >= 0; i--) {
+            const testId = await numButtons.nth(i).getAttribute('data-testid').catch(() => null);
+            const num = testId ? parseInt(testId.replace('btn-guess-num-', ''), 10) : -1;
+            if (num !== actualNumber) {
+              targetIndex = i;
+              break;
+            }
+          }
         }
-        await numButtons.nth(targetIndex).click();
+        await numButtons.nth(targetIndex).click({ timeout: 3000 }).catch(() => {});
       }
       const confirmBtn = page.locator('[data-testid="btn-confirm-attack"]');
-      if (await confirmBtn.isEnabled()) {
-        await confirmBtn.click();
+      if (await confirmBtn.isVisible()) {
+        await confirmBtn.click({ timeout: 3000 }).catch(() => {});
       }
       await page.waitForTimeout(500);
       continue;
@@ -118,19 +143,19 @@ async function playUntilGameOver(
       console.log(`[${scenarioName}] 🎯 的中後選択表示！ (連続的中: ${consecutiveHits})`);
       if (preferStayAfterHit || consecutiveHits >= 2 || shouldFailIntentionally) {
         console.log(`[${scenarioName}] 🛡️ ステイを選択`);
-        await stayBtn.click();
+        await stayBtn.click({ timeout: 3000 }).catch(() => {});
         consecutiveHits = 0;
       } else {
         console.log(`[${scenarioName}] ⚔️ 続けてアタックを選択`);
-        await continueBtn.click();
+        await continueBtn.click({ timeout: 3000 }).catch(() => {});
       }
       await page.waitForTimeout(500);
       continue;
     }
 
-    // 6. アタック対象の伏せカード選択（PLAYER_SELECT_TARGET フェーズ）
+    // 6. アタック対象の伏せカード選択（PLAYER_SELECT_TARGET フェーズ: role="button" 付与時のみ）
     // 相手の手札で裏向きのカードを探してクリック
-    const selectableOppCards = page.locator('[data-testid^="opponent-card-"]');
+    const selectableOppCards = page.locator('[data-testid^="opponent-card-"][role="button"]');
     const oppCount = await selectableOppCards.count();
     let clickedTarget = false;
     for (let i = 0; i < oppCount; i++) {

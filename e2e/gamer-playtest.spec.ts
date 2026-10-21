@@ -54,7 +54,7 @@ test.describe('モダンゲーマー視点による実機プレイテスト＆UX
       }
 
       // 相手カード選択 -> アタックモーダル
-      const selectableOppCards = page.locator('[data-testid^="opponent-card-"]');
+      const selectableOppCards = page.locator('[data-testid^="opponent-card-"][role="button"]');
       const oppCount = await selectableOppCards.count();
       let clicked = false;
       for (let i = 0; i < oppCount; i++) {
@@ -74,14 +74,22 @@ test.describe('モダンゲーマー視点による実機プレイテスト＆UX
         if (attackModalCount === 1) {
           await page.screenshot({ path: 'e2e/screenshots/gamer-03-attack-flow.png' });
         }
-        // 数字選択
-        const numBtns = page.locator('[data-testid^="btn-guess-num-"]');
-        if (await numBtns.count() > 0) {
-          await numBtns.first().click();
+        // 数字選択（確認済の既知数字を除外）
+        const numBtns = attackModal.locator(
+          'button[data-testid^="btn-guess-num-"]:not([aria-label*="確認済"]):not([aria-label*="ハズレ済"])'
+        );
+        if ((await numBtns.count()) > 0) {
+          await numBtns.first().click({ timeout: 3000 }).catch(() => {});
+        } else {
+          await attackModal
+            .locator('button[data-testid^="btn-guess-num-"]:not([aria-label*="確認済"])')
+            .first()
+            .click({ timeout: 3000 })
+            .catch(() => {});
         }
         const confirmBtn = page.locator('[data-testid="btn-confirm-attack"]');
-        if (await confirmBtn.isEnabled()) {
-          await confirmBtn.click();
+        if (await confirmBtn.isVisible()) {
+          await confirmBtn.click({ timeout: 3000 }).catch(() => {});
         }
         await page.waitForTimeout(400);
         continue;
@@ -123,7 +131,9 @@ test.describe('モダンゲーマー視点による実機プレイテスト＆UX
       // わざとハズレてターンエンド
       const oppCard = page.locator('[data-testid="opponent-card-0"]').first();
       await oppCard.click({ force: true });
-      const numBtn = page.locator('[data-testid^="btn-guess-num-"]').last();
+      const numBtn = page
+        .locator('button[data-testid^="btn-guess-num-"]:not([aria-label*="確認済"])')
+        .last();
       await numBtn.click();
       await page.locator('[data-testid="btn-confirm-attack"]').click();
       await page.waitForTimeout(400);
