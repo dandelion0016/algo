@@ -371,6 +371,27 @@
   - 監査ロガー（`auditLogger`）と連携し、`CLIENT_CRASH` 監査イベント（エラー名、スタック、URL、ユーザーID）を自動送信。
   - 「ページを再読み込みする」ボタンによる安全なセッション復旧機能。
 
+### 3.14 `SCR-018: LegalContentModal.tsx` ＆ `AdBanner.tsx` (ADR-0004)
+- **役割**: Google AdSense 審査・収益化対応のための広告枠コンポーネント（`AdBanner`）および攻略解説・プライバシーポリシー・利用規約モーダル（`LegalContentModal`）。
+- **Props 仕様**:
+  ```typescript
+  export interface AdBannerProps {
+    slot?: string;
+    format?: 'auto' | 'fluid' | 'rectangle' | 'horizontal';
+    className?: string;
+    clientId?: string;
+    showPlaceholder?: boolean;
+  }
+  export interface LegalContentModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    initialTab?: 'guide' | 'privacy' | 'terms';
+  }
+  ```
+- **UI機能**:
+  - `AdBanner`: `NEXT_PUBLIC_ADSENSE_CLIENT_ID` が有効な場合は「スポンサーリンク」ラベルと `<ins class="adsbygoogle">` を描画し、未設定時は `null`（高さ0）を返却してモバイル1画面完結レイアウトを保護。
+  - `LegalContentModal`: 「アルゴ解説・攻略」「プライバシーポリシー」「利用規約・免責事項」の3タブ構成。Escapeキー閉鎖およびアクセシブルな `role="dialog"` / `role="tablist"` を提供。
+
 ---
 
 ## 4. レスポンシブ ＆ アクセシビリティ設計

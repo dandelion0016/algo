@@ -326,6 +326,14 @@ function checkAttack(targetCard: Card, guessedNumber: number): boolean
   - `buildJsonLd(envUrl?: string): JsonLdDocument`:
     - Schema.org 準拠の `@graph`（`WebApplication` および `VideoGame`）構造化データを生成（2〜4人プレイ、無料 Offer、日本語対応等のリッチリザルト属性を定義）。
 
+### 3.10 Google AdSense 広告設定管理 (`src/lib/adsense.ts`)
+- **役割**: Google AdSense クライアントID（`ca-pub-xxxxxxxxxxxxxxxx`）の形式検証および環境変数からの広告設定取得を管理する純粋関数モジュール（ADR-0004 準拠）。
+- **主要関数**:
+  - `isValidAdSenseClientId(clientId?: string): boolean`:
+    - `^ca-pub-\d{10,20}$` の正規表現に一致するかを検証し、未設定・不正な文字列を遮断。
+  - `getAdSenseConfig(env?: { clientId?: string; slotSetup?: string }): AdSenseConfig`:
+    - `NEXT_PUBLIC_ADSENSE_CLIENT_ID` および `NEXT_PUBLIC_ADSENSE_SLOT_SETUP` から `clientId`, `slotSetup`, `enabled`, `scriptSrc` を安全に構築して返却。
+
 ---
 
 ## 4. オンライン対戦用 WebSocket API仕様 (ADR-0002 準拠)
