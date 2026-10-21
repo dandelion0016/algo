@@ -60,7 +60,9 @@ test.describe('モダンゲーマー視点 実機ディーププレイテスト�
     // 通常プレイでわざと敗北してリザルトモーダルを出す
     const oppCard = page.locator('[data-testid="opponent-card-0"]').first();
     await oppCard.click({ force: true });
-    const numBtn = page.locator('[data-testid^="btn-guess-num-"]').last();
+    const numBtn = page
+      .locator('button[data-testid^="btn-guess-num-"]:not([aria-label*="確認済"])')
+      .last();
     await numBtn.click();
     await page.locator('[data-testid="btn-confirm-attack"]').click();
     await page.waitForTimeout(400);

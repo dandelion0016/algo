@@ -63,10 +63,17 @@ test.describe('アルゴ（algo / NumLogic）QA自律ゲームプレイ実機検
           await page.screenshot({ path: 'e2e/screenshots/part2-mobile-attack-modal.png' });
           attackModalCaptured = true;
         }
-        const numButtons = page.locator('[data-testid^="btn-guess-num-"]');
+        const numButtons = attackModal.locator(
+          'button[data-testid^="btn-guess-num-"]:not([aria-label*="確認済"]):not([aria-label*="ハズレ済"])'
+        );
         const count = await numButtons.count();
         if (count > 0) {
           await numButtons.nth(0).click();
+        } else {
+          await attackModal
+            .locator('button[data-testid^="btn-guess-num-"]:not([aria-label*="確認済"])')
+            .first()
+            .click();
         }
         const confirmBtn = page.locator('[data-testid="btn-confirm-attack"]');
         if (await confirmBtn.isEnabled()) {
@@ -83,7 +90,7 @@ test.describe('アルゴ（algo / NumLogic）QA自律ゲームプレイ実機検
         continue;
       }
 
-      const selectableOppCards = page.locator('[data-testid^="opponent-card-"]');
+      const selectableOppCards = page.locator('[data-testid^="opponent-card-"][role="button"]');
       const oppCount = await selectableOppCards.count();
       let clicked = false;
       for (let i = 0; i < oppCount; i++) {
@@ -162,8 +169,32 @@ test.describe('アルゴ（algo / NumLogic）QA自律ゲームプレイ実機検
     await expect(attackModal).toBeVisible();
     await page.screenshot({ path: 'e2e/screenshots/part2-deck-zero-attack.png' });
 
-    // わざとハズレを選択
-    await page.locator('[data-testid^="btn-guess-num-"]').last().click();
+    // わざとハズレ（確認済ではなく、かつ正解数字でもない数字）を選択
+    const actualNumber = await page.evaluate(() => {
+      const state = (window as any).__algoGameState;
+      if (!state || !state.selectedTarget) return null;
+      const { playerId, cardIndex } = state.selectedTarget;
+      const player = state.players.find((p: any) => p.id === playerId);
+      return player?.cards?.[cardIndex]?.number ?? null;
+    });
+    const selectableButtons = attackModal.locator(
+      'button[data-testid^="btn-guess-num-"]:not([aria-label*="確認済"])'
+    );
+    const selectableCount = await selectableButtons.count();
+    let clickedWrong = false;
+    for (let i = selectableCount - 1; i >= 0; i--) {
+      const btn = selectableButtons.nth(i);
+      const testId = await btn.getAttribute('data-testid');
+      const num = testId ? parseInt(testId.replace('btn-guess-num-', ''), 10) : -1;
+      if (num !== actualNumber) {
+        await btn.click();
+        clickedWrong = true;
+        break;
+      }
+    }
+    if (!clickedWrong && selectableCount > 0) {
+      await selectableButtons.last().click();
+    }
     await page.click('[data-testid="btn-confirm-attack"]');
     await page.waitForTimeout(500);
 
@@ -263,7 +294,7 @@ test.describe('アルゴ（algo / NumLogic）QA自律ゲームプレイ実機検
       }
 
       // 未オープンの相手カードをクリック
-      const selectableOppCards = page.locator('[data-testid^="opponent-card-"]');
+      const selectableOppCards = page.locator('[data-testid^="opponent-card-"][role="button"]');
       const oppCount = await selectableOppCards.count();
       let clicked = false;
       for (let i = 0; i < oppCount; i++) {
