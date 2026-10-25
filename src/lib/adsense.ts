@@ -5,6 +5,8 @@ export interface AdSenseConfig {
   scriptSrc: string | null;
 }
 
+export const DEFAULT_ADSENSE_CLIENT_ID = 'ca-pub-3337160908225388';
+
 const ADSENSE_CLIENT_ID_PATTERN = /^ca-pub-\d{10,20}$/;
 
 /**
@@ -17,16 +19,18 @@ export function isValidAdSenseClientId(clientId?: string): boolean {
 
 /**
  * 環境変数または引数から Google AdSense 設定を安全に取得する
+ * 引数 env?.clientId または process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID が未指定・空文字の場合は DEFAULT_ADSENSE_CLIENT_ID にフォールバックする
  */
 export function getAdSenseConfig(env?: {
   clientId?: string;
   slotSetup?: string;
 }): AdSenseConfig {
-  const rawClientId = (
-    env?.clientId ??
-    process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID ??
-    ''
-  ).trim();
+  const specifiedClientId = env?.clientId ?? process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID;
+  const rawClientId =
+    specifiedClientId !== undefined && specifiedClientId.trim() !== ''
+      ? specifiedClientId.trim()
+      : DEFAULT_ADSENSE_CLIENT_ID;
+
   const rawSlotSetup = (
     env?.slotSetup ??
     process.env.NEXT_PUBLIC_ADSENSE_SLOT_SETUP ??

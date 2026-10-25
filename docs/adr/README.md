@@ -60,3 +60,4 @@
 | [0004](0004-custom-domain-and-adsense-monetization.md) | Xserver独自ドメイン（.jp）連携IaC対応およびGoogle AdSense広告枠・審査対策の実装 | ACCEPTED | 2026-10-21 | API, フロント (`screen-flow.md`, `screen-specs.md`), インフラ (`architecture.md`, `iac-spec.md`) |
 | [0005](0005-route53-and-subdomain-architecture.md) | Route 53 パブリックホストゾーン（puzzlecabin.jp）およびサブドメイン（coda.puzzlecabin.jp）の IaC 一元統合アーキテクチャ | ACCEPTED | 2026-10-25 | インフラ (`architecture.md`, `iac-spec.md`), 手順書 (`route53-puzzlecabin-setup-guide.md`) |
 | [0006](0006-google-verification-and-analytics.md) | Google Site Verification メタタグ設定および GA4 測定タグ注入基盤の実装 | ACCEPTED | 2026-10-25 | API (`api-spec.md`), フロント (`screen-specs.md`) |
+| [0007](0007-google-adsense-publisher-integration.md) | Google AdSense パブリッシャー ID (ca-pub-3337160908225388) の本番反映および ads.txt 更新 | ACCEPTED | 2026-10-25 | API (`api-spec.md`), フロント (`screen-specs.md`) |
