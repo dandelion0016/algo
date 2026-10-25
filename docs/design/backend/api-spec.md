@@ -330,12 +330,16 @@ function checkAttack(targetCard: Card, guessedNumber: number): boolean
   - `src/app/layout.tsx` において環境変数 `NEXT_PUBLIC_GA_MEASUREMENT_ID`（形式: `G-[A-Za-z0-9]+`）が指定されている場合、Google Analytics 4（`gtag.js`）測定スクリプトを動的注入。未設定時は一切のスクリプトを出力せず安全にバイパスする。
 
 ### 3.10 Google AdSense 広告設定管理 (`src/lib/adsense.ts`)
-- **役割**: Google AdSense クライアントID（`ca-pub-xxxxxxxxxxxxxxxx`）の形式検証および環境変数からの広告設定取得を管理する純粋関数モジュール（ADR-0004 準拠）。
-- **主要関数**:
+- **役割**: Google AdSense クライアントID（`ca-pub-xxxxxxxxxxxxxxxx`）の形式検証および環境変数・定数フォールバックからの広告設定取得を管理する純粋関数モジュール（ADR-0004, ADR-0007 準拠）。
+- **主要定数・関数**:
+  - `DEFAULT_ADSENSE_CLIENT_ID`: 正式な本番サイト運営者・パブリッシャーID（`ca-pub-3337160908225388`）。
   - `isValidAdSenseClientId(clientId?: string): boolean`:
     - `^ca-pub-\d{10,20}$` の正規表現に一致するかを検証し、未設定・不正な文字列を遮断。
   - `getAdSenseConfig(env?: { clientId?: string; slotSetup?: string }): AdSenseConfig`:
-    - `NEXT_PUBLIC_ADSENSE_CLIENT_ID` および `NEXT_PUBLIC_ADSENSE_SLOT_SETUP` から `clientId`, `slotSetup`, `enabled`, `scriptSrc` を安全に構築して返却。
+    - `env?.clientId` または `NEXT_PUBLIC_ADSENSE_CLIENT_ID` が空・未設定の場合は `DEFAULT_ADSENSE_CLIENT_ID` にフォールバックして採用。
+    - `clientId`, `slotSetup`, `enabled`, `scriptSrc`（`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3337160908225388` 等）を安全に構築して返却。
+- **公開認証ファイル (`public/ads.txt`)**:
+  - `google.com, pub-3337160908225388, DIRECT, f08c47fec0942fa0` をルート直下に配置し、認定デジタル販売者（Authorized Digital Sellers）としての所有権を証明。
 
 ---
 

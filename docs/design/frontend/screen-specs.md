@@ -371,7 +371,7 @@
   - 監査ロガー（`auditLogger`）と連携し、`CLIENT_CRASH` 監査イベント（エラー名、スタック、URL、ユーザーID）を自動送信。
   - 「ページを再読み込みする」ボタンによる安全なセッション復旧機能。
 
-### 3.14 `SCR-018: LegalContentModal.tsx` ＆ `AdBanner.tsx` (ADR-0004)
+### 3.14 `SCR-018: LegalContentModal.tsx` ＆ `AdBanner.tsx` (ADR-0004, ADR-0007)
 - **役割**: Google AdSense 審査・収益化対応のための広告枠コンポーネント（`AdBanner`）および攻略解説・プライバシーポリシー・利用規約モーダル（`LegalContentModal`）。
 - **Props 仕様**:
   ```typescript
@@ -389,8 +389,11 @@
   }
   ```
 - **UI機能**:
-  - `AdBanner`: `NEXT_PUBLIC_ADSENSE_CLIENT_ID` が有効な場合は「スポンサーリンク」ラベルと `<ins class="adsbygoogle">` を描画し、未設定時は `null`（高さ0）を返却してモバイル1画面完結レイアウトを保護。
-  - `LegalContentModal`: 「アルゴ解説・攻略」「プライバシーポリシー」「利用規約・免責事項」の3タブ構成。Escapeキー閉鎖およびアクセシブルな `role="dialog"` / `role="tablist"` を提供。
+  - `AdBanner`: パブリッシャーID（デフォルト: `ca-pub-3337160908225388` または `NEXT_PUBLIC_ADSENSE_CLIENT_ID`）が有効な場合は「スポンサーリンク」ラベルと `<ins class="adsbygoogle">` を描画。無効・不正なID指定時は `null`（高さ0、または `showPlaceholder=true` 時はプレースホルダー）を返却してレイアウトを保護。
+  - `LegalContentModal`: 「アルゴ解説・攻略」「プライバシーポリシー（CookieおよびAdSenseパーソナライズ広告利用条項）」「利用規約・免責事項」の3タブ構成。Escapeキー閉鎖およびアクセシブルな `role="dialog"` / `role="tablist"` を提供。
+- **AdSense スクリプト ＆ ads.txt 設定 (ADR-0007)**:
+  - `src/app/layout.tsx` において、`getAdSenseConfig()` 経由でパブリッシャーID（`ca-pub-3337160908225388`）に紐づく AdSense スクリプト（`<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3337160908225388" crossOrigin="anonymous" />`）を自動出力。
+  - ルート直下の `public/ads.txt` に認定デジタル販売者レコード（`google.com, pub-3337160908225388, DIRECT, f08c47fec0942fa0`）を配置し、クローラー巡回時の正式所有権を保証。
 
 ---
 

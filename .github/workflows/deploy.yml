@@ -72,7 +72,7 @@ jobs:
           NEXT_PUBLIC_APP_VERSION: ${{ env.APP_VERSION }}
           # Production domain: https://coda.puzzlecabin.jp (set in GitHub Repo Variables: NEXT_PUBLIC_SITE_URL)
           NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL || 'https://coda.puzzlecabin.jp' }}
-          NEXT_PUBLIC_ADSENSE_CLIENT_ID: ${{ vars.NEXT_PUBLIC_ADSENSE_CLIENT_ID || '' }}
+          NEXT_PUBLIC_ADSENSE_CLIENT_ID: ${{ vars.NEXT_PUBLIC_ADSENSE_CLIENT_ID || 'ca-pub-3337160908225388' }}
           NEXT_PUBLIC_ADSENSE_SLOT_SETUP: ${{ vars.NEXT_PUBLIC_ADSENSE_SLOT_SETUP || '' }}
           NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ vars.NEXT_PUBLIC_GA_MEASUREMENT_ID || '' }}
 
