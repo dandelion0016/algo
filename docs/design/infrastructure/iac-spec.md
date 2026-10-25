@@ -43,17 +43,24 @@ infrastructure/
 | `HostingBucket` | `AWS::S3::Bucket` | `algo-prod-apne1-static-hosting-<hash>` | パブリックアクセス完全ブロック、SSE-S3暗号化、バージョニング有効、ライフサイクルルール（旧版30日削除） |
 | `HostingBucketPolicy` | `AWS::S3::BucketPolicy` | - | CloudFront OACからの `s3:GetObject` のみ許可 |
 | `CloudFrontOAC` | `AWS::CloudFront::OriginAccessControl` | `algo-prod-oac` | S3オリジン向けSigV4署名制御（OriginAccessControlConfig） |
-| `CloudFrontDistribution` | `AWS::CloudFront::Distribution` | - | 初期は標準ドメイン利用（`ViewerCertificate: { CloudFrontDefaultCertificate: true }`）、`CustomDomainName` ＆ `AcmCertificateArn` 指定時は `HasCustomDomain` 条件により自動的に `Aliases` と ACM SSL証明書（`sni-only`, `TLSv1.2_2021`）へ切り替え。OAC連携、HTTPS強制、HTTP/2+HTTP/3、Brotli圧縮、SPA用403/404エラーページ対応。 |
+| `CloudFrontDistribution` | `AWS::CloudFront::Distribution` | - | 初期は標準ドメイン利用（`ViewerCertificate: { CloudFrontDefaultCertificate: true }`）、ACM証明書（`AcmCertificateArn`）指定時は `HasCustomDomain` 条件により自動的に `Aliases`（デフォルト: `coda.puzzlecabin.jp`）と ACM SSL証明書（`sni-only`, `TLSv1.2_2021`）へ切り替え。OAC連携、HTTPS強制、HTTP/2+HTTP/3、Brotli圧縮、SPA用403/404エラーページ対応。 |
 | `ResponseHeadersPolicy` | `AWS::CloudFront::ResponseHeadersPolicy` | `algo-prod-security-headers` | HSTS, X-Frame-Options: DENY, X-Content-Type-Options: nosniff, CSP |
 
-### 2.2 ゼロ課金ガードレイヤー (`zero-cost-guard.yaml`)
+### 2.2 ドメイン ＆ DNS名前解決レイヤー (`main.yaml` / Route 53)
+| 論理ID | AWSリソースタイプ | リソース名（本番例） | 設計概要 |
+| :--- | :--- | :--- | :--- |
+| `Route53HostedZone` | `AWS::Route53::HostedZone` | `puzzlecabin.jp.` | Apexドメイン `puzzlecabin.jp` のパブリックホストゾーン。Xserverドメインへ委任する4本のNSレコードを払い出し、IaCでDNSを一元管理。Condition: `ShouldCreateHostedZone` |
+| `CloudFrontDnsRecordA` | `AWS::Route53::RecordSet` | `coda.puzzlecabin.jp` | サブドメイン `coda.puzzlecabin.jp` から CloudFront ディストリビューション宛ての IPv4 (A) エイリアスレコード。CloudFront固定HostedZoneId `Z2FDTNDATAQYW2` をターゲット指定。Condition: `ShouldCreateDnsRecords` |
+| `CloudFrontDnsRecordAAAA` | `AWS::Route53::RecordSet` | `coda.puzzlecabin.jp` | 同上、IPv6 (AAAA) エイリアスレコード。デュアルスタック対応。Condition: `ShouldCreateDnsRecords` |
+
+### 2.3 ゼロ課金ガードレイヤー (`zero-cost-guard.yaml`)
 | 論理ID | AWSリソースタイプ | リソース名（本番例） | 設計概要 |
 | :--- | :--- | :--- | :--- |
 | `ZeroCostBudget` | `AWS::Budgets::Budget` | `algo-prod-zero-cost-guard` | 月額予想・実績 **$0.01** 超過検知時にSNS/メールへ即時アラート送信 |
 | `CloudFront5xxAlarm` | `AWS::CloudWatch::Alarm` | `algo-prod-cf-5xx-error-alarm` | 5xxエラー率 > 1%（5分間）で発報 |
 | `BudgetNotificationTopic` | `AWS::SNS::Topic` | `algo-prod-finops-alerts` | 管理者向け緊急通知SNSトピック |
 
-### 2.3 将来拡張サーバーレスレイヤー (Phase 2: `future-serverless.yaml`)
+### 2.4 将来拡張サーバーレスレイヤー (Phase 2: `future-serverless.yaml`)
 | 論理ID | AWSリソースタイプ | リソース名（本番例） | 設計概要 |
 | :--- | :--- | :--- | :--- |
 | `RoomsTable` | `AWS::DynamoDB::Table` | `algo-prod-rooms` | PK: `roomId` (String), TTL有効 (`ttl`), 従量課金 (PAY_PER_REQUEST) |

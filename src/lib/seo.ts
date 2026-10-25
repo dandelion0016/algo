@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-export const DEFAULT_SITE_URL = 'https://algo-web.example.com';
+export const DEFAULT_SITE_URL = 'https://coda.puzzlecabin.jp';
 
 export const SITE_NAME = 'アルゴ（algo）Web';
 export const SITE_TITLE_DEFAULT = 'アルゴ（algo）Web - 頭脳派推理カードゲーム | 無料ブラウザCPU対戦';

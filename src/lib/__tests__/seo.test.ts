@@ -28,9 +28,10 @@ describe('seo library & metadata routes', () => {
   });
 
   describe('getSiteUrl', () => {
-    it('引数・環境変数が未設定の場合はデフォルトURLを返す', () => {
+    it('引数・環境変数が未設定の場合はデフォルトURL（https://coda.puzzlecabin.jp）を返す', () => {
       delete process.env.NEXT_PUBLIC_SITE_URL;
-      expect(getSiteUrl()).toBe(DEFAULT_SITE_URL);
+      expect(DEFAULT_SITE_URL).toBe('https://coda.puzzlecabin.jp');
+      expect(getSiteUrl()).toBe('https://coda.puzzlecabin.jp');
     });
 
     it('明示的な引数で指定されたURLから前後の空白と末尾のスラッシュを除去して返す', () => {

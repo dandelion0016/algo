@@ -37,21 +37,44 @@ Parameters:
       - 'false'
     Description: 'Whether to create GitHub OIDC Provider (set to false if token.actions.githubusercontent.com already exists in this account)'
 
+  ManageRoute53Zone:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: 'Whether to create Route 53 Hosted Zone for RootDomainName'
+
+  RootDomainName:
+    Type: String
+    Default: 'puzzlecabin.jp'
+    Description: 'Apex / Root domain name acquired by user'
+
+  AppSubdomain:
+    Type: String
+    Default: 'coda'
+    Description: 'Subdomain for this card game app'
+
   CustomDomainName:
     Type: String
-    Default: ''
-    Description: 'Optional custom domain name (e.g., algo-game.jp or www.algo-game.jp)'
+    Default: 'coda.puzzlecabin.jp'
+    Description: 'Custom domain / subdomain name for this app (default: coda.puzzlecabin.jp)'
 
   AcmCertificateArn:
     Type: String
     Default: ''
-    Description: 'Optional ACM Certificate ARN in us-east-1 for custom domain'
+    Description: 'Optional ACM Certificate ARN in us-east-1 for custom domain (Note: CloudFront requires ACM certificates to be in us-east-1)'
 
 Conditions:
   ShouldCreateOIDCProvider: !Equals [!Ref CreateOIDCProvider, 'true']
+  ShouldCreateHostedZone: !Equals [!Ref ManageRoute53Zone, 'true']
+  HasAcmCertificate: !Not [!Equals [!Ref AcmCertificateArn, '']]
   HasCustomDomain: !And
+    - !Condition HasAcmCertificate
     - !Not [!Equals [!Ref CustomDomainName, '']]
-    - !Not [!Equals [!Ref AcmCertificateArn, '']]
+  ShouldCreateDnsRecords: !And
+    - !Condition HasCustomDomain
+    - !Condition ShouldCreateHostedZone
 
 Resources:
   # =========================================================================
@@ -197,6 +220,48 @@ Resources:
           Value: !Ref Environment
         - Key: ManagedBy
           Value: 'cloudformation'
+
+  # =========================================================================
+  # 2.5 Amazon Route 53 - Public Hosted Zone & CloudFront DNS Alias Records
+  # =========================================================================
+  Route53HostedZone:
+    Type: AWS::Route53::HostedZone
+    Condition: ShouldCreateHostedZone
+    Properties:
+      Name: !Sub '${RootDomainName}.'
+      HostedZoneConfig:
+        Comment: !Sub 'Public hosted zone for apex domain ${RootDomainName} managed by ${ProjectName} CloudFormation'
+      HostedZoneTags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: 'cloudformation'
+
+  CloudFrontDnsRecordA:
+    Type: AWS::Route53::RecordSet
+    Condition: ShouldCreateDnsRecords
+    Properties:
+      HostedZoneId: !Ref Route53HostedZone
+      Name: !Sub '${AppSubdomain}.${RootDomainName}'
+      Type: A
+      AliasTarget:
+        HostedZoneId: 'Z2FDTNDATAQYW2' # CloudFront Distribution Global Hosted Zone ID
+        DNSName: !GetAtt CloudFrontDistribution.DomainName
+        EvaluateTargetHealth: false
+
+  CloudFrontDnsRecordAAAA:
+    Type: AWS::Route53::RecordSet
+    Condition: ShouldCreateDnsRecords
+    Properties:
+      HostedZoneId: !Ref Route53HostedZone
+      Name: !Sub '${AppSubdomain}.${RootDomainName}'
+      Type: AAAA
+      AliasTarget:
+        HostedZoneId: 'Z2FDTNDATAQYW2' # CloudFront Distribution Global Hosted Zone ID
+        DNSName: !GetAtt CloudFrontDistribution.DomainName
+        EvaluateTargetHealth: false
 
   # =========================================================================
   # 3. AWS Budgets & CloudWatch - Zero Cost Guard Layer ($0.01 Budget Alert)
@@ -350,3 +415,21 @@ Outputs:
   ZeroCostAlertTopicArn:
     Description: 'SNS Topic ARN for Budgets Zero Cost Guard'
     Value: !Ref BudgetAlertTopic
+
+  HostedZoneId:
+    Description: 'Route 53 Public Hosted Zone ID for RootDomainName'
+    Value: !If [ShouldCreateHostedZone, !Ref Route53HostedZone, 'N/A']
+    Export:
+      Name: !Sub '${AWS::StackName}-HostedZoneId'
+
+  HostedZoneNameServers:
+    Description: '4 NameServers to set in Xserver Domain settings'
+    Value: !If [ShouldCreateHostedZone, !Join [', ', !GetAtt Route53HostedZone.NameServers], 'N/A']
+    Export:
+      Name: !Sub '${AWS::StackName}-HostedZoneNameServers'
+
+  AppUrl:
+    Description: 'Application URL (Subdomain / Custom Domain)'
+    Value: !Sub 'https://${AppSubdomain}.${RootDomainName}'
+    Export:
+      Name: !Sub '${AWS::StackName}-AppUrl'
