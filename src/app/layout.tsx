@@ -21,10 +21,35 @@ export default function RootLayout({
 }>) {
   const jsonLd = buildJsonLd();
   const adsense = getAdSenseConfig();
+  const rawGaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
+  const gaMeasurementId =
+    rawGaMeasurementId && /^G-[A-Za-z0-9]+$/.test(rawGaMeasurementId.trim())
+      ? rawGaMeasurementId.trim()
+      : undefined;
 
   return (
     <html lang="ja">
       <body className="antialiased bg-algo-sand text-slate-800 min-h-screen">
+        {gaMeasurementId && (
+          <>
+            <script
+              async
+              src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}
+            />
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `
+                  window.dataLayer = window.dataLayer || [];
+                  function gtag(){dataLayer.push(arguments);}
+                  gtag('js', new Date());
+                  gtag('config', '${gaMeasurementId}', {
+                    page_path: window.location.pathname,
+                  });
+                `,
+              }}
+            />
+          </>
+        )}
         {adsense.enabled && adsense.scriptSrc && (
           <script
             async

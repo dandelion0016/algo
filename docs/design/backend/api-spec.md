@@ -317,14 +317,17 @@ function checkAttack(targetCard: Card, guessedNumber: number): boolean
   - `initUserSession()`: 既存Cookie/LocalStorageからユーザーIDを取得、存在しない場合は新規採番して永続化。
 
 ### 3.9 SEO・構造化データ・メタデータ管理 (`src/lib/seo.ts`)
-- **役割**: 検索エンジン最適化（SEO）、OGP（Open Graph Protocol）、Twitter Card、Schema.org JSON-LD 構造化データ、およびクローラー制御用ベースURLの正規化を一元管理する純粋関数モジュール（ADR-0003 準拠）。
+- **役割**: 検索エンジン最適化（SEO）、OGP（Open Graph Protocol）、Twitter Card、Schema.org JSON-LD 構造化データ、Google Search Console 所有権確認メタタグ（`verification.google`）、およびクローラー制御用ベースURLの正規化を一元管理する純粋関数モジュール（ADR-0003, ADR-0006 準拠）。
 - **主要関数**:
   - `getSiteUrl(envUrl?: string): string`:
-    - 引数または環境変数 `NEXT_PUBLIC_SITE_URL` からサイトURLを取得し、前後の空白と末尾スラッシュを除去して正規化。未設定・不正URL時は `DEFAULT_SITE_URL` (`https://algo-web.example.com`) にフォールバック。
+    - 引数または環境変数 `NEXT_PUBLIC_SITE_URL` からサイトURLを取得し、前後の空白と末尾スラッシュを除去して正規化。未設定・不正URL時は `DEFAULT_SITE_URL` (`https://coda.puzzlecabin.jp`) にフォールバック。
   - `buildMetadata(envUrl?: string): Metadata`:
-    - Next.js Metadata API 準拠のメタデータ定義（`metadataBase`, `title`, `description`, `keywords`, `alternates.canonical`, `openGraph`, `twitter`, `icons`, `manifest`, `robots`）を生成。
+    - Next.js Metadata API 準拠のメタデータ定義（`metadataBase`, `title`, `description`, `keywords`, `alternates.canonical`, `openGraph`, `twitter`, `icons`, `manifest`, `robots`, `verification`）を生成。
+    - `verification`: Google Search Console 所有権確認トークン（`google: 'LcDNa7KHW33-g7dMwMDkIBI5L3YQsrNxP-w-M8Qr8qw'`）を設定。
   - `buildJsonLd(envUrl?: string): JsonLdDocument`:
     - Schema.org 準拠の `@graph`（`WebApplication` および `VideoGame`）構造化データを生成（2〜4人プレイ、無料 Offer、日本語対応等のリッチリザルト属性を定義）。
+- **アクセス解析連携 (GA4)**:
+  - `src/app/layout.tsx` において環境変数 `NEXT_PUBLIC_GA_MEASUREMENT_ID`（形式: `G-[A-Za-z0-9]+`）が指定されている場合、Google Analytics 4（`gtag.js`）測定スクリプトを動的注入。未設定時は一切のスクリプトを出力せず安全にバイパスする。
 
 ### 3.10 Google AdSense 広告設定管理 (`src/lib/adsense.ts`)
 - **役割**: Google AdSense クライアントID（`ca-pub-xxxxxxxxxxxxxxxx`）の形式検証および環境変数からの広告設定取得を管理する純粋関数モジュール（ADR-0004 準拠）。

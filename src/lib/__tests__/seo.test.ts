@@ -97,6 +97,10 @@ describe('seo library & metadata routes', () => {
         apple: [{ url: '/app-icon.jpg', type: 'image/jpeg' }],
       });
 
+      expect(meta.verification).toEqual({
+        google: 'LcDNa7KHW33-g7dMwMDkIBI5L3YQsrNxP-w-M8Qr8qw',
+      });
+
       expect(meta.robots).toEqual({
         index: true,
         follow: true,

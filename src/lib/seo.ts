@@ -97,6 +97,9 @@ export function buildMetadata(envUrl?: string): Metadata {
       apple: [{ url: '/app-icon.jpg', type: 'image/jpeg' }],
     },
     manifest: '/manifest.webmanifest',
+    verification: {
+      google: 'LcDNa7KHW33-g7dMwMDkIBI5L3YQsrNxP-w-M8Qr8qw',
+    },
     robots: {
       index: true,
       follow: true,

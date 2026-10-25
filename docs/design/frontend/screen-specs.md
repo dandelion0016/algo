@@ -404,9 +404,9 @@
 
 ---
 
-## 5. SEO・OGP・JSON-LD構造化データ・クローラー制御仕様 (ADR-0003)
+## 5. SEO・OGP・JSON-LD構造化データ・クローラー制御仕様 (ADR-0003, ADR-0006)
 
-### 5.1 メタデータ・OGP・Twitter Card (`src/lib/seo.ts`, `src/app/layout.tsx`)
+### 5.1 メタデータ・OGP・Twitter Card・所有権確認 (`src/lib/seo.ts`, `src/app/layout.tsx`)
 - **タイトル**:
   - デフォルト: `アルゴ（algo）Web - 頭脳派推理カードゲーム | 無料ブラウザCPU対戦`
   - テンプレート: `%s | アルゴ（algo）Web`
@@ -417,6 +417,8 @@
   - `og:image`: `/hero-banner.jpg` (1200×630)
   - `twitter:card`: `summary_large_image`
   - アイコン / Apple Touch Icon: `/app-icon.jpg`
+- **Google 検索コンソール所有権確認 (Google Site Verification)**:
+  - `verification.google`: `LcDNa7KHW33-g7dMwMDkIBI5L3YQsrNxP-w-M8Qr8qw` を `<meta name="google-site-verification" content="...">` として全ページヘッダーに出力。
 
 ### 5.2 JSON-LD 構造化データ (`buildJsonLd`)
 - `src/app/layout.tsx` の `<body>` 内に `<script type="application/ld+json">` として出力。
@@ -427,3 +429,7 @@
   - `src/app/robots.ts` (`/robots.txt`): 全クローラー許可（`Allow: /`）および `sitemap.xml` の絶対URLを指定。
   - `src/app/sitemap.ts` (`/sitemap.xml`): トップページURL、`changeFrequency: 'weekly'`、`priority: 1.0` を出力。
   - `src/app/manifest.ts` (`/manifest.webmanifest`): `standalone` 表示、テーマカラー `#fafaf7`、アイコン `/app-icon.jpg` (512×512) を定義。
+
+### 5.4 Google Analytics 4 (GA4) 測定タグ連携 (`src/app/layout.tsx`)
+- 環境変数 `NEXT_PUBLIC_GA_MEASUREMENT_ID`（形式: `G-[A-Za-z0-9]+`）が注入されている場合のみ、`gtag.js` スクリプトおよび初期化インラインスクリプトを安全に出力。
+- 未設定時（ローカル開発環境・CI等）はDOM上にタグを出力せず、不要なトラッキング通信を完全に防止。
