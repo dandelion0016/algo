@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ja" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PuzzleCabin（パズルキャビン）- 頭脳派パズル＆ボードゲーム総合ポータル</title>
+
+  <!-- SEO Meta Tags -->
+  <meta name="description" content="PuzzleCabin（パズルキャビン）は、白黒数字推理カードゲーム「アルゴ（algo / Coda）」をはじめとする頭脳派パズル＆ボードゲームをブラウザで手軽に楽しめる総合ゲームポータルです。思考力・論理力を磨く高品質なゲームを完全無料で提供します。" />
+  <meta name="keywords" content="PuzzleCabin,パズルキャビン,アルゴ,algo,Coda,ボードゲーム,数字パズル,頭脳ゲーム,ブラウザゲーム,無料,推理ゲーム" />
+  <meta name="author" content="PuzzleCabin Project" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://puzzlecabin.jp/" />
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://puzzlecabin.jp/" />
+  <meta property="og:title" content="PuzzleCabin（パズルキャビン）- 頭脳派パズル＆ボードゲーム総合ポータル" />
+  <meta property="og:description" content="白黒数字推理カードゲーム「アルゴ（algo / Coda）」をはじめとする頭脳派パズル＆ボードゲームをブラウザで手軽に楽しめる総合ゲームポータルです。" />
+  <meta property="og:site_name" content="PuzzleCabin" />
+  <meta property="og:locale" content="ja_JP" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:url" content="https://puzzlecabin.jp/" />
+  <meta name="twitter:title" content="PuzzleCabin（パズルキャビン）- 頭脳派パズル＆ボードゲーム総合ポータル" />
+  <meta name="twitter:description" content="白黒数字推理カードゲーム「アルゴ（algo / Coda）」をはじめとする頭脳派パズル＆ボードゲーム総合ポータル。" />
+
+  <!-- Google Site Verification -->
+  <meta name="google-site-verification" content="LcDNa7KHW33-g7dMwMDkIBI5L3YQsrNxP-w-M8Qr8qw" />
+
+  <!-- Google AdSense -->
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3337160908225388" crossorigin="anonymous"></script>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            cabin: {
+              50: '#f0f4f8',
+              100: '#d9e2ec',
+              200: '#bcccdc',
+              300: '#9fb3c8',
+              400: '#829ab1',
+              500: '#627d98',
+              600: '#486581',
+              700: '#334e68',
+              800: '#243b53',
+              900: '#102a43',
+              950: '#0b1d30',
+            },
+            accent: {
+              amber: '#f59e0b',
+              emerald: '#10b981',
+              indigo: '#6366f1',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    .animate-float {
+      animation: float 4s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
+
+  <!-- Navigation Bar -->
+  <header class="sticky top-0 z-50 backdrop-blur-md bg-slate-950/80 border-b border-slate-800/80">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <a href="https://puzzlecabin.jp/" class="flex items-center space-x-3 group">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-500 flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:scale-105 transition-transform duration-200">
+          <span class="text-xl font-black text-slate-950 tracking-tighter">PC</span>
+        </div>
+        <div class="flex flex-col">
+          <span class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-amber-400 via-rose-300 to-indigo-300 bg-clip-text text-transparent">
+            PuzzleCabin
+          </span>
+          <span class="text-[10px] text-slate-400 -mt-1 font-medium tracking-wider">パズルキャビン</span>
+        </div>
+      </a>
+      <nav class="hidden md:flex items-center space-x-6 text-sm font-medium text-slate-300">
+        <a href="#games" class="hover:text-amber-400 transition-colors">公開ゲーム</a>
+        <a href="#upcoming" class="hover:text-amber-400 transition-colors">開発予定</a>
+        <a href="#about" class="hover:text-amber-400 transition-colors">PuzzleCabinについて</a>
+        <a href="#legal" class="hover:text-amber-400 transition-colors">利用規約・ポリシー</a>
+        <a href="https://coda.puzzlecabin.jp/" class="inline-flex items-center px-4 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20 transition-all duration-200 transform hover:-translate-y-0.5">
+          アルゴを遊ぶ
+          <svg class="w-4 h-4 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+          </svg>
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="flex-grow">
+    <!-- Hero Section -->
+    <section class="relative overflow-hidden pt-16 pb-20 md:pt-24 md:pb-32">
+      <!-- Glow background circles -->
+      <div class="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute top-1/3 left-1/4 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
+        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/90 border border-slate-700/80 text-xs font-semibold text-amber-300 mb-6 shadow-inner">
+          <span class="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          頭脳派パズル＆ボードゲーム総合ポータル
+        </div>
+        <h1 class="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight leading-tight md:leading-tight mb-6">
+          思考がひらめく、<br class="sm:hidden" />
+          <span class="bg-gradient-to-r from-amber-400 via-rose-300 to-indigo-400 bg-clip-text text-transparent">
+            頭脳ゲームの山小屋へ。
+          </span>
+        </h1>
+        <p class="max-w-2xl mx-auto text-base sm:text-lg text-slate-300 font-normal leading-relaxed mb-10">
+          PuzzleCabin（パズルキャビン）は、論理的思考・推理力・洞察力を磨く高品質なパズル＆ボードゲームを、いつでもブラウザですぐに無料で楽しめるプラットフォームです。
+        </p>
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <a href="#games" class="w-full sm:w-auto inline-flex items-center justify-center px-8 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-base shadow-xl shadow-amber-500/20 transition-all duration-200 transform hover:-translate-y-0.5">
+            ゲーム一覧を見る
+            <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+            </svg>
+          </a>
+          <a href="https://coda.puzzlecabin.jp/" class="w-full sm:w-auto inline-flex items-center justify-center px-8 py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-slate-600 text-slate-200 font-bold text-base transition-all duration-200">
+            「アルゴ」を今すぐプレイ
+            <svg class="w-4 h-4 ml-2 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Published Games Section -->
+    <section id="games" class="py-16 md:py-24 bg-slate-900/60 border-t border-b border-slate-800/80">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex flex-col md:flex-row md:items-end justify-between mb-12">
+          <div>
+            <div class="text-xs uppercase tracking-widest text-amber-400 font-bold mb-2">NOW PLAYABLE</div>
+            <h2 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">公開中タイトル</h2>
+          </div>
+          <p class="text-sm text-slate-400 mt-2 md:mt-0">インストール不要・ブラウザですぐに無料プレイ可能です</p>
+        </div>
+
+        <!-- Featured Game Card: Algo (Coda) -->
+        <div class="relative rounded-2xl bg-gradient-to-b from-slate-800/90 to-slate-900/90 border border-slate-700/80 p-6 sm:p-8 md:p-10 shadow-2xl overflow-hidden hover:border-amber-500/50 transition-colors duration-300">
+          <div class="absolute top-0 right-0 w-80 h-80 bg-amber-500/5 rounded-full blur-3xl pointer-events-none"></div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+            <!-- Game Info -->
+            <div class="lg:col-span-7 flex flex-col">
+              <div class="flex flex-wrap items-center gap-2 mb-4">
+                <span class="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  公開中 (v1.0)
+                </span>
+                <span class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-700 text-slate-200">
+                  2〜4人対戦 / CPU対戦対応
+                </span>
+                <span class="px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  数字推理カードゲーム
+                </span>
+              </div>
+
+              <h3 class="text-2xl sm:text-3xl font-black text-white tracking-tight mb-3">
+                アルゴ（algo / Coda）
+                <span class="block text-base sm:text-lg font-medium text-slate-300 mt-1">
+                  白黒の数字を論理で解き明かす、知略のカードバトル
+                </span>
+              </h3>
+
+              <p class="text-slate-300 text-sm sm:text-base leading-relaxed mb-6">
+                相手の見えないカードの数字を論理と確率で推理して当てる名作カードゲームです。<br class="hidden sm:inline" />
+                伏せられたカードの並び順ルール（左から小さい順、同数は黒が左）を手がかりに、相手の全カードをオープンさせて勝利を目指します。
+              </p>
+
+              <!-- Feature Highlights -->
+              <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
+                <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+                  <div class="text-amber-400 font-bold text-xs mb-1">🤖 3段階AI思考</div>
+                  <div class="text-[11px] text-slate-400">初級・中級・上級の本格思考エンジン</div>
+                </div>
+                <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+                  <div class="text-indigo-400 font-bold text-xs mb-1">📊 残弾トラッカー</div>
+                  <div class="text-[11px] text-slate-400">公開・未公開カードを視覚的に把握</div>
+                </div>
+                <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+                  <div class="text-emerald-400 font-bold text-xs mb-1">🏆 戦績・実績保存</div>
+                  <div class="text-[11px] text-slate-400">勝率・連勝記録・解除トロフィー</div>
+                </div>
+                <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+                  <div class="text-rose-400 font-bold text-xs mb-1">📱 完全レスポンシブ</div>
+                  <div class="text-[11px] text-slate-400">スマホ・タブレット・PC全対応</div>
+                </div>
+                <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+                  <div class="text-amber-300 font-bold text-xs mb-1">💡 ヒント＆アシスト</div>
+                  <div class="text-[11px] text-slate-400">初心者でも安心の候補数字推論</div>
+                </div>
+                <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+                  <div class="text-cyan-400 font-bold text-xs mb-1">🔊 サウンド＆振動</div>
+                  <div class="text-[11px] text-slate-400">臨場感を高めるSEとハプティクス</div>
+                </div>
+              </div>
+
+              <!-- CTA -->
+              <div class="flex items-center gap-4">
+                <a href="https://coda.puzzlecabin.jp/" class="inline-flex items-center px-6 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-base shadow-lg shadow-amber-500/20 transition-all duration-200 transform hover:-translate-y-0.5">
+                  今すぐプレイする
+                  <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                  </svg>
+                </a>
+                <span class="text-xs text-slate-400 font-medium">※登録不要・無料</span>
+              </div>
+            </div>
+
+            <!-- Card Visual Mock -->
+            <div class="lg:col-span-5 flex justify-center">
+              <div class="relative w-full max-w-sm p-6 rounded-2xl bg-slate-950/80 border border-slate-800 shadow-inner flex flex-col items-center">
+                <div class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">CARD PREVIEW</div>
+                <div class="flex items-center justify-center gap-3 mb-6">
+                  <!-- Black Card -->
+                  <div class="w-16 h-24 sm:w-20 sm:h-28 rounded-xl bg-gradient-to-br from-neutral-800 to-black border-2 border-neutral-700 shadow-xl flex flex-col items-center justify-center p-2 transform -rotate-3 hover:rotate-0 transition-transform">
+                    <span class="text-2xl sm:text-3xl font-black text-amber-400">7</span>
+                    <span class="text-[9px] text-neutral-400 font-bold uppercase tracking-wider mt-1">BLACK</span>
+                  </div>
+                  <!-- White Card -->
+                  <div class="w-16 h-24 sm:w-20 sm:h-28 rounded-xl bg-gradient-to-br from-white to-slate-200 border-2 border-slate-300 shadow-xl flex flex-col items-center justify-center p-2 transform rotate-3 hover:rotate-0 transition-transform">
+                    <span class="text-2xl sm:text-3xl font-black text-slate-900">7</span>
+                    <span class="text-[9px] text-slate-600 font-bold uppercase tracking-wider mt-1">WHITE</span>
+                  </div>
+                  <!-- Hidden Card -->
+                  <div class="w-16 h-24 sm:w-20 sm:h-28 rounded-xl bg-gradient-to-br from-indigo-900 to-slate-900 border-2 border-indigo-500/50 shadow-xl flex flex-col items-center justify-center p-2 transform -rotate-2 hover:rotate-0 transition-transform">
+                    <span class="text-xl sm:text-2xl font-black text-indigo-300">?</span>
+                    <span class="text-[9px] text-indigo-400 font-bold uppercase tracking-wider mt-1">SECRET</span>
+                  </div>
+                </div>
+                <div class="text-center">
+                  <div class="text-xs font-bold text-slate-200">基本ルール：左から小さい順に整列</div>
+                  <div class="text-[11px] text-slate-400 mt-1">同数の場合は「黒が左、白が右」に配置</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Upcoming Games Section -->
+    <section id="upcoming" class="py-16 md:py-24">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center max-w-2xl mx-auto mb-16">
+          <div class="text-xs uppercase tracking-widest text-indigo-400 font-bold mb-2">COMING SOON</div>
+          <h2 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">今後追加予定のタイトル</h2>
+          <p class="text-sm sm:text-base text-slate-400 mt-3">PuzzleCabin では、順次新しい頭脳ゲーム・論理パズルを追加していきます。</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <!-- Game 1: Reversi -->
+          <div class="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition-colors flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-4">
+                <span class="text-2xl">⚪⚫</span>
+                <span class="px-2.5 py-0.5 rounded text-[11px] font-semibold bg-slate-800 text-slate-400">開発中</span>
+              </div>
+              <h3 class="text-xl font-bold text-white mb-2">リバーシ・オセロ（Reversi）</h3>
+              <p class="text-xs text-slate-400 leading-relaxed mb-4">
+                定番の2人対戦盤上ゲーム。角の確保や確定石の構築など、緻密な先読みAIとの真剣勝負を楽しめる対戦システムを開発中です。
+              </p>
+            </div>
+            <div class="text-[11px] text-slate-500 font-medium">予定機能: 定石分析・着手ガイド・難易度設定</div>
+          </div>
+
+          <!-- Game 2: Sudoku -->
+          <div class="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition-colors flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-4">
+                <span class="text-2xl">🔢</span>
+                <span class="px-2.5 py-0.5 rounded text-[11px] font-semibold bg-slate-800 text-slate-400">企画・設計中</span>
+              </div>
+              <h3 class="text-xl font-bold text-white mb-2">ナンプレ・数独（Number Place）</h3>
+              <p class="text-xs text-slate-400 leading-relaxed mb-4">
+                3×3のブロックに1〜9の数字を入れる数字パズルの金字塔。独自生成アルゴリズムによる無限の問題生成と鉛筆メモ機能を実装予定です。
+              </p>
+            </div>
+            <div class="text-[11px] text-slate-500 font-medium">予定機能: 自動問題生成・難易度別デイリーチャレンジ</div>
+          </div>
+
+          <!-- Game 3: Mastermind -->
+          <div class="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition-colors flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-4">
+                <span class="text-2xl">🎯</span>
+                <span class="px-2.5 py-0.5 rounded text-[11px] font-semibold bg-slate-800 text-slate-400">企画中</span>
+              </div>
+              <h3 class="text-xl font-bold text-white mb-2">マスターマインド / Hit & Blow</h3>
+              <p class="text-xs text-slate-400 leading-relaxed mb-4">
+                隠された数字や色の配列をヒット＆ブローの手がかりから論理的に特定する古典的名作暗号解読ゲームです。
+              </p>
+            </div>
+            <div class="text-[11px] text-slate-500 font-medium">予定機能: 桁数可変設定・最短手数ランキング</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- About Section -->
+    <section id="about" class="py-16 bg-slate-900/40 border-t border-slate-800/60">
+      <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-10">
+          <h2 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">PuzzleCabin について</h2>
+          <p class="text-sm text-slate-400 mt-2">思考する喜びを、すべての人へ。</p>
+        </div>
+        <div class="prose prose-invert max-w-none text-slate-300 text-sm leading-relaxed space-y-4">
+          <p>
+            PuzzleCabin（パズルキャビン）は、頭脳ゲームや論理パズルを通じて、日常の中で思考を深める豊かな時間を提供することを目的として立ち上げられたWebゲームプラットフォームです。
+          </p>
+          <p>
+            「わかりやすく、心地よく、深く楽しめる」をテーマに、最新のWeb技術（Next.js / TypeScript / AWS Serverless）を活用し、高速かつストレスフリーな動作環境を追求しています。PC・スマートフォンのどちらでも快適に動作し、煩わしい会員登録を行わずにすぐに遊べるオープンな設計を重視しています。
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Legal & Policy Section (AdSense Compliance) -->
+    <section id="legal" class="py-16 md:py-20 border-t border-slate-800/80 bg-slate-950">
+      <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <h2 class="text-2xl font-bold text-white mb-8 pb-3 border-b border-slate-800">利用規約・プライバシーポリシー・運営者情報</h2>
+
+        <div class="space-y-10 text-xs sm:text-sm text-slate-300 leading-relaxed">
+          <!-- Privacy Policy -->
+          <div class="space-y-3">
+            <h3 class="text-base font-bold text-amber-300 flex items-center gap-2">
+              <span>🔒</span> プライバシーポリシー（個人情報の取り扱い）
+            </h3>
+            <p>
+              PuzzleCabin（以下、「当サイト」といいます）は、利用者の個人情報の保護を重要視し、以下の方針に基づいて適切に管理・運用いたします。
+            </p>
+            <h4 class="font-semibold text-slate-200 mt-2">1. 広告の配信について（Google AdSense）</h4>
+            <p>
+              当サイトでは、第三者配信の広告サービス「Google AdSense（グーグルアドセンス）」を利用しています。広告配信事業者は、利用者の興味に応じた商品やサービスの広告を表示するため、当サイトや他サイトへのアクセスに関する情報「Cookie」（氏名、住所、メールアドレス、電話番号は含まれません）を使用することがあります。<br />
+              Cookieを無効にする設定およびGoogle AdSenseに関する詳細については、<a href="https://policies.google.com/technologies/ads?hl=ja" target="_blank" rel="noopener noreferrer" class="text-amber-400 underline hover:text-amber-300">Googleの広告およびプライバシーに関するポリシー</a>をご覧ください。
+            </p>
+            <h4 class="font-semibold text-slate-200 mt-2">2. アクセス解析ツールについて</h4>
+            <p>
+              当サイトでは、サービス向上・トラフィック分析のためにアクセス解析ツールを利用することがあります。アクセス解析ツールはトラフィックデータの収集のためにCookieを使用していますが、データは匿名で収集されており個人を特定するものではありません。
+            </p>
+            <h4 class="font-semibold text-slate-200 mt-2">3. ローカルストレージの使用について</h4>
+            <p>
+              当サイトの提供するゲーム（アルゴ等）では、プレイヤーの戦績、ゲーム設定、実績獲得状況等の保存のためにブラウザのローカルストレージ（localStorage）を利用しています。これらの情報は利用者のブラウザ内にのみ保存され、当サイトのサーバーへ個人を特定する形で送信されることはありません。
+            </p>
+          </div>
+
+          <!-- Terms of Service -->
+          <div class="space-y-3">
+            <h3 class="text-base font-bold text-amber-300 flex items-center gap-2">
+              <span>📜</span> 利用規約
+            </h3>
+            <p>
+              1. <strong>利用条件:</strong> 当サイトのコンテンツは、私的利用の範囲において無料でご利用いただけます。<br />
+              2. <strong>禁止事項:</strong> 不正アクセス、サーバーへの過度な負荷をかける行為、リバースエンジニアリング、チート行為、他の利用者への迷惑行為を禁止します。<br />
+              3. <strong>著作権:</strong> 当サイト内のプログラムコード、文章、画像、デザイン等の著作権は PuzzleCabin Project または正当な権利者に帰属します。
+            </p>
+          </div>
+
+          <!-- Disclaimer -->
+          <div class="space-y-3">
+            <h3 class="text-base font-bold text-amber-300 flex items-center gap-2">
+              <span>⚠️</span> 免責事項
+            </h3>
+            <p>
+              当サイトに掲載されている情報やゲームプログラムについては、万全を期して制作・検証を行っておりますが、その完全性、正確性、有用性、安全性についていかなる保証も行うものではありません。<br />
+              当サイトの利用または利用不能により生じた一切の損害について、当サイト管理者は何ら責任を負いません。また、当サイトからリンクされた外部サイトにおける情報・サービス等についても一切の責任を負いません。
+            </p>
+          </div>
+
+          <!-- Operator / Contact Info -->
+          <div class="space-y-3">
+            <h3 class="text-base font-bold text-amber-300 flex items-center gap-2">
+              <span>ℹ️</span> 運営者情報・お問い合わせ
+            </h3>
+            <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5 text-xs text-slate-300">
+              <div><strong>運営組織:</strong> PuzzleCabin Project（パズルキャビン プロジェクト事務局）</div>
+              <div><strong>サイトURL:</strong> https://puzzlecabin.jp/</div>
+              <div><strong>公開中ゲーム:</strong> アルゴ（algo / Coda）- https://coda.puzzlecabin.jp/</div>
+              <div><strong>お問い合わせ:</strong> ご意見・ご要望・不具合報告は、各ゲーム内のフィードバック機能または GitHub リポジトリ（dandelion0016/algo）の Issues にて受け付けております。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-slate-950 border-t border-slate-800/80 py-8 text-center text-xs text-slate-500">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-3">
+      <div class="flex flex-wrap items-center justify-center gap-4 text-slate-400">
+        <a href="#games" class="hover:text-slate-200 transition-colors">公開ゲーム</a>
+        <span>•</span>
+        <a href="https://coda.puzzlecabin.jp/" class="hover:text-amber-400 transition-colors">アルゴ（algo）を遊ぶ</a>
+        <span>•</span>
+        <a href="#about" class="hover:text-slate-200 transition-colors">当サイトについて</a>
+        <span>•</span>
+        <a href="#legal" class="hover:text-slate-200 transition-colors">プライバシーポリシー・利用規約</a>
+      </div>
+      <div>
+        &copy; 2026 PuzzleCabin Project. All rights reserved.
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

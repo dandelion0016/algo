@@ -37,13 +37,16 @@ infrastructure/
 
 ## 2. 管理リソース一覧 ＆ 定義詳細
 
-### 2.1 静的ホスティング ＆ 配信レイヤー (`static-hosting.yaml`)
+### 2.1 静的ホスティング ＆ 配信レイヤー (`static-hosting.yaml` / `main.yaml`)
 | 論理ID | AWSリソースタイプ | リソース名（本番例） | 設計概要 |
 | :--- | :--- | :--- | :--- |
-| `HostingBucket` | `AWS::S3::Bucket` | `algo-prod-apne1-static-hosting-<hash>` | パブリックアクセス完全ブロック、SSE-S3暗号化、バージョニング有効、ライフサイクルルール（旧版30日削除） |
+| `HostingBucket` | `AWS::S3::Bucket` | `algo-prod-apne1-static-hosting-<hash>` | ゲーム用Next.js成果物保管。パブリックアクセス完全ブロック、SSE-S3暗号化、バージョニング有効、ライフサイクルルール（旧版30日削除） |
 | `HostingBucketPolicy` | `AWS::S3::BucketPolicy` | - | CloudFront OACからの `s3:GetObject` のみ許可 |
+| `PortalHostingBucket` | `AWS::S3::Bucket` | `algo-prod-apne1-portal-hosting-<hash>` | 親ドメイン（`puzzlecabin.jp`）ポータルLP成果物保管（`portal/`）。パブリックアクセス完全ブロック、SSE-S3暗号化、バージョニング有効、ライフサイクルルール（旧版30日削除） |
+| `PortalHostingBucketPolicy` | `AWS::S3::BucketPolicy` | - | PortalCloudFrontDistribution からの `s3:GetObject` のみ許可 |
 | `CloudFrontOAC` | `AWS::CloudFront::OriginAccessControl` | `algo-prod-oac` | S3オリジン向けSigV4署名制御（OriginAccessControlConfig） |
-| `CloudFrontDistribution` | `AWS::CloudFront::Distribution` | - | 初期は標準ドメイン利用（`ViewerCertificate: { CloudFrontDefaultCertificate: true }`）、ACM証明書（`AcmCertificateArn`）指定時は `HasCustomDomain` 条件により自動的に `Aliases`（デフォルト: `coda.puzzlecabin.jp`）と ACM SSL証明書（`sni-only`, `TLSv1.2_2021`）へ切り替え。OAC連携、HTTPS強制、HTTP/2+HTTP/3、Brotli圧縮、SPA用403/404エラーページ対応。 |
+| `CloudFrontDistribution` | `AWS::CloudFront::Distribution` | - | ゲーム用CDN配信。初期は標準ドメイン利用（`ViewerCertificate: { CloudFrontDefaultCertificate: true }`）、ACM証明書（`AcmCertificateArn`）指定時は `HasCustomDomain` 条件により自動的に `Aliases`（デフォルト: `coda.puzzlecabin.jp`）と ACM SSL証明書（`sni-only`, `TLSv1.2_2021`）へ切り替え。OAC連携、HTTPS強制、HTTP/2+HTTP/3、Brotli圧縮、SPA用403/404エラーページ対応。 |
+| `PortalCloudFrontDistribution` | `AWS::CloudFront::Distribution` | - | 親ドメインポータル用CDN配信。ACM証明書（`AcmCertificateArn`）指定時は `HasAcmCertificate` 条件により `Aliases: ['puzzlecabin.jp']` と ACM SSL証明書を設定。S3 PortalOrigin（OAC認証）、HTTPS強制、HTTP/2+HTTP/3、セキュリティヘッダー連携、403/404エラーページ対応。 |
 | `ResponseHeadersPolicy` | `AWS::CloudFront::ResponseHeadersPolicy` | `algo-prod-security-headers` | HSTS, X-Frame-Options: DENY, X-Content-Type-Options: nosniff, CSP |
 
 ### 2.2 ドメイン ＆ DNS名前解決レイヤー (`main.yaml` / Route 53)
@@ -52,6 +55,8 @@ infrastructure/
 | `Route53HostedZone` | `AWS::Route53::HostedZone` | `puzzlecabin.jp.` | Apexドメイン `puzzlecabin.jp` のパブリックホストゾーン。Xserverドメインへ委任する4本のNSレコードを払い出し、IaCでDNSを一元管理。Condition: `ShouldCreateHostedZone` |
 | `CloudFrontDnsRecordA` | `AWS::Route53::RecordSet` | `coda.puzzlecabin.jp` | サブドメイン `coda.puzzlecabin.jp` から CloudFront ディストリビューション宛ての IPv4 (A) エイリアスレコード。CloudFront固定HostedZoneId `Z2FDTNDATAQYW2` をターゲット指定。Condition: `ShouldCreateDnsRecords` |
 | `CloudFrontDnsRecordAAAA` | `AWS::Route53::RecordSet` | `coda.puzzlecabin.jp` | 同上、IPv6 (AAAA) エイリアスレコード。デュアルスタック対応。Condition: `ShouldCreateDnsRecords` |
+| `Route53ApexRecordA` | `AWS::Route53::RecordSet` | `puzzlecabin.jp.` | 親ドメイン `puzzlecabin.jp` から PortalCloudFrontDistribution 宛ての IPv4 (A) エイリアスレコード。Condition: `ShouldCreateApexDnsRecords` |
+| `Route53ApexRecordAAAA` | `AWS::Route53::RecordSet` | `puzzlecabin.jp.` | 同上、IPv6 (AAAA) エイリアスレコード。デュアルスタック対応。Condition: `ShouldCreateApexDnsRecords` |
 
 ### 2.3 ゼロ課金ガードレイヤー (`zero-cost-guard.yaml`)
 | 論理ID | AWSリソースタイプ | リソース名（本番例） | 設計概要 |
