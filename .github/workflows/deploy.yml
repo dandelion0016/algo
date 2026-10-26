@@ -104,3 +104,25 @@ jobs:
           aws cloudfront create-invalidation \
             --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
             --paths "/*"
+
+      - name: Deploy Portal LP to S3 Bucket
+        run: |
+          PORTAL_BUCKET="${{ secrets.PORTAL_S3_BUCKET_NAME || vars.PORTAL_S3_BUCKET_NAME }}"
+          if [ -n "$PORTAL_BUCKET" ]; then
+            echo "Deploying portal assets from portal/ to S3 bucket: $PORTAL_BUCKET"
+            aws s3 sync portal/ "s3://${PORTAL_BUCKET}" --delete
+          else
+            echo "PORTAL_S3_BUCKET_NAME is not configured. Skipping portal S3 sync."
+          fi
+
+      - name: Invalidate Portal CloudFront Cache
+        run: |
+          PORTAL_DIST="${{ secrets.PORTAL_CLOUDFRONT_DISTRIBUTION_ID || vars.PORTAL_CLOUDFRONT_DISTRIBUTION_ID }}"
+          if [ -n "$PORTAL_DIST" ]; then
+            echo "Invalidating CloudFront cache for portal distribution: $PORTAL_DIST"
+            aws cloudfront create-invalidation \
+              --distribution-id "$PORTAL_DIST" \
+              --paths "/*"
+          else
+            echo "PORTAL_CLOUDFRONT_DISTRIBUTION_ID is not configured. Skipping portal CloudFront cache invalidation."
+          fi

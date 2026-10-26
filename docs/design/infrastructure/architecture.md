@@ -29,13 +29,16 @@ flowchart TD
     User["ユーザー / プレイヤーブラウザ<br>(PC / タブレット / スマホ)"] -->|HTTPS (Port 443)| CFDomain{"アクセス経路"}
 
     CFDomain -->|【初期】CloudFrontデフォルトURL| CloudFrontDefault["Amazon CloudFront<br>・https://dxxxxxxxxxxxx.cloudfront.net<br>・CloudFrontデフォルト証明書 (無料)"]
-    CFDomain -->|【本番独自ドメイン】https://coda.puzzlecabin.jp| Route53["Amazon Route 53 (パブリックホストゾーン)<br>・ゾーン名: puzzlecabin.jp.<br>・4本のNSレコード (Xserverドメイン委任)<br>・coda.puzzlecabin.jp A / AAAA Alias (無料クエリ)"]
+    CFDomain -->|【本番独自ドメイン】https://coda.puzzlecabin.jp| Route53Sub["Amazon Route 53 (coda.puzzlecabin.jp)<br>・A / AAAA Alias (無料クエリ)"]
+    CFDomain -->|【ポータル親ドメイン】https://puzzlecabin.jp| Route53Apex["Amazon Route 53 (puzzlecabin.jp Apex)<br>・A / AAAA Alias (無料クエリ)"]
 
-    Route53 -->|A / AAAA Alias<br>HostedZoneId: Z2FDTNDATAQYW2| CloudFront["Amazon CloudFront (CDN エッジ)<br>・Aliases: coda.puzzlecabin.jp<br>・ACM証明書 (us-east-1): *.puzzlecabin.jp<br>・常時無料 1TB/月, 1000万リクエスト<br>・HTTPS強制 / TLS 1.3 / HTTP/2 + HTTP/3"]
+    Route53Sub -->|A / AAAA Alias<br>HostedZoneId: Z2FDTNDATAQYW2| CloudFront["Amazon CloudFront (ゲームCDN エッジ)<br>・Aliases: coda.puzzlecabin.jp<br>・ACM証明書 (us-east-1): *.puzzlecabin.jp<br>・常時無料 1TB/月, 1000万リクエスト<br>・HTTPS強制 / TLS 1.3 / HTTP/2 + HTTP/3"]
+    Route53Apex -->|A / AAAA Alias<br>HostedZoneId: Z2FDTNDATAQYW2| PortalCloudFront["Amazon CloudFront (ポータルLP CDN エッジ)<br>・Aliases: puzzlecabin.jp<br>・ACM証明書 (us-east-1): puzzlecabin.jp<br>・常時無料 1TB/月, 1000万リクエスト<br>・HTTPS強制 / TLS 1.3 / HTTP/2 + HTTP/3"]
     CloudFrontDefault --> CloudFront
 
     subgraph Phase1_Current["【Phase 1: 現在】静的ホスティング基盤 (S3 + CloudFront + Route53)"]
-        CloudFront -->|OAC (Origin Access Control)<br>SigV4署名付き限定アクセス| S3Static["Amazon S3: 静的ホスティングバケット<br>・Next.js 15+ SSG成果物 (HTML/JS/CSS)<br>・パブリックアクセス完全ブロック<br>・バケットバージョニング & 暗号化 (SSE-S3)"]
+        CloudFront -->|OAC (Origin Access Control)<br>SigV4署名付き限定アクセス| S3Static["Amazon S3: ゲーム静的バケット<br>・Next.js 15+ SSG成果物 (HTML/JS/CSS)<br>・パブリックアクセス完全ブロック<br>・バケットバージョニング & 暗号化 (SSE-S3)"]
+        PortalCloudFront -->|OAC (Origin Access Control)<br>SigV4署名付き限定アクセス| PortalS3Static["Amazon S3: ポータル静的バケット<br>・ポータルLP成果物 (portal/index.html, ads.txt)<br>・パブリックアクセス完全ブロック<br>・バケットバージョニング & 暗号化 (SSE-S3)"]
     end
 
     subgraph Phase2_Future["【Phase 2: 将来拡張】サーバーレス対戦・認証・独自ドメイン"]
@@ -59,7 +62,9 @@ flowchart TD
     end
 
     OIDC -.->|デプロイ (AssumeRole)| S3Static
+    OIDC -.->|ポータルデプロイ (AssumeRole)| PortalS3Static
     OIDC -.->|キャッシュ破棄| CloudFront
+    OIDC -.->|ポータルキャッシュ破棄| PortalCloudFront
     Budgets -.->|通知| Admin[("運用管理者 / 開発者")]
     CWAlarms -.->|通知| Admin
 ```
@@ -70,10 +75,10 @@ flowchart TD
 
 | コンポーネント | 採用AWSサービス | 役割・機能 | 無料枠の種別 ＆ 上限 | コスト超過対策 |
 | :--- | :--- | :--- | :--- | :--- |
-| **CDN / 配信** | **Amazon CloudFront** | グローバルエッジ配信、HTTPS終端、高速キャッシュ、OAC認証ヘッダー付与 | **常時無料 (Always Free)**<br>・データ転送量: 1TB / 月<br>・HTTP/HTTPSリクエスト: 1,000万回 / 月 | キャッシュヒット率95%以上維持、不必要なキャッシュ無効化（Invalidation）の制限（月1,000パスまで無料） |
-| **静的ストレージ** | **Amazon S3** | Next.js静的エクスポート成果物（HTML/CSS/JS/画像）の非公開保管 | **12ヶ月無料 (Free Tier)**<br>・ストレージ: 5GB<br>・GETリクエスト: 20,000回 / 月<br>・PUTリクエスト: 2,000回 / 月 | CloudFrontキャッシュによるS3リクエスト激減、アセットの最小化・Gzip/Brotli圧縮、ライフサイクルルールによる旧世代削除 |
-| **SSL/TLS証明書** | **AWS Certificate Manager (ACM)** | カスタムドメイン（`*.puzzlecabin.jp`, `coda.puzzlecabin.jp`、`us-east-1`発行）用SSL/TLS証明書の自動発行・更新 | **完全無料**（CloudFront関連付け時） | Route 53ホストゾーン連携によりワンクリックDNS検証・自動更新 |
-| **DNS / ドメイン管理** | **Amazon Route 53**（パブリックホストゾーン） | Apexドメイン `puzzlecabin.jp` ホストゾーン管理、サブドメイン `coda.puzzlecabin.jp` の CloudFront A/AAAA Alias レコード名前解決、ACM DNS検証レコード | **ホストゾーン: $0.50/月**<br>・CloudFront Alias クエリ: **無料 ($0)** | Xserver側はネームサーバー委任のみとし、全DNSレコードをIaC一元管理。CloudFrontエイリアス無料枠活用 |
+| **CDN / 配信** | **Amazon CloudFront** | グローバルエッジ配信、HTTPS終端、高速キャッシュ、OAC認証ヘッダー付与（ゲーム用 `CloudFrontDistribution` および親ドメインポータル用 `PortalCloudFrontDistribution`） | **常時無料 (Always Free)**<br>・データ転送量: 1TB / 月<br>・HTTP/HTTPSリクエスト: 1,000万回 / 月 | キャッシュヒット率95%以上維持、不必要なキャッシュ無効化（Invalidation）の制限（月1,000パスまで無料） |
+| **静的ストレージ** | **Amazon S3** | Next.js静的成果物保管（`HostingBucket`）およびポータルLP成果物保管（`PortalHostingBucket`）の非公開保管 | **12ヶ月無料 (Free Tier)**<br>・ストレージ: 5GB<br>・GETリクエスト: 20,000回 / 月<br>・PUTリクエスト: 2,000回 / 月 | CloudFrontキャッシュによるS3リクエスト激減、アセットの最小化・Gzip/Brotli圧縮、ライフサイクルルールによる旧世代削除 |
+| **SSL/TLS証明書** | **AWS Certificate Manager (ACM)** | カスタムドメイン（`*.puzzlecabin.jp`, `puzzlecabin.jp`、`us-east-1`発行）用SSL/TLS証明書の自動発行・更新 | **完全無料**（CloudFront関連付け時） | Route 53ホストゾーン連携によりワンクリックDNS検証・自動更新 |
+| **DNS / ドメイン管理** | **Amazon Route 53**（パブリックホストゾーン） | Apexドメイン `puzzlecabin.jp` ホストゾーン管理、サブドメイン `coda.puzzlecabin.jp` および親ドメイン `puzzlecabin.jp` の CloudFront A/AAAA Alias レコード名前解決、ACM DNS検証レコード | **ホストゾーン: $0.50/月**<br>・CloudFront Alias クエリ: **無料 ($0)** | Xserver側はネームサーバー委任のみとし、全DNSレコードをIaC一元管理。CloudFrontエイリアス無料枠活用 |
 | **API基盤**<br>(Phase 2) | **Amazon API Gateway** (HTTP API) | ルーム作成・対戦履歴用RESTエンドポイント | **12ヶ月無料**: 100万回 / 月<br>（超過後も $1.00 / 100万回と極めて低価格） | 取得データのフロントエンドキャッシュ、不要なポーリング排除 |
 | **WebSocket**<br>(Phase 2) | **Amazon API Gateway** (WebSocket API) | リアルタイム双方向メッセージ通信（手番同期、カード開示） | **12ヶ月無料**: 100万回 / 月、接続時間 75万接続-分 / 月 | 手番完了時のみのメッセージ送受信、アイドル接続の自動切断（タイムアウト設定） |
 | **サーバーレス計算**<br>(Phase 2) | **AWS Lambda** | ゲーム状態管理、勝敗判定、対戦戦績登録 | **常時無料 (Always Free)**<br>・リクエスト数: 100万回 / 月<br>・コンピュート時間: 400,000 GB-秒 / 月 | メモリ最適化（128MB〜256MB）、コールドスタート削減、Node.js 20+ 軽量ランタイム |
