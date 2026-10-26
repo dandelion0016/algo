@@ -14,6 +14,8 @@ export const viewport: Viewport = {
   themeColor: '#fafaf7',
 };
 
+const DEFAULT_GA_MEASUREMENT_ID = 'G-38N6PN8RE6';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -21,11 +23,10 @@ export default function RootLayout({
 }>) {
   const jsonLd = buildJsonLd();
   const adsense = getAdSenseConfig();
-  const rawGaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
-  const gaMeasurementId =
-    rawGaMeasurementId && /^G-[A-Za-z0-9]+$/.test(rawGaMeasurementId.trim())
-      ? rawGaMeasurementId.trim()
-      : undefined;
+  const rawGaMeasurementId = (process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || DEFAULT_GA_MEASUREMENT_ID).trim();
+  const gaMeasurementId = /^G-[A-Za-z0-9]+$/.test(rawGaMeasurementId)
+    ? rawGaMeasurementId
+    : DEFAULT_GA_MEASUREMENT_ID;
 
   return (
     <html lang="ja">
