@@ -433,6 +433,9 @@
   - `src/app/sitemap.ts` (`/sitemap.xml`): トップページURL、`changeFrequency: 'weekly'`、`priority: 1.0` を出力。
   - `src/app/manifest.ts` (`/manifest.webmanifest`): `standalone` 表示、テーマカラー `#fafaf7`、アイコン `/app-icon.jpg` (512×512) を定義。
 
-### 5.4 Google Analytics 4 (GA4) 測定タグ連携 (`src/app/layout.tsx`)
-- 環境変数 `NEXT_PUBLIC_GA_MEASUREMENT_ID`（形式: `G-[A-Za-z0-9]+`）が注入されている場合のみ、`gtag.js` スクリプトおよび初期化インラインスクリプトを安全に出力。
-- 未設定時（ローカル開発環境・CI等）はDOM上にタグを出力せず、不要なトラッキング通信を完全に防止。
+### 5.4 Google Analytics 4 (GA4) 測定タグ連携 (`src/app/layout.tsx`, `portal/index.html`)
+- ゲームサイト（`src/app/layout.tsx`）:
+  - 環境変数 `NEXT_PUBLIC_GA_MEASUREMENT_ID`（形式: `G-[A-Za-z0-9]+`）またはデフォルト測定ID `G-38N6PN8RE6`（`DEFAULT_GA_MEASUREMENT_ID`）に基づき、`gtag.js` スクリプトおよび初期化インラインスクリプトを出力（ADR-0006, ADR-0009 準拠）。
+  - 環境変数未指定時でもデフォルトで `G-38N6PN8RE6` が有効化され、不正な形式の入力は安全にフォールバックされる。
+- 親ドメインポータル（`portal/index.html`）:
+  - `<head>` 内のメタタグ直下に Google tag (`gtag.js`) スクリプト（測定ID: `G-38N6PN8RE6`）を配置し、ポータルとゲームサイトの両方でシームレスなアクセス解析を実現。

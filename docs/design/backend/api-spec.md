@@ -327,7 +327,7 @@ function checkAttack(targetCard: Card, guessedNumber: number): boolean
   - `buildJsonLd(envUrl?: string): JsonLdDocument`:
     - Schema.org 準拠の `@graph`（`WebApplication` および `VideoGame`）構造化データを生成（2〜4人プレイ、無料 Offer、日本語対応等のリッチリザルト属性を定義）。
 - **アクセス解析連携 (GA4)**:
-  - `src/app/layout.tsx` において環境変数 `NEXT_PUBLIC_GA_MEASUREMENT_ID`（形式: `G-[A-Za-z0-9]+`）が指定されている場合、Google Analytics 4（`gtag.js`）測定スクリプトを動的注入。未設定時は一切のスクリプトを出力せず安全にバイパスする。
+  - `src/app/layout.tsx` において環境変数 `NEXT_PUBLIC_GA_MEASUREMENT_ID`（形式: `G-[A-Za-z0-9]+`）またはデフォルト測定ID `G-38N6PN8RE6`（`DEFAULT_GA_MEASUREMENT_ID`）に基づき、Google Analytics 4（`gtag.js`）測定スクリプトを動的注入（ADR-0006, ADR-0009 準拠）。環境変数未指定時でもデフォルトで `G-38N6PN8RE6` が有効化され、不正な形式の文字列は安全に検証・フォールバックされる。
 
 ### 3.10 Google AdSense 広告設定管理 (`src/lib/adsense.ts`)
 - **役割**: Google AdSense クライアントID（`ca-pub-xxxxxxxxxxxxxxxx`）の形式検証および環境変数・定数フォールバックからの広告設定取得を管理する純粋関数モジュール（ADR-0004, ADR-0007 準拠）。

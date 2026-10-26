@@ -74,7 +74,7 @@ jobs:
           NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL || 'https://coda.puzzlecabin.jp' }}
           NEXT_PUBLIC_ADSENSE_CLIENT_ID: ${{ vars.NEXT_PUBLIC_ADSENSE_CLIENT_ID || 'ca-pub-3337160908225388' }}
           NEXT_PUBLIC_ADSENSE_SLOT_SETUP: ${{ vars.NEXT_PUBLIC_ADSENSE_SLOT_SETUP || '' }}
-          NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ vars.NEXT_PUBLIC_GA_MEASUREMENT_ID || '' }}
+          NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ vars.NEXT_PUBLIC_GA_MEASUREMENT_ID || 'G-38N6PN8RE6' }}
 
       - name: Debug OIDC Token Claims
         run: |
