@@ -3,6 +3,7 @@
 import React from 'react';
 import { Lightbulb, Target, CheckCircle2, Sparkles, X, AlertCircle } from 'lucide-react';
 import { HintResult } from '../lib/hintAdvisor';
+import { useI18n } from '../lib/i18n';
 
 export interface HintModalProps {
   isOpen: boolean;
@@ -23,6 +24,8 @@ export const HintModal: React.FC<HintModalProps> = ({
   canSelectTarget = false,
   isTimedMatch = false,
 }) => {
+  const { language, t } = useI18n();
+
   if (!isOpen) return null;
 
   return (
@@ -50,12 +53,14 @@ export const HintModal: React.FC<HintModalProps> = ({
               </div>
               <div>
                 <h3 id="hint-modal-title" className="text-base sm:text-lg font-black text-slate-900 tracking-tight flex items-center gap-1.5">
-                  AIヒント
+                  {language === 'en' ? 'AI Hint Advisor' : 'AIヒント'}
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
-                    {`残り${remainingHints}回`}
+                    {language === 'en' ? `${remainingHints} left` : `残り${remainingHints}回`}
                   </span>
                 </h3>
-                <p className="text-xs text-slate-500 font-medium">手詰まり時の次の一手・安全アタック先</p>
+                <p className="text-xs text-slate-500 font-medium">
+                  {language === 'en' ? 'Smart move recommendation & safety check' : '手詰まり時の次の一手・安全アタック先'}
+                </p>
               </div>
             </div>
             <button
@@ -63,7 +68,7 @@ export const HintModal: React.FC<HintModalProps> = ({
               data-testid="btn-close-hint-x"
               onClick={onClose}
               className="text-slate-400 hover:text-slate-600 p-1 rounded-xl hover:bg-slate-100 transition-colors"
-              aria-label="閉じる"
+              aria-label={t.common.close}
             >
               <X className="w-5 h-5" />
             </button>

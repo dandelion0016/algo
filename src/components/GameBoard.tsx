@@ -40,6 +40,8 @@ import { useUserSession } from '../hooks/useUserSession';
 import { auditLogger } from '../lib/auditLogger';
 import { soundManager } from '../lib/soundManager';
 import { haptics } from '../lib/haptics';
+import { useI18n } from '../lib/i18n';
+import { LanguageSwitcher } from './LanguageSwitcher';
 import {
   getStoredStats,
   recordMatchResult,
@@ -206,6 +208,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   initialIsMobileMenuOpen = false,
 }) => {
   const { userId } = useUserSession();
+  const { language, t } = useI18n();
 
   const [gameState, setGameState] = useState<GameState>(() => ({
     playerCount: 2,
@@ -1891,23 +1894,25 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               <h1 className="text-sm sm:text-lg font-black text-slate-900 tracking-tight flex items-center gap-1 sm:gap-2">
                 algo
                 <span className="text-[8px] sm:text-[10px] font-bold px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-algo-blue/15 text-algo-blue whitespace-nowrap">
-                  {gameState.playerCount}人対戦
+                  {language === 'ja' ? `${gameState.playerCount}人対戦` : `${gameState.playerCount} Players`}
                 </span>
                 <span className="text-[8px] sm:text-[10px] font-bold px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-algo-yellow text-slate-950 whitespace-nowrap">
                   {gameState.difficulty === 'easy'
-                    ? '初級'
+                    ? (language === 'ja' ? '初級' : 'Easy')
                     : gameState.difficulty === 'normal'
-                    ? '中級'
-                    : '上級'}
+                    ? (language === 'ja' ? '中級' : 'Normal')
+                    : (language === 'ja' ? '上級' : 'Hard')}
                 </span>
                 <span className="text-[8px] sm:text-[10px] font-bold px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-slate-100 text-slate-600 whitespace-nowrap">
-                  {gameState.timeLimit === 0 ? '無制限' : `${gameState.timeLimit}秒`}
+                  {gameState.timeLimit === 0 ? (language === 'ja' ? '無制限' : 'Unlimited') : `${gameState.timeLimit}秒`}
                 </span>
                 <span data-testid="gameboard-version-badge" className="text-[8px] sm:text-[10px] font-medium font-mono px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-slate-100 text-slate-500 whitespace-nowrap">
                   {getAppVersion()}
                 </span>
               </h1>
-              <p className="text-[11px] text-slate-500 font-medium hidden sm:block">数字当て論理推理ボードゲーム</p>
+              <p className="text-[11px] text-slate-500 font-medium hidden sm:block">
+                {language === 'ja' ? '数字当て論理推理ボードゲーム' : 'Number Logic Deduction Board Game'}
+              </p>
             </div>
           </div>
 
@@ -1984,7 +1989,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               data-testid="btn-get-hint"
               onClick={handleRequestHint}
               disabled={isHintDisabled}
-              aria-label={`AIヒント: 残り${hintCount}回`}
+              aria-label={language === 'ja' ? `AIヒント: 残り${hintCount}回` : `AI Hint: ${hintCount} left`}
               className={`flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0 ${
                 isHintDisabled
                   ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-60'
@@ -1992,31 +1997,31 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               }`}
               title={
                 hintCount <= 0
-                  ? 'ヒントは使い切りました（残り0回）'
+                  ? (language === 'ja' ? 'ヒントは使い切りました（残り0回）' : 'No hints remaining')
                   : !isHumanTurn
-                  ? 'あなたのターン中に使用できます'
-                  : `AIヒントを使用（残り${hintCount}回）`
+                  ? (language === 'ja' ? 'あなたのターン中に使用できます' : 'Available during your turn')
+                  : (language === 'ja' ? `AIヒントを使用（残り${hintCount}回）` : `Use AI Hint (${hintCount} left)`)
               }
             >
               <Lightbulb className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${!isHintDisabled ? 'text-amber-600' : 'text-slate-400'}`} />
-              <span>{`💡 ヒント（残り${hintCount}回）`}</span>
+              <span>{t.header.hint(hintCount)}</span>
             </button>
 
             <button
               type="button"
               data-testid="btn-toggle-assist"
               onClick={toggleAssist}
-              aria-label={`初心者アシスト表示: ${isAssistEnabled ? 'ON' : 'OFF'}`}
+              aria-label={t.header.assistAria(isAssistEnabled)}
               aria-pressed={isAssistEnabled}
               className={`flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0 ${
                 isAssistEnabled
                   ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 ring-1 ring-emerald-200'
                   : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'
               }`}
-              title={isAssistEnabled ? '初心者アシストON（クリックでOFF）' : '初心者アシストOFF（クリックでON）'}
+              title={t.header.assistTitle(isAssistEnabled)}
             >
               <span className="text-xs" aria-hidden="true">🔰</span>
-              <span>アシスト {isAssistEnabled ? 'ON' : 'OFF'}</span>
+              <span>{t.header.assist(isAssistEnabled)}</span>
             </button>
 
             {/* サウンドON/OFFトグルボタン (Issue #63, #71, #118: モバイル時はメニュー内に格納) */}
@@ -2024,21 +2029,21 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               type="button"
               data-testid="btn-sound-toggle"
               onClick={handleToggleSound}
-              aria-label={`サウンド効果音: ${isSoundEnabled ? 'ON' : 'OFF'}`}
+              aria-label={t.header.soundAria(isSoundEnabled)}
               aria-pressed={isSoundEnabled}
               className={`hidden lg:flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0 ${
                 isSoundEnabled
                   ? 'border-algo-blue/40 bg-algo-blue-light/30 text-algo-navy hover:bg-algo-blue-light/50 ring-1 ring-algo-blue/20'
                   : 'border-slate-200 bg-slate-50 text-slate-400 hover:bg-slate-100'
               }`}
-              title={isSoundEnabled ? 'サウンドON（クリックでミュート）' : 'サウンドOFF（クリックでON）'}
+              title={t.header.soundTitle(isSoundEnabled)}
             >
               {isSoundEnabled ? (
                 <Volume2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-algo-blue" />
               ) : (
                 <VolumeX className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400" />
               )}
-              <span>サウンド {isSoundEnabled ? 'ON' : 'OFF'}</span>
+              <span>{t.header.sound(isSoundEnabled)}</span>
             </button>
 
             <button
@@ -2047,7 +2052,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               className="hidden lg:flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-algo-blue/30 bg-algo-blue-light/30 hover:bg-algo-blue-light/60 text-algo-navy text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0"
             >
               <GraduationCap className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-algo-blue" />
-              <span>チュートリアル</span>
+              <span>{t.header.tutorial}</span>
             </button>
 
             <button
@@ -2056,7 +2061,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               className="hidden lg:flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0"
             >
               <BookOpen className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-algo-blue" />
-              <span>ルール</span>
+              <span>{t.header.rules}</span>
             </button>
 
             <button
@@ -2064,10 +2069,10 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               data-testid="btn-open-stats"
               onClick={() => setIsStatsModalOpen(true)}
               className="hidden lg:flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-900 text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0"
-              title="通算戦績・アチーブメントを表示"
+              title={t.header.statsTitle}
             >
               <Trophy className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600" />
-              <span>戦績</span>
+              <span>{t.header.stats}</span>
             </button>
 
             <button
@@ -2076,7 +2081,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               className="hidden lg:flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0"
             >
               <RotateCcw className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-600" />
-              <span>再戦</span>
+              <span>{t.header.rematch}</span>
             </button>
 
             <button
@@ -2085,7 +2090,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               className="hidden lg:flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[10px] sm:text-xs font-bold transition-all shadow-2xs whitespace-nowrap shrink-0"
             >
               <Settings2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-algo-yellow" />
-              <span>設定</span>
+              <span>{t.header.settings}</span>
             </button>
 
             {/* ゲーム終了時にリザルトモーダルを閉じた場合の再表示ボタン (Issue #60) */}
@@ -2097,22 +2102,25 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 className="hidden lg:flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-[10px] sm:text-xs font-black transition-all shadow-2xs whitespace-nowrap shrink-0"
               >
                 <Trophy className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-950" />
-                <span>結果を見る</span>
+                <span>{t.header.viewResult}</span>
               </button>
             )}
 
-
+            {/* 言語切り替えトグル (デスクトップ) (Issue #162) */}
+            <div className="hidden lg:flex items-center shrink-0">
+              <LanguageSwitcher variant="header" />
+            </div>
 
             {/* モバイル専用 「☰ メニュー」ボタン (lg未満で表示) (Issue #118) */}
             <button
               type="button"
               data-testid="btn-open-mobile-menu"
               onClick={() => setIsMobileMenuOpen(true)}
-              aria-label="メニューを開く"
+              aria-label={t.header.menuOpen}
               className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-800 text-[10px] sm:text-xs font-bold transition-all shadow-2xs lg:hidden relative whitespace-nowrap shrink-0 active:scale-95"
             >
               <Menu className="w-3.5 h-3.5 text-slate-700 shrink-0" />
-              <span>メニュー</span>
+              <span>{t.header.menu}</span>
             </button>
           </div>
         </div>
@@ -2199,7 +2207,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         >
           <div className="flex items-center gap-2 text-xs sm:text-sm font-bold">
             <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>【ゲーム終了】全プレイヤーの手札の答え合わせが開示されています</span>
+            <span>
+              {language === 'ja'
+                ? '【ゲーム終了】全プレイヤーの手札の答え合わせが開示されています'
+                : '[GAME OVER] All players\' hands revealed for verification'}
+            </span>
           </div>
           {!isResultModalOpen && (
             <button
@@ -2207,7 +2219,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               onClick={() => setIsResultModalOpen(true)}
               className="text-xs font-black text-amber-800 underline hover:text-amber-950 shrink-0 cursor-pointer"
             >
-              結果をもう一度見る
+              {language === 'ja' ? '結果をもう一度見る' : 'Review Results'}
             </button>
           )}
         </div>
@@ -2257,18 +2269,20 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                         <div className="min-w-0">
                           <span className="font-black text-[10px] sm:text-xs text-slate-900 block leading-tight truncate">{opp.name}</span>
                           <span className="text-[8px] sm:text-[9.5px] text-slate-400 font-semibold block leading-none">
-                            ({openCount}/{opp.cards.length} 枚OPEN)
+                            {language === 'ja'
+                              ? `(${openCount}/${opp.cards.length} 枚OPEN)`
+                              : `(${openCount}/${opp.cards.length} OPEN)`}
                           </span>
                         </div>
                       </div>
 
                       {opp.isEliminated ? (
                         <span className="text-[8px] sm:text-[10px] px-1 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-rose-100 text-rose-700 font-bold shrink-0">
-                          脱落
+                          {language === 'ja' ? '脱落' : 'OUT'}
                         </span>
                       ) : isCurrentTurn ? (
                         <span className="text-[8px] sm:text-[10px] px-1 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-algo-blue text-white font-bold animate-pulse shrink-0">
-                          思考中
+                          {language === 'ja' ? '思考中' : 'Thinking'}
                         </span>
                       ) : null}
                     </div>
@@ -2351,7 +2365,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           {gameState.phase === 'PLAYER_SELECT_TARGET' && (
             <div className="text-center my-0 sm:my-0.5 shrink-0">
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 sm:px-4 sm:py-1 rounded-lg sm:rounded-2xl bg-algo-blue-light border border-algo-blue/30 text-algo-navy text-[10px] sm:text-xs font-black shadow-xs animate-attack-pulse">
-                <span>👆 推理したい相手の伏せカード（?）をクリック！</span>
+                <span>
+                  {language === 'ja'
+                    ? '👆 推理したい相手の伏せカード（?）をクリック！'
+                    : '👆 Click an opponent\'s hidden card (?) to attack!'}
+                </span>
               </span>
             </div>
           )}
@@ -2367,9 +2385,15 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 data-testid="btn-draw-card"
                 role={gameState.phase === 'PLAYER_TURN_START' && gameState.deck.length > 0 ? 'button' : undefined}
                 tabIndex={gameState.phase === 'PLAYER_TURN_START' && gameState.deck.length > 0 ? 0 : undefined}
-                aria-label={`山札 (残り${gameState.deck.length}枚)${
-                  gameState.phase === 'PLAYER_TURN_START' && gameState.deck.length > 0 ? ' - クリックしてドロー' : ''
-                }`}
+                aria-label={
+                  language === 'ja'
+                    ? `山札 (残り${gameState.deck.length}枚)${
+                        gameState.phase === 'PLAYER_TURN_START' && gameState.deck.length > 0 ? ' - クリックしてドロー' : ''
+                      }`
+                    : `Deck (${gameState.deck.length} cards remaining)${
+                        gameState.phase === 'PLAYER_TURN_START' && gameState.deck.length > 0 ? ' - Click to draw' : ''
+                      }`
+                }
                 onKeyDown={
                   gameState.phase === 'PLAYER_TURN_START' && gameState.deck.length > 0
                     ? (e) => {
@@ -2389,14 +2413,14 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               >
                 <div className="flex items-center gap-0.5 text-slate-500 leading-none mb-0.5">
                   <Layers className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-algo-blue shrink-0" />
-                  <span className="text-[7.5px] sm:text-[9px] font-bold">山札</span>
+                  <span className="text-[7.5px] sm:text-[9px] font-bold">{t.common.deck}</span>
                 </div>
                 <span className="text-[10.5px] sm:text-xs lg:text-sm font-black text-slate-900 leading-none">
-                  {gameState.deck.length}枚
+                  {language === 'ja' ? `${gameState.deck.length}枚` : `${gameState.deck.length}`}
                 </span>
                 {gameState.phase === 'PLAYER_TURN_START' && gameState.deck.length > 0 && (
                   <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-1.5 py-0.2 rounded-full bg-algo-yellow text-slate-950 text-[7.5px] sm:text-[9px] font-black border border-amber-300 shadow-2xs whitespace-nowrap z-10">
-                    引く
+                    {language === 'ja' ? '引く' : 'DRAW'}
                   </span>
                 )}
               </div>
@@ -2404,7 +2428,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
             {/* 2. 引いたカード (Drawn Card Slot) */}
             <div data-testid="drawn-card-area" className="flex flex-col items-center justify-center shrink-0">
-              <span className="text-[7.5px] sm:text-[9px] font-bold text-slate-400 mb-0.5 leading-none">引いたカード</span>
+              <span className="text-[7.5px] sm:text-[9px] font-bold text-slate-400 mb-0.5 leading-none">{t.board.drawnCard}</span>
               {gameState.drawnCard ? (
                 <div className="flex flex-col items-center gap-0.5 animate-card-draw">
                   <CardComponent
@@ -2423,13 +2447,15 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                       data-testid="cpu-drawn-card-badge"
                       className="text-[7.5px] sm:text-[9px] font-bold px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-slate-800 text-white shadow-2xs whitespace-nowrap"
                     >
-                      {activePlayer?.name} が引いたカード [{gameState.drawnCard.color === 'black' ? '黒' : '白'}]
+                      {language === 'ja'
+                        ? `${activePlayer?.name} が引いたカード [${gameState.drawnCard.color === 'black' ? '黒' : '白'}]`
+                        : `${activePlayer?.name} drew [${gameState.drawnCard.color === 'black' ? 'Black' : 'White'}]`}
                     </span>
                   )}
                 </div>
               ) : (
                 <div className="w-8 h-12 sm:w-9 sm:h-14 rounded-md sm:rounded-lg border-2 border-dashed border-slate-200 flex items-center justify-center text-[9px] sm:text-[10px] text-slate-400 font-semibold bg-slate-50/50">
-                  なし
+                  {t.common.none}
                 </div>
               )}
             </div>
@@ -2441,16 +2467,22 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                   <div className="flex items-center justify-between gap-1">
                     <h4 className="font-black text-slate-900 text-[10px] sm:text-xs flex items-center gap-1 truncate">
                       <Sparkles className="w-3 h-3 text-algo-blue shrink-0" />
-                      <span>あなたのターン</span>
+                      <span>{t.board.yourTurn}</span>
                     </h4>
                     {gameState.timeLimit > 0 && (
-                      <span className="text-[8.5px] sm:text-[10px] font-bold text-algo-blue shrink-0">残り {gameState.remainingTime}秒</span>
+                      <span className="text-[8.5px] sm:text-[10px] font-bold text-algo-blue shrink-0">
+                        {language === 'ja' ? `残り ${gameState.remainingTime}秒` : `${gameState.remainingTime}s left`}
+                      </span>
                     )}
                   </div>
                   <p className="text-[9px] sm:text-[10.5px] text-slate-600 font-medium leading-tight truncate sm:whitespace-normal">
                     {gameState.deck.length === 0
-                      ? '山札がありません。相手の伏せカードを選んでアタックしてください。'
-                      : '山札をクリックしてカードを引いてください。'}
+                      ? (language === 'ja'
+                          ? '山札がありません。相手の伏せカードを選んでアタックしてください。'
+                          : 'Deck is empty. Pick an opponent\'s hidden card to attack.')
+                      : (language === 'ja'
+                          ? '山札をクリックしてカードを引いてください。'
+                          : 'Click the deck to draw a card.')}
                   </p>
                 </div>
               )}
@@ -2458,15 +2490,23 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               {gameState.phase === 'PLAYER_SELECT_TARGET' && (
                 <div className="p-1 sm:p-1.5 bg-algo-blue-light/50 border border-algo-blue/20 rounded-lg sm:rounded-xl">
                   <div className="flex items-center justify-between gap-1">
-                    <h4 className="font-black text-slate-900 text-[10px] sm:text-xs truncate">アタック対象を選択</h4>
+                    <h4 className="font-black text-slate-900 text-[10px] sm:text-xs truncate">
+                      {language === 'ja' ? 'アタック対象を選択' : 'Select Attack Target'}
+                    </h4>
                     {gameState.timeLimit > 0 && (
-                      <span className="text-[8.5px] sm:text-[10px] font-bold text-algo-blue shrink-0">残り {gameState.remainingTime}秒</span>
+                      <span className="text-[8.5px] sm:text-[10px] font-bold text-algo-blue shrink-0">
+                        {language === 'ja' ? `残り ${gameState.remainingTime}秒` : `${gameState.remainingTime}s left`}
+                      </span>
                     )}
                   </div>
                   <p className="text-[9px] sm:text-[10.5px] text-slate-600 font-medium leading-tight truncate sm:whitespace-normal">
                     {gameState.deck.length === 0 && !gameState.drawnCard
-                      ? '山札がありません。相手の伏せカードを選んでアタックしてください。'
-                      : '相手の伏せカード（?）をクリック。'}
+                      ? (language === 'ja'
+                          ? '山札がありません。相手の伏せカードを選んでアタックしてください。'
+                          : 'Deck is empty. Pick an opponent\'s hidden card to attack.')
+                      : (language === 'ja'
+                          ? '相手の伏せカード（?）をクリック。'
+                          : 'Click an opponent\'s hidden card (?).')}
                   </p>
                 </div>
               )}
@@ -2476,7 +2516,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                   <div className="flex items-center justify-between gap-1 mb-1">
                     <h4 className="font-black text-slate-900 text-[10px] sm:text-xs flex items-center gap-1 truncate">
                       <Flame className="w-3 h-3 text-amber-500 shrink-0" />
-                      <span>的中！続けてアタック？</span>
+                      <span>{language === 'ja' ? '的中！続けてアタック？' : 'HIT! Continue Attack?'}</span>
                     </h4>
                   </div>
                   <div className="flex gap-1 sm:gap-2">
@@ -2486,7 +2526,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                       onClick={handlePlayerContinue}
                       className="flex-1 py-1 px-1.5 sm:px-2 rounded-md sm:rounded-lg bg-gradient-to-r from-algo-blue to-algo-blue-dark text-white font-black text-[9px] sm:text-xs hover:brightness-105 shadow-2xs transition-all text-center whitespace-nowrap"
                     >
-                      続けてアタック
+                      {t.board.continueAttack}
                     </button>
                     <button
                       type="button"
@@ -2494,7 +2534,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                       onClick={handlePlayerStay}
                       className="flex-1 py-1 px-1.5 sm:px-2 rounded-md sm:rounded-lg bg-white border border-slate-300 text-slate-800 font-bold text-[9px] sm:text-xs hover:bg-slate-50 transition-all shadow-2xs text-center whitespace-nowrap"
                     >
-                      ステイ
+                      {t.attackResult.stay}
                     </button>
                   </div>
                 </div>
@@ -2504,7 +2544,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 <div className="p-1 sm:p-1.5 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl">
                   <h4 className="font-black text-slate-900 text-[10px] sm:text-xs flex items-center gap-1 truncate">
                     <Bot className="w-3 h-3 text-algo-blue shrink-0" />
-                    <span>{activePlayer?.name} の手番</span>
+                    <span>{language === 'ja' ? `${activePlayer?.name} の手番` : `${activePlayer?.name}'s Turn`}</span>
                   </h4>
                   <p className="text-[9px] sm:text-[10.5px] text-slate-600 font-medium animate-pulse leading-tight truncate sm:whitespace-normal">
                     {cpuStatusMessage}
@@ -2516,7 +2556,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 <div className="p-1 sm:p-1.5 bg-gradient-to-br from-algo-yellow/40 to-algo-blue/20 border border-amber-300 rounded-lg sm:rounded-xl flex items-center justify-between gap-1 sm:gap-2">
                   <div className="min-w-0">
                     <h4 className="font-black text-[10px] sm:text-xs text-slate-900 truncate">
-                      {gameState.winner?.isHuman ? '🎉 完全勝利！' : `💀 ${gameState.winner?.name} の勝利`}
+                      {gameState.winner?.isHuman
+                        ? (language === 'ja' ? '🎉 完全勝利！' : '🎉 VICTORY!')
+                        : (language === 'ja' ? `💀 ${gameState.winner?.name} の勝利` : `💀 ${gameState.winner?.name} Wins`)}
                     </h4>
                   </div>
                   <div className="flex gap-1 shrink-0">
@@ -2525,14 +2567,14 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                       onClick={() => setIsResultModalOpen(true)}
                       className="py-1 px-1.5 sm:px-2 rounded-md bg-algo-blue hover:bg-algo-blue-dark text-white font-black text-[9px] sm:text-xs shadow-2xs whitespace-nowrap"
                     >
-                      戦績サマリを表示
+                      {language === 'ja' ? '戦績サマリを表示' : 'View Summary'}
                     </button>
                     <button
                       type="button"
                       onClick={() => initializeGame()}
                       className="py-1 px-1.5 sm:px-2 rounded-md bg-slate-900 hover:bg-slate-800 text-white font-black text-[9px] sm:text-xs shadow-2xs whitespace-nowrap"
                     >
-                      もう一度対戦する
+                      {language === 'ja' ? 'もう一度対戦する' : 'Play Again'}
                     </button>
                   </div>
                 </div>
@@ -2567,10 +2609,16 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     </div>
                     <div className="min-w-0">
                       <span className="font-black text-[10px] sm:text-xs text-slate-900 block leading-tight truncate">
-                        {humanPlayer.name} の手札
+                        {language === 'ja'
+                          ? `${humanPlayer.name} の手札`
+                          : humanPlayer.name === 'あなた' || !humanPlayer.name
+                          ? 'Your Hand'
+                          : `${humanPlayer.name}'s Hand`}
                       </span>
                       <span className="text-[8px] sm:text-[9.5px] text-slate-400 font-semibold block leading-none">
-                        ({humanPlayer.cards.filter((c) => c.isOpen).length}/{humanPlayer.cards.length} 枚OPEN)
+                        {language === 'ja'
+                          ? `(${humanPlayer.cards.filter((c) => c.isOpen).length}/${humanPlayer.cards.length} 枚OPEN)`
+                          : `(${humanPlayer.cards.filter((c) => c.isOpen).length}/${humanPlayer.cards.length} OPEN)`}
                       </span>
                     </div>
                   </div>
@@ -2578,7 +2626,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                   {activePlayer?.isHuman && (
                     <span className="flex items-center gap-1 px-1 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-algo-yellow text-slate-950 text-[8px] sm:text-[10px] font-black shadow-2xs whitespace-nowrap shrink-0">
                       <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-amber-500 animate-ping" />
-                      自ターン
+                      {language === 'ja' ? '自ターン' : 'Your Turn'}
                     </span>
                   )}
                 </div>
@@ -2633,10 +2681,14 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           data-testid="btn-open-deck-tracker-mobile"
           onClick={() => setIsMobileTrackerOpen((prev) => !prev)}
           className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-algo-blue/10 hover:bg-algo-blue/20 text-algo-navy text-[11px] font-black transition-all active:scale-95 whitespace-nowrap shrink-0 shadow-2xs"
-          aria-label={`残弾トラッカーを開く (残弾 ${trackerState.summary.totalRemaining}/24枚)`}
+          aria-label={
+            language === 'ja'
+              ? `残弾トラッカーを開く (残弾 ${trackerState.summary.totalRemaining}/24枚)`
+              : `Open deck tracker (${trackerState.summary.totalRemaining}/24 remaining)`
+          }
         >
           <Target className="w-3.5 h-3.5 text-algo-blue shrink-0" />
-          <span>残弾</span>
+          <span>{language === 'ja' ? '残弾' : 'Tracker'}</span>
           <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-algo-blue text-white text-[9px] font-black">
             {trackerState.summary.totalRemaining}/24
           </span>
@@ -2648,10 +2700,14 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           data-testid="btn-toggle-log"
           onClick={() => setIsMobileLogOpen((prev) => !prev)}
           className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-black transition-all active:scale-95 whitespace-nowrap shrink-0 shadow-2xs"
-          aria-label={`対戦ログを開く (${gameState.logs.length}件)`}
+          aria-label={
+            language === 'ja'
+              ? `対戦ログを開く (${gameState.logs.length}件)`
+              : `Open battle log (${gameState.logs.length} entries)`
+          }
         >
           <ScrollText className="w-3.5 h-3.5 text-algo-blue shrink-0" />
-          <span>ログ</span>
+          <span>{language === 'ja' ? 'ログ' : 'Log'}</span>
           {gameState.logs.length > 0 && (
             <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-algo-blue/15 text-algo-blue text-[9px] font-black">
               {gameState.logs.length}
@@ -2666,7 +2722,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           data-testid="mobile-tracker-drawer"
           role="dialog"
           aria-modal="true"
-          aria-label="モバイル残弾トラッカー"
+          aria-label={language === 'ja' ? 'モバイル残弾トラッカー' : 'Mobile Deck Tracker'}
           className="fixed inset-0 z-50 flex flex-col justify-end bg-black/50 backdrop-blur-xs lg:hidden animate-fade-in"
           onClick={() => setIsMobileTrackerOpen(false)}
         >
@@ -2677,17 +2733,19 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
               <div className="flex items-center gap-2 min-w-0">
                 <Target className="w-4 h-4 text-algo-blue shrink-0" />
-                <h3 className="text-sm font-black text-slate-800 whitespace-nowrap">残弾トラッカー</h3>
+                <h3 className="text-sm font-black text-slate-800 whitespace-nowrap">{t.deckTracker.title}</h3>
                 <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full whitespace-nowrap">
-                  残り {trackerState.summary.totalRemaining}/24枚
+                  {language === 'ja'
+                    ? `残り ${trackerState.summary.totalRemaining}/24枚`
+                    : `Remaining: ${trackerState.summary.totalRemaining}/24`}
                 </span>
                 {trackerHighlightNumbers.length > 0 && (
                   <span
                     className="flex items-center gap-0.5 px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 text-[9px] font-bold shrink-0 animate-fade-in"
-                    title="推理候補ハイライト中"
+                    title={language === 'ja' ? '推理候補ハイライト中' : 'Assist Highlight Active'}
                   >
                     <Sparkles className="w-2.5 h-2.5" />
-                    <span>候補連動</span>
+                    <span>{language === 'ja' ? '候補連動' : 'Assist'}</span>
                   </span>
                 )}
               </div>
@@ -2696,7 +2754,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 data-testid="btn-close-deck-tracker-mobile"
                 onClick={() => setIsMobileTrackerOpen(false)}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
-                aria-label="トラッカーを閉じる"
+                aria-label={language === 'ja' ? 'トラッカーを閉じる' : 'Close tracker'}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2720,7 +2778,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         <div
           data-testid="mobile-log-drawer"
           role="dialog"
-          aria-label="モバイル対戦ログ"
+          aria-label={language === 'ja' ? 'モバイル対戦ログ' : 'Mobile Battle Log'}
           className="fixed inset-0 z-50 flex flex-col justify-end bg-black/50 backdrop-blur-xs lg:hidden animate-fade-in"
           onClick={() => setIsMobileLogOpen(false)}
         >
@@ -2731,14 +2789,16 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <ScrollText className="w-4 h-4 text-algo-blue" />
-                <h3 className="text-sm font-black text-slate-800">対戦ログ ({gameState.logs.length}件)</h3>
+                <h3 className="text-sm font-black text-slate-800">
+                  {language === 'ja' ? `対戦ログ (${gameState.logs.length}件)` : `Battle Log (${gameState.logs.length})`}
+                </h3>
               </div>
               <button
                 type="button"
                 data-testid="btn-close-mobile-log"
                 onClick={() => setIsMobileLogOpen(false)}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                aria-label="ログを閉じる"
+                aria-label={language === 'ja' ? 'ログを閉じる' : 'Close log'}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2756,7 +2816,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           data-testid="modal-mobile-menu"
           role="dialog"
           aria-modal="true"
-          aria-label="モバイルメニュー"
+          aria-label={language === 'ja' ? 'モバイルメニュー' : 'Mobile Menu'}
           className="fixed inset-0 z-50 flex flex-col justify-end bg-black/50 backdrop-blur-xs lg:hidden animate-fade-in"
           onClick={() => setIsMobileMenuOpen(false)}
         >
@@ -2768,14 +2828,14 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Menu className="w-5 h-5 text-algo-navy" />
-                <h3 className="text-base font-black text-slate-800 tracking-tight">メニュー</h3>
+                <h3 className="text-base font-black text-slate-800 tracking-tight">{t.header.menu}</h3>
               </div>
               <button
                 type="button"
                 data-testid="btn-close-mobile-menu"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-colors"
-                aria-label="メニューを閉じる"
+                aria-label={t.header.menuClose}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2783,6 +2843,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
             {/* Menu Items List */}
             <div className="space-y-2 py-1 overflow-y-auto">
+              {/* 🌐 言語切り替えトグル (Issue #162) */}
+              <div className="p-1 rounded-2xl bg-slate-50 border border-slate-200">
+                <LanguageSwitcher variant="menu" />
+              </div>
+
               {/* 🔊 サウンド（ミュート/解除トグル、現在の状態表示） */}
               <button
                 type="button"
@@ -2804,9 +2869,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     <VolumeX className="w-5 h-5 text-slate-400 shrink-0" />
                   )}
                   <div>
-                    <span className="block font-black text-slate-800">効果音サウンド</span>
+                    <span className="block font-black text-slate-800">{language === 'ja' ? '効果音サウンド' : 'Sound Effects'}</span>
                     <span className="text-xs font-medium text-slate-500">
-                      {isSoundEnabled ? '現在: ON (効果音あり)' : '現在: OFF (ミュート中)'}
+                      {isSoundEnabled
+                        ? (language === 'ja' ? '現在: ON (効果音あり)' : 'Status: ON (Active)')
+                        : (language === 'ja' ? '現在: OFF (ミュート中)' : 'Status: OFF (Muted)')}
                     </span>
                   </div>
                 </div>
@@ -2834,11 +2901,13 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 <div className="flex items-center gap-3">
                   <Trophy className="w-5 h-5 text-amber-600 shrink-0" />
                   <div>
-                    <span className="block font-black text-amber-950">戦績＆アチーブメント</span>
-                    <span className="text-xs font-medium text-amber-700">通算戦績・勝率・獲得実績</span>
+                    <span className="block font-black text-amber-950">{t.stats.title}</span>
+                    <span className="text-xs font-medium text-amber-700">
+                      {language === 'ja' ? '通算戦績・勝率・獲得実績' : 'Career stats, win rates & achievements'}
+                    </span>
                   </div>
                 </div>
-                <span className="text-xs font-bold text-amber-600 shrink-0">表示 →</span>
+                <span className="text-xs font-bold text-amber-600 shrink-0">{language === 'ja' ? '表示 →' : 'View →'}</span>
               </button>
 
               {/* 📖 ルールガイド */}
@@ -2854,11 +2923,13 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 <div className="flex items-center gap-3">
                   <BookOpen className="w-5 h-5 text-algo-blue shrink-0" />
                   <div>
-                    <span className="block font-black text-slate-800">ルールガイド</span>
-                    <span className="text-xs font-medium text-slate-500">基本ルール・カード並び順の確認</span>
+                    <span className="block font-black text-slate-800">{language === 'ja' ? 'ルールガイド' : 'Rule Guide'}</span>
+                    <span className="text-xs font-medium text-slate-500">
+                      {language === 'ja' ? '基本ルール・カード並び順の確認' : 'Basic rules & card sort order'}
+                    </span>
                   </div>
                 </div>
-                <span className="text-xs font-bold text-slate-400 shrink-0">表示 →</span>
+                <span className="text-xs font-bold text-slate-400 shrink-0">{language === 'ja' ? '表示 →' : 'View →'}</span>
               </button>
 
               {/* 🎓 チュートリアル */}
@@ -2874,11 +2945,13 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 <div className="flex items-center gap-3">
                   <GraduationCap className="w-5 h-5 text-algo-blue shrink-0" />
                   <div>
-                    <span className="block font-black text-slate-800">チュートリアル</span>
-                    <span className="text-xs font-medium text-slate-500">遊び方のステップバイステップ解説</span>
+                    <span className="block font-black text-slate-800">{t.header.tutorial}</span>
+                    <span className="text-xs font-medium text-slate-500">
+                      {language === 'ja' ? '遊び方のステップバイステップ解説' : 'Interactive guide & tutorial'}
+                    </span>
                   </div>
                 </div>
-                <span className="text-xs font-bold text-algo-blue shrink-0">開く →</span>
+                <span className="text-xs font-bold text-algo-blue shrink-0">{language === 'ja' ? '開く →' : 'Open →'}</span>
               </button>
 
               {/* ゲーム終了時の結果再表示 */}
@@ -2895,11 +2968,13 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                   <div className="flex items-center gap-3">
                     <Trophy className="w-5 h-5 text-slate-950 shrink-0" />
                     <div>
-                      <span className="block font-black">対戦結果を見る</span>
-                      <span className="text-xs font-bold text-amber-950">勝敗とスコアを再確認</span>
+                      <span className="block font-black">{language === 'ja' ? '対戦結果を見る' : 'View Match Result'}</span>
+                      <span className="text-xs font-bold text-amber-950">
+                        {language === 'ja' ? '勝敗とスコアを再確認' : 'Review outcome & summary'}
+                      </span>
                     </div>
                   </div>
-                  <span className="text-xs font-black shrink-0">表示 →</span>
+                  <span className="text-xs font-black shrink-0">{language === 'ja' ? '表示 →' : 'View →'}</span>
                 </button>
               )}
 
@@ -2915,7 +2990,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                   className="flex-1 flex items-center justify-center gap-1.5 p-3 rounded-2xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all"
                 >
                   <RotateCcw className="w-4 h-4 text-slate-500" />
-                  <span>やり直す</span>
+                  <span>{language === 'ja' ? 'やり直す' : 'Rematch'}</span>
                 </button>
 
                 {/* ⚙ タイトル画面へ戻る */}
@@ -2929,7 +3004,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                   className="flex-1 flex items-center justify-center gap-1.5 p-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all"
                 >
                   <Settings2 className="w-4 h-4 text-algo-yellow" />
-                  <span>タイトルへ</span>
+                  <span>{language === 'ja' ? 'タイトルへ' : 'Title'}</span>
                 </button>
               </div>
             </div>

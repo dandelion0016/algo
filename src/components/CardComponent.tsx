@@ -3,6 +3,7 @@
 import React from 'react';
 import { Card, PublicCard } from '../types/game';
 import { formatFailedNumbersBadge, getFailedNumbersTooltip } from '../lib/candidateAssist';
+import { useI18n } from '../lib/i18n';
 
 interface CardComponentProps {
   card: PublicCard | Card;
@@ -37,6 +38,7 @@ export const CardComponent: React.FC<CardComponentProps> = ({
   isEliminated = false,
   testId,
 }) => {
+  const { language, t } = useI18n();
   const isBlack = card.color === 'black';
 
   // サイズクラス
@@ -160,7 +162,7 @@ export const CardComponent: React.FC<CardComponentProps> = ({
             }`}
           >
             <span>💡</span>
-            <span className="hidden sm:inline">ヒント</span>
+            <span className="hidden sm:inline">{language === 'en' ? 'Hint' : 'ヒント'}</span>
           </div>
         )}
 
@@ -211,7 +213,7 @@ export const CardComponent: React.FC<CardComponentProps> = ({
                       : 'text-[8px] sm:text-[9px] px-1'
                   } py-0.2 rounded bg-amber-400/20 text-amber-600 font-medium tracking-tight`}
                 >
-                  伏せ中
+                  {t.card.hidden}
                 </span>
               )}
             </div>
@@ -257,7 +259,7 @@ export const CardComponent: React.FC<CardComponentProps> = ({
                 : 'bottom-1 right-1 text-[8px] px-1 border-amber-500/30'
             } bg-amber-500/20 text-amber-700 rounded`}
           >
-            開示
+            {t.card.revealed}
           </div>
         )}
       </div>
@@ -290,17 +292,15 @@ export const CardComponent: React.FC<CardComponentProps> = ({
               ? 'px-1.5 py-0.5 text-[7px] sm:text-[8px] bg-amber-50 text-amber-800 border-amber-300'
               : 'px-1.5 py-0.5 text-[9px] sm:text-[10px] bg-amber-50 text-amber-800 border-amber-300'
           }`}
-          title={`候補数字: ${candidateHint}`}
+          title={t.card.rangeTooltip(candidateHint.replace(/^候補:\s*/, ''))}
         >
           {size === '2xs' ? (
             <>
-              <span className="hidden sm:inline">候補: </span>
+              <span className="hidden sm:inline">{t.card.range}</span>
               <span>{candidateHint.replace(/^候補:\s*/, '')}</span>
             </>
-          ) : candidateHint.startsWith('候補:') ? (
-            candidateHint
           ) : (
-            `候補: ${candidateHint}`
+            `${t.card.range}${candidateHint.replace(/^候補:\s*/, '')}`
           )}
         </div>
       )}

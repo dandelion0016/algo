@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { CardColor } from '../types/game';
 import { formatCandidateRange, formatFailedNumbersBadge } from '../lib/candidateAssist';
 import { Sparkles, X, Target } from 'lucide-react';
+import { useI18n } from '../lib/i18n';
 
 interface AttackModalProps {
   targetPlayerName: string;
@@ -30,6 +31,7 @@ export const AttackModal: React.FC<AttackModalProps> = ({
   failedNumbers = [],
   remainingDeckNumbers,
 }) => {
+  const { language, t } = useI18n();
   const [selectedNum, setSelectedNum] = useState<number | null>(null);
   const inputBufferRef = useRef<string>('');
   const bufferTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -197,13 +199,13 @@ export const AttackModal: React.FC<AttackModalProps> = ({
               <Target className="w-5 h-5 text-algo-blue" />
             </div>
             <h3 id="attack-modal-title" className="text-lg font-black text-slate-900">
-              アタック（数字の推理）
+              {t.attackModal.title}
             </h3>
           </div>
           <button
             type="button"
             onClick={onCancel}
-            aria-label="モーダルを閉じる"
+            aria-label={t.attackModal.closeAria}
             data-testid="btn-close-attack-modal"
             className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
           >
@@ -214,11 +216,19 @@ export const AttackModal: React.FC<AttackModalProps> = ({
         {/* Target Info */}
         <div className="my-4 text-center p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl">
           <p className="text-xs text-slate-600 font-semibold mb-1">
-            ターゲット: <span className="text-slate-900 font-black">{targetPlayerName}</span>
+            {t.attackModal.target}: <span className="text-slate-900 font-black">{targetPlayerName}</span>
           </p>
           <div className="flex items-center justify-center gap-2">
             <span className="text-sm font-bold text-slate-700">
-              左から <strong className="text-algo-blue text-base">{targetIndex + 1}</strong> 番目の
+              {language === 'en' ? (
+                <span>
+                  Card #<strong className="text-algo-blue text-base">{targetIndex + 1}</strong> from left:
+                </span>
+              ) : (
+                <span>
+                  左から <strong className="text-algo-blue text-base">{targetIndex + 1}</strong> 番目の
+                </span>
+              )}
             </span>
             <span
               className={`px-2.5 py-0.5 rounded-lg font-black text-xs border ${
@@ -227,7 +237,7 @@ export const AttackModal: React.FC<AttackModalProps> = ({
                   : 'bg-white text-zinc-900 border-slate-300'
               }`}
             >
-              {isBlack ? '黒カード' : '白カード'}
+              {isBlack ? t.attackModal.blackCard : t.attackModal.whiteCard}
             </span>
           </div>
 
@@ -239,12 +249,12 @@ export const AttackModal: React.FC<AttackModalProps> = ({
             >
               <span className="flex items-center gap-1.5">
                 <span aria-hidden="true">🔰</span>
-                <span>推理候補範囲:</span>
+                <span>{t.attackModal.candidateRange}</span>
               </span>
               <span className="font-black text-sm text-algo-navy">
                 {formatCandidateRange(possibleNumbers)}
                 <span className="text-[10px] text-amber-700 ml-1.5 font-bold">
-                  ({possibleNumbers.length}通り)
+                  {t.attackModal.candidateCount(possibleNumbers.length)}
                 </span>
               </span>
             </div>
@@ -257,7 +267,7 @@ export const AttackModal: React.FC<AttackModalProps> = ({
               className="mt-2 py-1.5 px-3 rounded-xl bg-slate-100/90 border border-slate-200 text-slate-800 text-xs font-bold flex flex-wrap items-center justify-between gap-1 shadow-2xs"
             >
               <span className="flex items-center gap-1.5 text-slate-600 font-semibold text-xs">
-                <span>未確定の残弾:</span>
+                <span>{t.attackModal.remainingDeck}</span>
               </span>
               <div className="flex flex-wrap items-center gap-1" data-testid="remaining-deck-badges">
                 {remainingDeckNumbers.length > 0 ? (
@@ -275,7 +285,7 @@ export const AttackModal: React.FC<AttackModalProps> = ({
                     </span>
                   ))
                 ) : (
-                  <span className="text-xs text-slate-400 font-normal">なし</span>
+                  <span className="text-xs text-slate-400 font-normal">{t.attackModal.noRemainingDeck}</span>
                 )}
               </div>
             </div>
@@ -289,7 +299,7 @@ export const AttackModal: React.FC<AttackModalProps> = ({
             >
               <span className="flex items-center gap-1.5">
                 <span aria-hidden="true" className="text-rose-500 font-black">✕</span>
-                <span>過去の外れ宣言:</span>
+                <span>{t.attackModal.failedGuesses}</span>
               </span>
               <span className="font-black text-sm text-rose-600">
                 {formatFailedNumbersBadge(failedNumbers)}
@@ -314,7 +324,7 @@ export const AttackModal: React.FC<AttackModalProps> = ({
                 data-testid={`btn-guess-num-${num}`}
                 data-candidate-out={isImpossible ? 'true' : undefined}
                 data-failed-guess={isFailed ? 'true' : undefined}
-                aria-label={`数字 ${num}${isFailed ? ' (✕ハズレ済)' : isKnown ? ' (確認済)' : ''}`}
+                aria-label={t.attackModal.numButtonAria(num, isFailed, isKnown)}
                 aria-pressed={isSelected}
                 onClick={() => setSelectedNum(num)}
                 className={`py-3 rounded-2xl font-black text-lg transition-all flex flex-col items-center justify-center border-2 ${
@@ -347,12 +357,12 @@ export const AttackModal: React.FC<AttackModalProps> = ({
                     className="text-[8px] text-rose-600 font-bold"
                     data-testid={`failed-badge-${num}`}
                   >
-                    ✕ハズレ済
+                    {t.attackModal.failedBadge}
                   </span>
                 ) : isImpossible ? (
-                  <span className="text-[8px] text-rose-500 font-bold">候補外</span>
+                  <span className="text-[8px] text-rose-500 font-bold">{t.attackModal.candidateOut}</span>
                 ) : isKnown ? (
-                  <span className="text-[8px] text-slate-400 font-bold">確認済</span>
+                  <span className="text-[8px] text-slate-400 font-bold">{t.attackModal.confirmedBadge}</span>
                 ) : null}
               </button>
             );
@@ -365,10 +375,10 @@ export const AttackModal: React.FC<AttackModalProps> = ({
             type="button"
             onClick={onCancel}
             data-testid="btn-cancel-attack"
-            aria-label="キャンセル"
+            aria-label={t.attackModal.cancel}
             className="flex-1 py-3 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-100 font-bold text-sm transition-colors"
           >
-            キャンセル
+            {t.attackModal.cancel}
           </button>
           <button
             type="button"
@@ -376,8 +386,8 @@ export const AttackModal: React.FC<AttackModalProps> = ({
             data-testid="btn-confirm-attack"
             aria-label={
               selectedNum !== null
-                ? `数字 ${selectedNum} でアタックを実行`
-                : '数字を選んでアタックを実行'
+                ? t.attackModal.attackWithNumber(selectedNum)
+                : t.attackModal.selectNumberPrompt
             }
             onClick={() => {
               if (selectedNum !== null) {
@@ -394,10 +404,18 @@ export const AttackModal: React.FC<AttackModalProps> = ({
           >
             {selectedNum !== null
               ? failedNumbers.includes(selectedNum)
-                ? `[ ${selectedNum} ] でアタック！ (⚠️ハズレ済)`
+                ? language === 'en'
+                  ? `Attack [ ${selectedNum} ] (⚠️Missed)`
+                  : `[ ${selectedNum} ] でアタック！ (⚠️ハズレ済)`
                 : assistEnabled && possibleNumbers && !possibleNumbers.includes(selectedNum)
-                ? `[ ${selectedNum} ] でアタック！ (⚠️候補外)`
+                ? language === 'en'
+                  ? `Attack [ ${selectedNum} ] (⚠️Excluded)`
+                  : `[ ${selectedNum} ] でアタック！ (⚠️候補外)`
+                : language === 'en'
+                ? `Attack [ ${selectedNum} ]`
                 : `[ ${selectedNum} ] でアタック！`
+              : language === 'en'
+              ? 'Select a Number'
               : '数字を選んでください'}
           </button>
         </div>

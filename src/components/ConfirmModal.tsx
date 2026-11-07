@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { AlertTriangle, X } from 'lucide-react';
+import { useI18n } from '../lib/i18n';
 
 export interface ConfirmModalProps {
   isOpen: boolean;
@@ -44,29 +45,46 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   actionType,
   gameStatus,
   confirmLabel,
-  cancelLabel = 'ゲームに戻る (キャンセル)',
+  cancelLabel,
   isDestructive,
   onConfirm,
   onCancel,
 }) => {
+  const { language } = useI18n();
   if (!isOpen) return null;
+
+  const defaultCancelLabel =
+    language === 'en' ? 'Back to Game (Cancel)' : 'ゲームに戻る (キャンセル)';
+  const resolvedCancelLabel = cancelLabel || defaultCancelLabel;
 
   // デフォルトタイトルの決定
   const resolvedTitle =
     title ||
     (actionType === 'RESTART'
-      ? '対戦の中断・再戦の確認'
+      ? language === 'en'
+        ? 'Confirm Restart / Rematch'
+        : '対戦の中断・再戦の確認'
       : actionType === 'SETUP'
-      ? '対戦の中断・設定変更の確認'
+      ? language === 'en'
+        ? 'Confirm Return to Setup'
+        : '対戦の中断・設定変更の確認'
+      : language === 'en'
+      ? 'Confirm Action'
       : '対戦の中断・リセット確認');
 
   // デフォルト警告メッセージの決定
   const resolvedMessage =
     message ||
     (actionType === 'RESTART'
-      ? '現在の対戦状況は破棄されます。同じ設定で最初からやり直しますか？'
+      ? language === 'en'
+        ? 'Current battle progress will be discarded. Restart with the same settings?'
+        : '現在の対戦状況は破棄されます。同じ設定で最初からやり直しますか？'
       : actionType === 'SETUP'
-      ? '現在の対戦状況は破棄されます。人数や難易度の設定画面に戻りますか？'
+      ? language === 'en'
+        ? 'Current battle progress will be discarded. Return to match setup?'
+        : '現在の対戦状況は破棄されます。人数や難易度の設定画面に戻りますか？'
+      : language === 'en'
+      ? 'This operation will discard all current battle state. Proceed?'
       : 'この操作を実行すると、現在の対戦状況（手札、オープン情報、対戦ログ）はすべて破棄されます。本当に操作を続行しますか？');
 
   // 破壊的アクションフラグの決定 (RESTARTはデフォルトtrue、SETUPはfalse、CUSTOMはtrue)
@@ -79,9 +97,15 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   const resolvedConfirmLabel =
     confirmLabel ||
     (actionType === 'RESTART'
-      ? '対戦を破棄して再戦'
+      ? language === 'en'
+        ? 'Discard & Rematch'
+        : '対戦を破棄して再戦'
       : actionType === 'SETUP'
-      ? '対戦を終了して設定へ'
+      ? language === 'en'
+        ? 'End Battle & Setup'
+        : '対戦を終了して設定へ'
+      : language === 'en'
+      ? 'Proceed'
       : '破棄して実行');
 
   return (
@@ -177,7 +201,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
               onClick={onCancel}
               className="flex-1 px-4 py-3 rounded-2xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs sm:text-sm transition-all shadow-2xs text-center"
             >
-              {cancelLabel}
+              {resolvedCancelLabel}
             </button>
             <button
               type="button"

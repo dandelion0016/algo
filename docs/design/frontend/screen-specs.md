@@ -395,6 +395,20 @@
   - `src/app/layout.tsx` において、`getAdSenseConfig()` 経由でパブリッシャーID（`ca-pub-3337160908225388`）に紐づく AdSense スクリプト（`<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3337160908225388" crossOrigin="anonymous" />`）を自動出力。
   - ルート直下の `public/ads.txt` に認定デジタル販売者レコード（`google.com, pub-3337160908225388, DIRECT, f08c47fec0942fa0`）を配置し、クローラー巡回時の正式所有権を保証。
 
+### 3.9 言語切り替えトグルUI (`LanguageSwitcher`, `src/components/LanguageSwitcher.tsx`, Issue #162, ADR-0010)
+- **Props インターフェース**:
+  ```typescript
+  export interface LanguageSwitcherProps {
+    variant?: 'header' | 'menu' | 'setup';
+    className?: string;
+  }
+  ```
+- **UI機能 ＆ バリアント仕様**:
+  - `variant="header"`: デスクトップヘッダー用。コンパクトな角丸ピル形状のセグメントボタン（`EN` / `日本語`）。アクティブ言語は `bg-algo-navy text-white` で強調表示。
+  - `variant="menu"`: モバイルメニュードロワー内用。行全体を活用したワイドボタンスタイル（`🌐 言語 / Language` ラベル付き）。
+  - `variant="setup"`: ゲームセットアップモーダル用。
+  - クリック時に `setLanguage('ja' | 'en')` を実行し、即座に UI 全体の辞書を切り替えるとともに LocalStorage `algo_language` へ永続化。
+
 ---
 
 ## 4. レスポンシブ ＆ アクセシビリティ設計

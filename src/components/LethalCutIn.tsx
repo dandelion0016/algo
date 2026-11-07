@@ -2,6 +2,7 @@
 
 import React, { useEffect, useCallback } from 'react';
 import { Sparkles, Trophy } from 'lucide-react';
+import { useI18n } from '../lib/i18n';
 
 export interface LethalCutInProps {
   isActive: boolean;
@@ -22,6 +23,8 @@ export const LethalCutIn: React.FC<LethalCutInProps> = ({
   onComplete,
   durationMs = 1200,
 }) => {
+  const { language } = useI18n();
+
   const handleDismiss = useCallback(() => {
     onComplete?.();
   }, [onComplete]);
@@ -87,13 +90,19 @@ export const LethalCutIn: React.FC<LethalCutInProps> = ({
           <div className="flex items-center gap-2 text-slate-200 text-sm sm:text-lg font-bold">
             <Trophy className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 shrink-0" />
             <span>
-              {winnerName ? `${winnerName} の完全勝利！` : '勝敗が決しました！'}
+              {language === 'en'
+                ? winnerName
+                  ? `${winnerName} wins the match!`
+                  : 'Game Over!'
+                : winnerName
+                ? `${winnerName} の完全勝利！`
+                : '勝敗が決しました！'}
             </span>
           </div>
 
           {/* スキップ案内ヒント */}
           <p className="text-[10px] sm:text-xs text-slate-400 font-medium tracking-tight mt-1 opacity-80">
-            タップまたはキー入力で結果画面へ
+            {language === 'en' ? 'Tap or press any key to view results' : 'タップまたはキー入力で結果画面へ'}
           </p>
         </div>
       </div>
