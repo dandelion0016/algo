@@ -712,7 +712,7 @@ const defaultI18nContext: I18nContextType = {
 export const I18nContext = createContext<I18nContextType>(defaultI18nContext);
 
 export interface I18nProviderProps {
-  children: ReactNode;
+  children?: ReactNode;
   initialLanguage?: Language;
 }
 
