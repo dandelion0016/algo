@@ -726,13 +726,14 @@ export const I18nProvider: React.FC<I18nProviderProps> = ({
   });
 
   useEffect(() => {
-    // クライアントマウント時に言語設定を同期
+    // クライアントマウント時に言語設定を同期（initialLanguage が明示指定されている場合は上書きしない）
+    if (initialLanguage) return;
     const detected = detectInitialLanguage();
     setLanguageState(detected);
     if (typeof document !== 'undefined') {
       document.documentElement.lang = detected;
     }
-  }, []);
+  }, [initialLanguage]);
 
   const setLanguage = (newLang: Language) => {
     setLanguageState(newLang);

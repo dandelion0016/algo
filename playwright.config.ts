@@ -22,6 +22,9 @@ export default defineConfig({
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL: 'http://localhost:3000',
+    /* 日本標準ロケール（CI環境 Ubuntu en-USでの地域判定不整合を防止） */
+    locale: 'ja-JP',
+    timezoneId: 'Asia/Tokyo',
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
     /* Capture screenshot after each test failure */

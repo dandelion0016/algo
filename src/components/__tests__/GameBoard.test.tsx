@@ -3332,6 +3332,7 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
 
     it('GAME_OVER 時に通算戦績が localStorage に自動更新されること', () => {
       localStorage.clear();
+      localStorage.setItem('algo_language', 'ja');
       render(
         <GameBoard
           initialIsRuleModalOpen={false}
@@ -3383,6 +3384,7 @@ describe('GameBoard Component & Timer Pause/Resume Logic (Issue #13)', () => {
   describe('Sound Effects & Mobile Haptics Integration (Issue #63, #71)', () => {
     beforeEach(() => {
       localStorage.clear();
+      localStorage.setItem('algo_language', 'ja');
       soundManager.resetContextForTesting();
       soundManager.setSoundEnabled(true);
       vi.clearAllMocks();
