@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { BookOpen, ShieldCheck, FileText, X } from 'lucide-react';
+import { useI18n } from '../lib/i18n';
 
 export type LegalTabType = 'guide' | 'privacy' | 'terms';
 
@@ -16,6 +17,7 @@ export const LegalContentModal: React.FC<LegalContentModalProps> = ({
   onClose,
   initialTab = 'guide',
 }) => {
+  const { language, t } = useI18n();
   const [activeTab, setActiveTab] = useState<LegalTabType>(initialTab);
 
   useEffect(() => {
@@ -59,7 +61,7 @@ export const LegalContentModal: React.FC<LegalContentModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            aria-label="モーダルを閉じる"
+            aria-label={t.common.close}
             data-testid="btn-close-legal-x"
             className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors"
           >

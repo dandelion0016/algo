@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Sparkles, GraduationCap, ArrowRight, X } from 'lucide-react';
+import { useI18n } from '../lib/i18n';
 
 export interface TutorialPromptModalProps {
   isOpen: boolean;
@@ -17,6 +18,7 @@ export const TutorialPromptModal: React.FC<TutorialPromptModalProps> = ({
   onStartTutorial,
   onSkip,
 }) => {
+  const { language, t } = useI18n();
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
   if (!isOpen) return null;
@@ -66,15 +68,24 @@ export const TutorialPromptModal: React.FC<TutorialPromptModalProps> = ({
             id="tutorial-prompt-title"
             className="text-lg sm:text-xl font-black text-slate-900 mb-2 flex items-center justify-center gap-1.5"
           >
-            <span>はじめての algo ですか？</span>
+            <span>{language === 'en' ? 'New to algo?' : 'はじめての algo ですか？'}</span>
             <Sparkles className="w-4 h-4 text-algo-yellow-dark" />
           </h2>
 
           {/* 説明 */}
           <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mb-6">
-            カードの並び順ルールや推理の基本を、実際に手を動かしながら楽しく学べる
-            <strong className="text-algo-navy font-bold">「体験チュートリアル（約2分）」</strong>
-            を用意しています。
+            {language === 'en' ? (
+              <>
+                Learn card order rules and deduction essentials with our quick{' '}
+                <strong className="text-algo-navy font-bold">&quot;Interactive Tutorial (~2 min)&quot;</strong>.
+              </>
+            ) : (
+              <>
+                カードの並び順ルールや推理の基本を、実際に手を動かしながら楽しく学べる
+                <strong className="text-algo-navy font-bold">「体験チュートリアル（約2分）」</strong>
+                を用意しています。
+              </>
+            )}
           </p>
 
           {/* 今後表示しないチェックボックス */}
@@ -87,7 +98,9 @@ export const TutorialPromptModal: React.FC<TutorialPromptModalProps> = ({
                 onChange={(e) => setDontShowAgain(e.target.checked)}
                 className="w-4 h-4 text-algo-blue rounded border-slate-300 focus:ring-algo-blue"
               />
-              <span>今後この確認を表示しない</span>
+              <span>
+                {language === 'en' ? "Don't show this again" : '今後この確認を表示しない'}
+              </span>
             </label>
           </div>
 
@@ -100,7 +113,7 @@ export const TutorialPromptModal: React.FC<TutorialPromptModalProps> = ({
               className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-algo-yellow to-algo-yellow-dark hover:brightness-105 active:scale-98 text-slate-950 font-black text-sm shadow-md shadow-amber-300/40 flex items-center justify-center gap-2 transition-all border border-amber-300/60"
             >
               <GraduationCap className="w-4 h-4" />
-              <span>チュートリアルを開始する</span>
+              <span>{language === 'en' ? 'Start Tutorial' : 'チュートリアルを開始する'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
 
@@ -110,7 +123,7 @@ export const TutorialPromptModal: React.FC<TutorialPromptModalProps> = ({
               onClick={handleSkip}
               className="w-full py-2.5 px-4 rounded-xl border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 font-bold text-xs transition-all"
             >
-              スキップして対戦へ進む
+              {language === 'en' ? 'Skip & Jump to Battle' : 'スキップして対戦へ進む'}
             </button>
           </div>
         </div>

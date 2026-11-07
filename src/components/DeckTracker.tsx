@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Player, Card, CardColor } from '../types/game';
 import { calculateDeckTrackerState, TrackedCard } from '../lib/deckTracker';
 import { Target, ChevronDown, ChevronUp, Layers, Sparkles } from 'lucide-react';
+import { useI18n } from '../lib/i18n';
 
 export interface DeckTrackerProps {
   players: Player[];
@@ -26,6 +27,7 @@ export const DeckTracker: React.FC<DeckTrackerProps> = ({
   className = '',
   hideHeader = false,
 }) => {
+  const { language, t } = useI18n();
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
 
   const trackerState = calculateDeckTrackerState({
@@ -39,25 +41,32 @@ export const DeckTracker: React.FC<DeckTrackerProps> = ({
 
   const renderCardBadge = (card: TrackedCard) => {
     const isBlack = card.color === 'black';
+    const colorLabel = isBlack
+      ? language === 'en'
+        ? 'Black '
+        : '黒'
+      : language === 'en'
+      ? 'White '
+      : '白';
 
     let badgeClass = '';
     let label = '';
 
     if (card.isConfirmed) {
       // 確定済み（既に場に出ている）
-      label = `${isBlack ? '黒' : '白'}${card.number} (確定済み)`;
+      label = `${colorLabel}${card.number} (${t.deckTracker.confirmed})`;
       badgeClass = isBlack
         ? 'bg-slate-800/40 text-slate-500 border border-slate-700/40 line-through opacity-30 select-none'
         : 'bg-slate-200/50 text-slate-400 border border-slate-300/40 line-through opacity-30 select-none';
     } else if (card.isHighlighted) {
       // 未確定かつ相手カードの推理候補アシストでハイライト
-      label = `${isBlack ? '黒' : '白'}${card.number} (推理候補)`;
+      label = `${colorLabel}${card.number} (${t.deckTracker.candidate})`;
       badgeClass = isBlack
         ? 'bg-slate-900 text-amber-300 border-2 border-amber-400 ring-2 ring-amber-400/50 font-black scale-110 shadow-sm animate-pulse z-10'
         : 'bg-amber-100 text-amber-950 border-2 border-amber-400 ring-2 ring-amber-400/50 font-black scale-110 shadow-sm animate-pulse z-10';
     } else {
       // 未確定（残弾）
-      label = `${isBlack ? '黒' : '白'}${card.number} (未確定)`;
+      label = `${colorLabel}${card.number} (${t.deckTracker.remaining})`;
       badgeClass = isBlack
         ? 'bg-slate-900 text-white border border-slate-700 shadow-2xs hover:scale-105 transition-transform'
         : 'bg-white text-slate-900 border border-slate-300 shadow-2xs hover:scale-105 transition-transform';
@@ -88,16 +97,16 @@ export const DeckTracker: React.FC<DeckTrackerProps> = ({
           <div className="flex items-center gap-1.5 min-w-0">
             <Target className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-algo-blue shrink-0" />
             <h3 className="text-xs sm:text-sm font-bold text-slate-800 whitespace-nowrap">
-              残弾トラッカー
+              {t.deckTracker.title}
             </h3>
             {highlightedNumbers.length > 0 && (
               <span
                 data-testid="tracker-assist-active"
                 className="flex items-center gap-0.5 px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 text-[9px] font-bold shrink-0 animate-fade-in"
-                title="推理候補ハイライト中"
+                title={t.deckTracker.activeAssistTitle}
               >
                 <Sparkles className="w-2.5 h-2.5" />
-                <span>候補連動</span>
+                <span>{t.deckTracker.activeAssist}</span>
               </span>
             )}
           </div>
@@ -107,7 +116,11 @@ export const DeckTracker: React.FC<DeckTrackerProps> = ({
             <div
               data-testid="tracker-summary"
               className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-slate-100 text-[10px] sm:text-xs font-semibold text-slate-700 shrink-0"
-              title={`未確定: 黒${summary.blackRemaining}枚 / 白${summary.whiteRemaining}枚 (確定: ${summary.totalConfirmed}枚)`}
+              title={t.deckTracker.summaryTitle(
+                summary.blackRemaining,
+                summary.whiteRemaining,
+                summary.totalConfirmed
+              )}
             >
               <span>残弾:</span>
               <span className="font-mono font-bold text-algo-blue">
@@ -116,7 +129,9 @@ export const DeckTracker: React.FC<DeckTrackerProps> = ({
               <span className="text-[9px] text-slate-400">/ 24</span>
               <span className="hidden xl:inline text-slate-300">|</span>
               <span className="hidden xl:inline font-mono text-[10px] text-slate-600">
-                黒{summary.blackRemaining} 白{summary.whiteRemaining}
+                {language === 'en'
+                  ? `B${summary.blackRemaining} W${summary.whiteRemaining}`
+                  : `黒${summary.blackRemaining} 白${summary.whiteRemaining}`}
               </span>
             </div>
 
@@ -126,7 +141,7 @@ export const DeckTracker: React.FC<DeckTrackerProps> = ({
                 data-testid="tracker-toggle-btn"
                 onClick={() => setIsCollapsed((prev) => !prev)}
                 className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-                aria-label={isCollapsed ? 'トラッカーを展開' : 'トラッカーを折りたたむ'}
+                aria-label={isCollapsed ? t.deckTracker.expand : t.deckTracker.collapse}
               >
                 {isCollapsed ? (
                   <ChevronDown className="w-4 h-4" />
@@ -145,7 +160,7 @@ export const DeckTracker: React.FC<DeckTrackerProps> = ({
           {/* 黒カード行 */}
           <div className="flex items-center gap-1">
             <span className="w-4 sm:w-5 text-[10px] sm:text-xs font-bold text-slate-900 shrink-0 text-center">
-              黒
+              {language === 'en' ? 'B' : '黒'}
             </span>
             <div className="flex-1 grid grid-cols-12 gap-0.5 sm:gap-1">
               {blackCards.map((card) => renderCardBadge(card))}
@@ -158,7 +173,7 @@ export const DeckTracker: React.FC<DeckTrackerProps> = ({
           {/* 白カード行 */}
           <div className="flex items-center gap-1">
             <span className="w-4 sm:w-5 text-[10px] sm:text-xs font-bold text-slate-500 shrink-0 text-center">
-              白
+              {language === 'en' ? 'W' : '白'}
             </span>
             <div className="flex-1 grid grid-cols-12 gap-0.5 sm:gap-1">
               {whiteCards.map((card) => renderCardBadge(card))}

@@ -341,6 +341,19 @@ function checkAttack(targetCard: Card, guessedNumber: number): boolean
 - **公開認証ファイル (`public/ads.txt`)**:
   - `google.com, pub-3337160908225388, DIRECT, f08c47fec0942fa0` をルート直下に配置し、認定デジタル販売者（Authorized Digital Sellers）としての所有権を証明。
 
+### 3.11 多言語対応 (i18n) および地域自動判定モジュール (`src/lib/i18n.ts`)
+- **役割**: 日本語（`ja`）および英語（`en`）の完全対称辞書、端末地域判定（ロケール・タイムゾーン判定）、言語永続化管理を提供するクライアントサイド多言語モジュール（Issue #162, ADR-0010 準拠）。
+- **主要関数・エクスポート**:
+  - `detectInitialLanguage(): Language`:
+    1. LocalStorage `algo_language` が設定されていれば最優先（`'ja'` または `'en'`）。
+    2. 未設定時は `navigator.languages` / `navigator.language` および `Intl.DateTimeFormat().resolvedOptions().timeZone` をチェック。日本語環境（`ja`, `ja-JP`, `Asia/Tokyo`）なら `'ja'`、それ以外（海外アクセス）は `'en'`。
+    3. SSR/ビルド環境フォールバック: `'ja'`。
+  - `getStoredLanguage(): Language | null`: LocalStorage から保存された言語を取得。
+  - `setStoredLanguage(lang: Language): void`: LocalStorage へ言語を保存し、`document.documentElement.lang` を更新。
+  - `translations`: 型安全な対訳辞書オブジェクト（`ja` / `en`）。ゲームセットアップ、対戦盤面、各種モーダル、アタックガイダンス、残弾トラッカー、戦績・アチーブメント、ルール解説、確認ダイアログに対応。
+  - `I18nProvider`: コンテキスト値を提供する Provider コンポーネント。
+  - `useI18n()` / `useTranslation()`: 現在の言語（`language`）、言語変更関数（`setLanguage`）、辞書オブジェクト（`t`）を返却する React カスタムフック。Provider 外やプレーン関数呼び出し時も安全に初期言語フォールバックで動作。
+
 ---
 
 ## 4. オンライン対戦用 WebSocket API仕様 (ADR-0002 準拠)

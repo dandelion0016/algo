@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { BookOpen, X, Award, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useI18n } from '../lib/i18n';
 
 interface RuleGuideModalProps {
   isOpen: boolean;
@@ -14,6 +15,8 @@ export const RuleGuideModal: React.FC<RuleGuideModalProps> = ({
   onClose,
   isTimedMatch = false,
 }) => {
+  const { language, t } = useI18n();
+
   React.useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -44,13 +47,13 @@ export const RuleGuideModal: React.FC<RuleGuideModalProps> = ({
               <BookOpen className="w-5 h-5 text-slate-900" />
             </div>
             <h3 id="rule-guide-modal-title" className="text-lg font-black text-slate-900">
-              アルゴ（algo）の公式ルール
+              {language === 'en' ? 'algo Official Rulebook' : 'アルゴ（algo）の公式ルール'}
             </h3>
           </div>
           <button
             type="button"
             data-testid="btn-close-rules-x"
-            aria-label="閉じる"
+            aria-label={t.common.close}
             onClick={onClose}
             className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
           >
@@ -64,7 +67,11 @@ export const RuleGuideModal: React.FC<RuleGuideModalProps> = ({
             className="mx-6 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-2 text-amber-800 text-xs font-bold shrink-0 animate-in fade-in"
           >
             <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>⚠️ 持ち時間対戦中のためタイマーは進行しています（タイマーストール防止）</span>
+            <span>
+              {language === 'en'
+                ? '⚠️ Turn timer continues during match rules inspection'
+                : '⚠️ 持ち時間対戦中のためタイマーは進行しています（タイマーストール防止）'}
+            </span>
           </div>
         )}
 

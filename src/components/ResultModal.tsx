@@ -19,6 +19,7 @@ import {
 import { Player, AttackLog, PlayerCount, Difficulty, TimeLimit } from '../types/game';
 import { ConfettiEffect } from './ConfettiEffect';
 import { CardComponent } from './CardComponent';
+import { useI18n, Language } from '../lib/i18n';
 
 export interface ResultModalProps {
   isOpen: boolean;
@@ -47,7 +48,23 @@ export interface CombatStats {
   timeLimitLabel: string;
 }
 
-export const getDifficultyLabel = (diff: Difficulty | string): string => {
+export const getDifficultyLabel = (diff: Difficulty | string, lang: Language = 'ja'): string => {
+  if (lang === 'en') {
+    switch (diff) {
+      case 'easy':
+      case '初級':
+        return 'Easy';
+      case 'normal':
+      case '中級':
+        return 'Normal';
+      case 'hard':
+      case '上級':
+        return 'Hard';
+      default:
+        return String(diff);
+    }
+  }
+
   switch (diff) {
     case 'easy':
     case '初級':
@@ -63,9 +80,9 @@ export const getDifficultyLabel = (diff: Difficulty | string): string => {
   }
 };
 
-export const getTimeLimitLabel = (limit: TimeLimit): string => {
-  if (limit === 0) return '無制限';
-  return `${limit}秒`;
+export const getTimeLimitLabel = (limit: TimeLimit, lang: Language = 'ja'): string => {
+  if (limit === 0) return lang === 'en' ? 'Unlimited' : '無制限';
+  return lang === 'en' ? `${limit}s` : `${limit}秒`;
 };
 
 export const calculateCombatStats = (
@@ -73,15 +90,16 @@ export const calculateCombatStats = (
   humanPlayer: Player | null,
   playerCount: PlayerCount,
   difficulty: Difficulty,
-  timeLimit: TimeLimit
+  timeLimit: TimeLimit,
+  lang: Language = 'ja'
 ): CombatStats => {
   const humanId = humanPlayer?.id || 'player';
-  const humanName = humanPlayer?.name || 'あなた';
+  const humanName = humanPlayer?.name || (lang === 'en' ? 'You' : 'あなた');
 
   // プレイヤーのアタックログ（対象プレイヤーが存在する有効アタック）
   const playerAttacks = logs.filter(
     (l) =>
-      (l.attackerId === humanId || l.attackerName === humanName || l.attackerName === 'あなた') &&
+      (l.attackerId === humanId || l.attackerName === humanName || l.attackerName === 'あなた' || l.attackerName === 'You') &&
       Boolean(l.targetPlayerId)
   );
 
@@ -105,9 +123,9 @@ export const calculateCombatStats = (
     hitRate,
     survivingCards,
     totalCards,
-    difficultyLabel: getDifficultyLabel(difficulty),
-    playerCountLabel: `${playerCount}人対戦`,
-    timeLimitLabel: getTimeLimitLabel(timeLimit),
+    difficultyLabel: getDifficultyLabel(difficulty, lang),
+    playerCountLabel: lang === 'en' ? `${playerCount} Players` : `${playerCount}人対戦`,
+    timeLimitLabel: getTimeLimitLabel(timeLimit, lang),
   };
 };
 
@@ -125,6 +143,7 @@ export const ResultModal: React.FC<ResultModalProps> = ({
   onReturnSetup,
   onClose,
 }) => {
+  const { language, t } = useI18n();
   const handleRestart = onRestart || onPlayAgain;
 
   // キーボードアクセシビリティ: Enter/Space で再戦、Escape で閉じる
@@ -152,7 +171,7 @@ export const ResultModal: React.FC<ResultModalProps> = ({
   if (!isOpen) return null;
 
   const isVictory = Boolean(winner?.isHuman || (winner === null && humanPlayer && !humanPlayer.isEliminated));
-  const stats = calculateCombatStats(logs, humanPlayer, playerCount, difficulty, timeLimit);
+  const stats = calculateCombatStats(logs, humanPlayer, playerCount, difficulty, timeLimit, language);
 
   return (
     <>
@@ -362,10 +381,16 @@ export const ResultModal: React.FC<ResultModalProps> = ({
               <div className="flex items-center justify-between px-0.5">
                 <h3 className="text-[11px] sm:text-xs font-black text-slate-700 tracking-wider flex items-center gap-1.5">
                   <Eye className="w-3.5 h-3.5 text-algo-blue" />
-                  <span>🔍 手札の答え合わせ (Review Hands)</span>
+                  <span>
+                    {language === 'en'
+                      ? '🔍 Hand Reveal & Review'
+                      : '🔍 手札の答え合わせ (Review Hands)'}
+                  </span>
                 </h3>
                 <span className="text-[10px] sm:text-[11px] font-semibold text-slate-400">
-                  全プレイヤーの最終手札
+                  {language === 'en'
+                    ? "All players' final hands"
+                    : '全プレイヤーの最終手札'}
                 </span>
               </div>
 
@@ -440,7 +465,11 @@ export const ResultModal: React.FC<ResultModalProps> = ({
                 className="w-full py-2.5 sm:py-3.5 px-3 sm:px-4 rounded-xl sm:rounded-2xl bg-slate-900 hover:bg-slate-800 active:scale-[0.99] text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all cursor-pointer whitespace-nowrap"
               >
                 <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-algo-yellow" />
-                <span>同じ設定でもう一度遊ぶ（再戦）</span>
+                <span>
+                  {language === 'en'
+                    ? 'Play Again (Rematch)'
+                    : '同じ設定でもう一度遊ぶ（再戦）'}
+                </span>
               </button>
 
               <button
@@ -450,7 +479,11 @@ export const ResultModal: React.FC<ResultModalProps> = ({
                 className="w-full py-2 sm:py-3 px-3 sm:px-4 rounded-xl sm:rounded-2xl bg-white hover:bg-slate-50 active:scale-[0.99] border border-slate-200 text-slate-700 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-2xs hover:border-slate-300 transition-all cursor-pointer whitespace-nowrap"
               >
                 <Settings2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500" />
-                <span>設定を変更する（タイトルへ）</span>
+                <span>
+                  {language === 'en'
+                    ? 'Change Settings (Setup)'
+                    : '設定を変更する（タイトルへ）'}
+                </span>
               </button>
 
               {onClose && (
@@ -459,7 +492,9 @@ export const ResultModal: React.FC<ResultModalProps> = ({
                   onClick={onClose}
                   className="w-full py-1.5 sm:py-2 text-center text-xs text-slate-400 hover:text-slate-600 font-medium transition-colors"
                 >
-                  盤面を振り返る（モーダルを閉じる）
+                  {language === 'en'
+                    ? 'Review Board (Close)'
+                    : '盤面を振り返る（モーダルを閉じる）'}
                 </button>
               )}
             </div>

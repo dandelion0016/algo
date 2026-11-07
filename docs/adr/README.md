@@ -63,3 +63,4 @@
 | [0007](0007-google-adsense-publisher-integration.md) | Google AdSense パブリッシャー ID (ca-pub-3337160908225388) の本番反映および ads.txt 更新 | ACCEPTED | 2026-10-25 | API (`api-spec.md`), フロント (`screen-specs.md`) |
 | [0008](0008-portal-apex-domain-architecture.md) | 親ドメイン（puzzlecabin.jp）向けポータル案内LP ＆ ホスティング基盤の IaC 統合アーキテクチャ | ACCEPTED | 2026-10-26 | インフラ (`architecture.md`, `iac-spec.md`) |
 | [0009](0009-ga4-measurement-id-integration.md) | GA4 測定ID（G-38N6PN8RE6）の本番反映およびゲームサイト（coda）・ポータル（portal）へのデフォルト適用 | ACCEPTED | 2026-10-26 | API (`api-spec.md`), フロント (`screen-specs.md`) |
+| [0010](0010-client-side-i18n-and-locale-detection.md) | クライアントサイド多言語対応 (i18n) および地域自動判定デフォルト言語設定 | ACCEPTED | 2026-11-07 | API (`api-spec.md`), DB (`schema-spec.md`), フロント (`screen-flow.md`, `screen-specs.md`) |

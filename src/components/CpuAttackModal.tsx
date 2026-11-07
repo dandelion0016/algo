@@ -14,6 +14,7 @@ import {
   Play,
   Pause,
 } from 'lucide-react';
+import { useI18n, Language } from '../lib/i18n';
 
 export type AttackNextAction = 'CONTINUE' | 'STAY' | 'TURN_END' | 'GAME_OVER';
 export type CpuAttackNextAction = AttackNextAction;
@@ -58,10 +59,46 @@ export const getNextActionMessage = (
   nextAction: AttackNextAction,
   nextPlayerName?: string,
   isHuman?: boolean,
-  isDeckExhausted?: boolean
+  isDeckExhausted?: boolean,
+  lang: Language = 'ja'
 ): string => {
-  const isHumanPlayer = isHuman || attackerName === 'あなた';
+  const isHumanPlayer = isHuman || attackerName === 'あなた' || attackerName === 'You';
 
+  if (lang === 'en') {
+    if (isHumanPlayer) {
+      switch (nextAction) {
+        case 'CONTINUE':
+          return isDeckExhausted
+            ? 'Correct! Keep attacking or stay?'
+            : 'Correct! Keep attacking or keep in hand and stay?';
+        case 'STAY':
+          return isDeckExhausted ? 'You stayed' : 'Kept card in hand and stayed';
+        case 'TURN_END':
+          return `Your turn has ended. Next is ${nextPlayerName || 'the next player'}`;
+        case 'GAME_OVER':
+          return 'The match has been decided';
+        default:
+          return '';
+      }
+    }
+
+    switch (nextAction) {
+      case 'CONTINUE':
+        return `${attackerName} continues attacking`;
+      case 'STAY':
+        return isDeckExhausted
+          ? `${attackerName} stayed`
+          : `${attackerName} added card to hand and stayed`;
+      case 'TURN_END':
+        return `${attackerName}'s turn has ended. Next is ${nextPlayerName || 'the next player'}`;
+      case 'GAME_OVER':
+        return 'The match has been decided';
+      default:
+        return '';
+    }
+  }
+
+  // デフォルト: 日本語
   if (isHumanPlayer) {
     switch (nextAction) {
       case 'CONTINUE':
@@ -111,6 +148,8 @@ export const AttackResultModal: React.FC<AttackResultModalProps> = ({
   onSkipToResult,
   autoAdvanceDelayMs = 1500,
 }) => {
+  const { language, t } = useI18n();
+
   useEffect(() => {
     if (!isOpen || !data) return;
 
@@ -138,14 +177,15 @@ export const AttackResultModal: React.FC<AttackResultModalProps> = ({
 
   if (!isOpen || !data) return null;
 
-  const isHumanPlayer = Boolean(data.isHuman || data.attackerName === 'あなた');
+  const isHumanPlayer = Boolean(data.isHuman || data.attackerName === 'あなた' || data.attackerName === 'You');
 
   const nextActionMessage = getNextActionMessage(
     data.attackerName,
     data.nextAction,
     data.nextPlayerName,
     data.isHuman,
-    data.isDeckExhausted
+    data.isDeckExhausted,
+    language
   );
 
   const isTargetBlack = data.targetColor === 'black';
@@ -174,7 +214,7 @@ export const AttackResultModal: React.FC<AttackResultModalProps> = ({
                 className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-100 border border-purple-300 text-purple-800 text-xs font-black animate-pulse"
               >
                 <Eye className="w-3.5 h-3.5 text-purple-600" />
-                <span>観戦モード</span>
+                <span>{language === 'en' ? 'Spectator Mode' : '観戦モード'}</span>
               </div>
             )}
             <div
@@ -184,12 +224,12 @@ export const AttackResultModal: React.FC<AttackResultModalProps> = ({
               {isHumanPlayer ? (
                 <>
                   <User className="w-3.5 h-3.5 text-[#355ea7]" />
-                  <span>あなたのアタック</span>
+                  <span>{language === 'en' ? 'Your Attack' : 'あなたのアタック'}</span>
                 </>
               ) : (
                 <>
                   <Bot className="w-3.5 h-3.5 text-[#355ea7]" />
-                  <span>{`${data.attackerName} のアタック`}</span>
+                  <span>{language === 'en' ? `${data.attackerName}'s Attack` : `${data.attackerName} のアタック`}</span>
                 </>
               )}
             </div>
@@ -199,19 +239,29 @@ export const AttackResultModal: React.FC<AttackResultModalProps> = ({
             id="cpu-attack-modal-title"
             className="text-lg sm:text-xl font-black text-slate-800 tracking-tight"
           >
-            推理結果の確認
+            {language === 'en' ? 'Attack Result' : '推理結果の確認'}
           </h2>
 
           {/* ターゲット情報 */}
           <div className="mt-3 w-full bg-slate-50/80 border border-slate-200/80 rounded-xl p-3 text-xs sm:text-sm text-slate-700">
-            <div className="text-slate-500 font-medium mb-1">アタック対象</div>
+            <div className="text-slate-500 font-medium mb-1">
+              {language === 'en' ? 'Target Card' : 'アタック対象'}
+            </div>
             <div className="font-bold flex items-center justify-center gap-1.5 flex-wrap">
               <span className="text-slate-900 font-black">{data.targetPlayerName}</span>
-              <span>の左から</span>
+              {language === 'en' ? (
+                <span>&apos;s Card #</span>
+              ) : (
+                <span>の左から</span>
+              )}
               <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-200 text-slate-800 font-black text-xs">
                 {data.targetCardIndex + 1}
               </span>
-              <span>番目の</span>
+              {language === 'en' ? (
+                <span>:</span>
+              ) : (
+                <span>番目の</span>
+              )}
               <span
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-black text-xs ${
                   isTargetBlack
@@ -224,14 +274,18 @@ export const AttackResultModal: React.FC<AttackResultModalProps> = ({
                     isTargetBlack ? 'bg-white' : 'bg-slate-900'
                   }`}
                 />
-                {`${isTargetBlack ? '黒' : '白'}カード`}
+                {language === 'en'
+                  ? `${isTargetBlack ? 'Black' : 'White'} Card`
+                  : `${isTargetBlack ? '黒' : '白'}カード`}
               </span>
             </div>
           </div>
 
           {/* 推理した数字（カード風ビジュアル表示） */}
           <div className="my-4 flex flex-col items-center">
-            <div className="text-[11px] font-bold text-slate-500 mb-1.5">予想した数字</div>
+            <div className="text-[11px] font-bold text-slate-500 mb-1.5">
+              {language === 'en' ? 'Guessed Number' : '予想した数字'}
+            </div>
             <div
               data-testid="cpu-guessed-card"
               className={`w-16 h-22 sm:w-18 sm:h-24 rounded-xl flex flex-col items-center justify-center shadow-lg border-2 transition-transform select-none ${
@@ -264,13 +318,15 @@ export const AttackResultModal: React.FC<AttackResultModalProps> = ({
                 <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                 <div className="text-left">
                   <div className="font-black text-base sm:text-lg text-emerald-700 leading-tight flex items-center gap-1">
-                    🎯 的中！（成功）
+                    {language === 'en' ? '🎯 HIT! (Correct)' : '🎯 的中！（成功）'}
                     {data.nextAction === 'GAME_OVER' && (
                       <Sparkles className="w-4 h-4 text-amber-500 animate-spin" />
                     )}
                   </div>
                   <div className="text-[11px] sm:text-xs text-emerald-600 font-medium">
-                    対象のカードがオープンされました
+                    {language === 'en'
+                      ? 'The targeted card has been revealed'
+                      : '対象のカードがオープンされました'}
                   </div>
                 </div>
               </div>
@@ -282,13 +338,19 @@ export const AttackResultModal: React.FC<AttackResultModalProps> = ({
                 <XCircle className="w-5 h-5 text-rose-600 shrink-0" />
                 <div className="text-left">
                   <div className="font-black text-base sm:text-lg text-rose-700 leading-tight">
-                    ❌ ハズレ（失敗）
+                    {language === 'en' ? '❌ MISS! (Failed)' : '❌ ハズレ（失敗）'}
                   </div>
                   <div className="text-[11px] sm:text-xs text-rose-600 font-medium">
                     {data.isDeckExhausted
-                      ? '山札がないため、手札の伏せカードがオープンされました'
+                      ? language === 'en'
+                        ? 'No cards left in deck. A hidden card was revealed'
+                        : '山札がないため、手札の伏せカードがオープンされました'
                       : isHumanPlayer
-                      ? 'あなたの引いたカードがオープンされました'
+                      ? language === 'en'
+                        ? 'Your drawn card has been revealed'
+                        : 'あなたの引いたカードがオープンされました'
+                      : language === 'en'
+                      ? `${data.attackerName}'s drawn card has been revealed`
                       : `${data.attackerName} の引いたカードがオープンされました`}
                   </div>
                 </div>
@@ -329,12 +391,12 @@ export const AttackResultModal: React.FC<AttackResultModalProps> = ({
                   {isAutoAdvance ? (
                     <>
                       <Play className="w-3.5 h-3.5 fill-current" />
-                      <span>自動観戦: ON</span>
+                      <span>{language === 'en' ? 'Auto-Play: ON' : '自動観戦: ON'}</span>
                     </>
                   ) : (
                     <>
                       <Pause className="w-3.5 h-3.5 text-slate-500" />
-                      <span>自動観戦: OFF</span>
+                      <span>{language === 'en' ? 'Auto-Play: OFF' : '自動観戦: OFF'}</span>
                     </>
                   )}
                 </button>
@@ -348,7 +410,7 @@ export const AttackResultModal: React.FC<AttackResultModalProps> = ({
                   className="flex-1 py-1.5 px-2.5 rounded-lg text-xs font-black bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-xs flex items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer"
                 >
                   <FastForward className="w-3.5 h-3.5" />
-                  <span>決着までスキップ</span>
+                  <span>{language === 'en' ? 'Skip to End' : '決着までスキップ'}</span>
                 </button>
               ) : null}
             </div>
@@ -362,7 +424,15 @@ export const AttackResultModal: React.FC<AttackResultModalProps> = ({
             className="w-full py-3 px-4 rounded-xl font-black text-sm sm:text-base text-white bg-[#7BA6EF] hover:bg-[#6894dd] active:scale-[0.98] shadow-md shadow-[#7BA6EF]/25 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-[#7BA6EF] focus:ring-offset-2 relative overflow-hidden"
           >
             <span data-testid="btn-cpu-attack-ok" className="sr-only" aria-hidden="true" />
-            <span>{isSpectating && isAutoAdvance ? 'OK (自動進行中...)' : 'OK (次へ)'}</span>
+            <span>
+              {isSpectating && isAutoAdvance
+                ? language === 'en'
+                  ? 'OK (Auto-advancing...)'
+                  : 'OK (自動進行中...)'
+                : language === 'en'
+                ? 'OK (Continue)'
+                : 'OK (次へ)'}
+            </span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>

@@ -7,6 +7,8 @@ import { useUserSession } from '../hooks/useUserSession';
 import { getAppVersion } from '../lib/version';
 import { AdBanner } from './AdBanner';
 import { LegalContentModal, LegalTabType } from './LegalContentModal';
+import { LanguageSwitcher } from './LanguageSwitcher';
+import { useI18n, Language } from '../lib/i18n';
 
 export interface SetupModalProps {
   playerCount: PlayerCount;
@@ -34,10 +36,16 @@ export interface RosterPlayer {
   handCount: number;
 }
 
-const CPU_ROSTER_DEFS = [
+const CPU_ROSTER_DEFS_JA = [
   { name: 'CPU アル', color: 'from-blue-400 to-indigo-500' },
   { name: 'CPU ゴオ', color: 'from-amber-300 to-yellow-500' },
   { name: 'CPU ルウ', color: 'from-emerald-400 to-teal-600' },
+];
+
+const CPU_ROSTER_DEFS_EN = [
+  { name: 'CPU Al', color: 'from-blue-400 to-indigo-500' },
+  { name: 'CPU Goh', color: 'from-amber-300 to-yellow-500' },
+  { name: 'CPU Lou', color: 'from-emerald-400 to-teal-600' },
 ];
 
 /**
@@ -46,24 +54,29 @@ const CPU_ROSTER_DEFS = [
  * 3人: 各3枚 (計9枚) -> 山札 15枚
  * 4人: 各3枚 (計12枚) -> 山札 12枚
  */
-export function getPlayerRoster(count: PlayerCount): {
+export function getPlayerRoster(
+  count: PlayerCount,
+  lang: Language = 'ja'
+): {
   players: RosterPlayer[];
   deckCount: number;
 } {
   const handCount = count === 2 ? 4 : 3;
   const totalCards = 24;
   const deckCount = totalCards - count * handCount;
+  const cpuDefs = lang === 'en' ? CPU_ROSTER_DEFS_EN : CPU_ROSTER_DEFS_JA;
+  const humanName = lang === 'en' ? 'You' : 'あなた';
 
   const players: RosterPlayer[] = [
     {
       id: 'human',
-      name: 'あなた',
+      name: humanName,
       isHuman: true,
       avatarIcon: '👤',
       colorGradient: 'from-sky-400 to-blue-600',
       handCount,
     },
-    ...CPU_ROSTER_DEFS.slice(0, count - 1).map((cpu, idx) => ({
+    ...cpuDefs.slice(0, count - 1).map((cpu, idx) => ({
       id: `cpu-${idx + 1}`,
       name: cpu.name,
       isHuman: false,
@@ -92,9 +105,10 @@ export const SetupModal: React.FC<SetupModalProps> = ({
   onToggleSound,
   userId: propUserId,
 }) => {
+  const { language, t } = useI18n();
   const session = useUserSession();
   const displayUserId = propUserId || session.userId || 'usr_xxxxxxxx';
-  const { players: rosterPlayers, deckCount } = getPlayerRoster(playerCount);
+  const { players: rosterPlayers, deckCount } = getPlayerRoster(playerCount, language);
   const [legalModalState, setLegalModalState] = useState<{
     isOpen: boolean;
     tab: LegalTabType;
@@ -123,7 +137,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-1 sm:gap-2">
                 <h2 className="text-sm sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-1 sm:gap-1.5">
-                  algo <span className="text-[9px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full bg-algo-blue text-white font-bold">Web対戦</span> <span className="text-[9px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 font-bold">{getAppVersion()}</span>
+                  algo <span className="text-[9px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full bg-algo-blue text-white font-bold">{t.common.webMatch}</span> <span className="text-[9px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 font-bold">{getAppVersion()}</span>
                 </h2>
                 {/* ユーザーIDバッジ */}
                 <div
@@ -131,11 +145,13 @@ export const SetupModal: React.FC<SetupModalProps> = ({
                   className="bg-sky-50 border border-sky-200 text-sky-800 text-[9px] sm:text-xs font-mono px-1.5 sm:px-2 py-0.5 rounded-full inline-flex items-center gap-1 shadow-2xs"
                 >
                   <span className="text-[10px] sm:text-xs">👤</span>
-                  <span>{`ゲストID: ${displayUserId}`}</span>
+                  <span>{`${t.common.guestId}: ${displayUserId}`}</span>
                 </div>
+                {/* 言語切り替えトグル */}
+                <LanguageSwitcher variant="setup" />
               </div>
               <p className="mt-0.5 text-[9px] sm:text-xs text-slate-600 font-medium truncate sm:whitespace-normal">
-                白と黒の数字を推理する、東大数学科・ピーターフランクル氏考案の頭脳派ゲーム
+                {t.setup.subtitle}
               </p>
             </div>
           </div>
@@ -149,22 +165,22 @@ export const SetupModal: React.FC<SetupModalProps> = ({
           <div className="flex items-center justify-between">
             <label className="text-[11px] sm:text-sm font-bold text-slate-800 flex items-center gap-1 sm:gap-1.5">
               <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-algo-blue" />
-              <span>対戦人数を選択 (2〜4人)</span>
+              <span>{t.setup.playerCountLabel}</span>
             </label>
             <span className="text-[10px] sm:text-[11px] text-slate-500 font-medium">
               {playerCount === 2
-                ? '初期手札 各4枚 (タイマン)'
+                ? t.setup.playerCount2Sub
                 : playerCount === 3
-                ? '初期手札 各3枚 (三つ巴)'
-                : '初期手札 各3枚 (4人乱戦)'}
+                ? t.setup.playerCount3Sub
+                : t.setup.playerCount4Sub}
             </span>
           </div>
 
           <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5">
             {[
-              { count: 2 as PlayerCount, label: '2人対戦', sub: 'あなた vs CPU 1体' },
-              { count: 3 as PlayerCount, label: '3人対戦', sub: 'あなた vs CPU 2体' },
-              { count: 4 as PlayerCount, label: '4人対戦', sub: 'あなた vs CPU 3体' },
+              { count: 2 as PlayerCount, label: t.setup.p2Label, sub: t.setup.p2Sub },
+              { count: 3 as PlayerCount, label: t.setup.p3Label, sub: t.setup.p3Sub },
+              { count: 4 as PlayerCount, label: t.setup.p4Label, sub: t.setup.p4Sub },
             ].map((item) => {
               const isSelected = playerCount === item.count;
               return (
@@ -194,14 +210,14 @@ export const SetupModal: React.FC<SetupModalProps> = ({
             <div className="flex items-center justify-between text-[10px] sm:text-xs">
               <span className="font-bold text-slate-700 flex items-center gap-1 sm:gap-1.5">
                 <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-algo-blue" />
-                <span>対戦相手構成</span>
+                <span>{t.setup.rosterTitle}</span>
               </span>
               <span
                 data-testid="deck-count-badge"
                 className="px-2 py-0.2 sm:px-2.5 sm:py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200/80 font-bold text-[10px] sm:text-[11px] inline-flex items-center gap-1"
               >
-                <span>🎴 残り山札:</span>
-                <span className="font-mono">{`${deckCount}枚`}</span>
+                <span>{t.setup.remainingDeck}</span>
+                <span className="font-mono">{`${deckCount}${t.common.cards}`}</span>
               </span>
             </div>
 
@@ -210,7 +226,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({
                 <React.Fragment key={player.id}>
                   {idx > 0 && (
                     <span className="text-[10px] sm:text-xs font-black text-slate-400 italic shrink-0 px-0.5">
-                      vs
+                      {t.common.vs}
                     </span>
                   )}
                   <div
@@ -224,10 +240,10 @@ export const SetupModal: React.FC<SetupModalProps> = ({
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="text-[10px] sm:text-xs font-bold text-slate-800 truncate">
-                        {`${player.name}（手札${player.handCount}枚）`}
+                        {t.setup.playerHandDesc(player.name, player.handCount)}
                       </div>
                       <div className="text-[8px] sm:text-[10px] text-slate-500 font-medium truncate">
-                        {player.isHuman ? 'プレイヤー' : 'AI対戦相手'}
+                        {player.isHuman ? t.setup.humanRole : t.setup.cpuRole}
                       </div>
                     </div>
                   </div>
@@ -242,18 +258,33 @@ export const SetupModal: React.FC<SetupModalProps> = ({
           <div className="flex items-center justify-between">
             <label className="text-[11px] sm:text-sm font-bold text-slate-800 flex items-center gap-1 sm:gap-1.5">
               <Timer className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-algo-blue" />
-              <span>持ち時間（ターン制限）を選択</span>
+              <span>{t.setup.timeLimitLabel}</span>
             </label>
             <span className="text-[10px] sm:text-[11px] text-slate-500 font-medium">
-              {timeLimit === 0 ? '無制限（じっくり思考）' : `${timeLimit}秒 / 手番`}
+              {timeLimit === 0 ? t.setup.timeLimitUnlimited : t.setup.timeLimitSeconds(timeLimit)}
             </span>
           </div>
 
           <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5">
             {[
-              { limit: 30 as TimeLimit, label: '30秒', desc: '標準テンポ', badge: '標準テンポ' },
-              { limit: 15 as TimeLimit, label: '15秒', desc: '早指しスピーディ', badge: 'スリリング' },
-              { limit: 0 as TimeLimit, label: '無制限', desc: 'じっくり長考', badge: 'おすすめ（初心者向け）' },
+              {
+                limit: 30 as TimeLimit,
+                label: language === 'en' ? '30s' : '30秒',
+                desc: language === 'en' ? 'Standard' : '標準テンポ',
+                badge: language === 'en' ? 'Standard' : '標準テンポ',
+              },
+              {
+                limit: 15 as TimeLimit,
+                label: language === 'en' ? '15s' : '15秒',
+                desc: language === 'en' ? 'Fast Blitz' : '早指しスピーディ',
+                badge: language === 'en' ? 'Thrilling' : 'スリリング',
+              },
+              {
+                limit: 0 as TimeLimit,
+                label: language === 'en' ? 'Unlimited' : '無制限',
+                desc: language === 'en' ? 'Deep Thought' : 'じっくり長考',
+                badge: language === 'en' ? 'Beginner Friendly' : 'おすすめ（初心者向け）',
+              },
             ].map((item) => {
               const isSelected = timeLimit === item.limit;
               return (
@@ -288,22 +319,22 @@ export const SetupModal: React.FC<SetupModalProps> = ({
           <div className="flex items-center justify-between">
             <label className="text-[11px] sm:text-sm font-bold text-slate-800 flex items-center gap-1 sm:gap-1.5">
               <Brain className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-algo-blue" />
-              <span>CPUの難易度を選択</span>
+              <span>{t.setup.difficultyLabel}</span>
             </label>
             <span className="text-[10px] sm:text-[11px] text-slate-500 font-medium">
               {difficulty === 'easy'
-                ? '初級：気楽に推理'
+                ? t.setup.diffEasyDesc
                 : difficulty === 'normal'
-                ? '中級：論理的消去法'
-                : '上級：完全消去法'}
+                ? t.setup.diffNormalDesc
+                : t.setup.diffHardDesc}
             </span>
           </div>
 
           <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5">
             {[
-              { diff: 'easy' as Difficulty, label: '初級 (Easy)' },
-              { diff: 'normal' as Difficulty, label: '中級 (Normal)' },
-              { diff: 'hard' as Difficulty, label: '上級 (Hard)' },
+              { diff: 'easy' as Difficulty, label: t.setup.diffEasy },
+              { diff: 'normal' as Difficulty, label: t.setup.diffNormal },
+              { diff: 'hard' as Difficulty, label: t.setup.diffHard },
             ].map((item) => {
               const isSelected = difficulty === item.diff;
               return (
@@ -335,7 +366,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({
               className="py-2 sm:py-3 px-2 sm:px-3.5 rounded-xl sm:rounded-2xl border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-1.5 transition-all shadow-2xs whitespace-nowrap"
             >
               <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-algo-blue shrink-0" />
-              <span>ルールを確認</span>
+              <span>{language === 'en' ? 'Rules' : 'ルールを確認'}</span>
             </button>
 
             {onOpenTutorial && (
@@ -346,7 +377,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({
                 className="py-2 sm:py-3 px-2 sm:px-3.5 rounded-xl sm:rounded-2xl border border-algo-blue/40 bg-algo-blue-light/40 text-algo-navy hover:bg-algo-blue-light/70 font-bold text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-1.5 transition-all shadow-2xs whitespace-nowrap"
               >
                 <GraduationCap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-algo-blue shrink-0" />
-                <span>チュートリアル</span>
+                <span>{language === 'en' ? 'Tutorial' : 'チュートリアル'}</span>
               </button>
             )}
 
@@ -358,7 +389,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({
                 className="py-2 sm:py-3 px-2 sm:px-3.5 rounded-xl sm:rounded-2xl border border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 font-bold text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-1.5 transition-all shadow-2xs whitespace-nowrap"
               >
                 <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600 shrink-0" />
-                <span>戦績・実績</span>
+                <span>{language === 'en' ? 'Stats' : '戦績・実績'}</span>
               </button>
             )}
 
@@ -367,21 +398,21 @@ export const SetupModal: React.FC<SetupModalProps> = ({
                 type="button"
                 data-testid="btn-setup-sound"
                 onClick={onToggleSound}
-                aria-label={`サウンド効果音: ${isSoundOn ? 'ON' : 'OFF'}`}
+                aria-label={t.header.soundAria(isSoundOn)}
                 aria-pressed={isSoundOn}
                 className={`py-2 sm:py-3 px-2 sm:px-3.5 rounded-xl sm:rounded-2xl border font-bold text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-1.5 transition-all shadow-2xs whitespace-nowrap ${
                   isSoundOn
                     ? 'border-algo-blue/40 bg-algo-blue-light/30 text-algo-navy hover:bg-algo-blue-light/50 ring-1 ring-algo-blue/20'
                     : 'border-slate-300 bg-slate-50 text-slate-500 hover:bg-slate-100'
                 }`}
-                title={isSoundOn ? 'サウンドON（クリックでミュート）' : 'サウンドOFF（クリックでON）'}
+                title={t.header.soundTitle(isSoundOn)}
               >
                 {isSoundOn ? (
                   <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-algo-blue shrink-0" />
                 ) : (
                   <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 shrink-0" />
                 )}
-                <span>サウンド {isSoundOn ? 'ON' : 'OFF'}</span>
+                <span>{t.header.sound(isSoundOn)}</span>
               </button>
             )}
           </div>
@@ -392,7 +423,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({
             onClick={onStartGame}
             className="flex-1 py-2.5 sm:py-3 px-4 sm:px-6 rounded-xl sm:rounded-2xl bg-gradient-to-r from-algo-yellow to-algo-yellow-dark hover:brightness-105 active:scale-98 text-slate-950 font-black text-sm sm:text-base shadow-md shadow-amber-300/40 flex items-center justify-center gap-1.5 sm:gap-2 transition-all border border-amber-300/60"
           >
-            <span>対戦を開始する！</span>
+            <span>{language === 'en' ? 'Start Battle!' : '対戦を開始する！'}</span>
             <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
           </button>
         </div>
@@ -413,7 +444,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({
             onClick={() => setLegalModalState({ isOpen: true, tab: 'guide' })}
             className="hover:text-slate-600 underline underline-offset-2 transition-colors"
           >
-            アルゴ解説・攻略
+            {t.setup.footerGuide}
           </button>
           <span aria-hidden="true">·</span>
           <button
@@ -422,7 +453,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({
             onClick={() => setLegalModalState({ isOpen: true, tab: 'privacy' })}
             className="hover:text-slate-600 underline underline-offset-2 transition-colors"
           >
-            プライバシーポリシー
+            {t.setup.footerPrivacy}
           </button>
           <span aria-hidden="true">·</span>
           <button
@@ -431,7 +462,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({
             onClick={() => setLegalModalState({ isOpen: true, tab: 'terms' })}
             className="hover:text-slate-600 underline underline-offset-2 transition-colors"
           >
-            利用規約
+            {t.setup.footerTerms}
           </button>
         </div>
       </div>

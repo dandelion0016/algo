@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { AttackLog, Player } from '../types/game';
 import { getFailedNumbersForCard, formatFailedNumbersBadge } from '../lib/candidateAssist';
 import { CheckCircle2, XCircle, ScrollText, ClipboardList } from 'lucide-react';
+import { useI18n } from '../lib/i18n';
 
 interface GameLogProps {
   logs: AttackLog[];
@@ -12,6 +13,7 @@ interface GameLogProps {
 }
 
 export const GameLog: React.FC<GameLogProps> = ({ logs, players = [], initialTab = 'logs' }) => {
+  const { language, t } = useI18n();
   const [activeTab, setActiveTab] = useState<'logs' | 'memo'>(initialTab);
 
   // 人間以外の対戦相手プレイヤー（推理対象）
@@ -21,7 +23,7 @@ export const GameLog: React.FC<GameLogProps> = ({ logs, players = [], initialTab
     <div
       data-testid="game-log-list"
       role="region"
-      aria-label="対戦ログ"
+      aria-label={language === 'en' ? 'Battle Log' : '対戦ログ'}
       className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col h-full max-h-72 lg:max-h-120"
     >
       {/* Header with Tabs */}
@@ -38,7 +40,7 @@ export const GameLog: React.FC<GameLogProps> = ({ logs, players = [], initialTab
             }`}
           >
             <ScrollText className="w-3.5 h-3.5 text-algo-blue" />
-            <span>対戦ログ</span>
+            <span>{language === 'en' ? 'Battle Log' : '対戦ログ'}</span>
             <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded-full">
               {logs.length}
             </span>
@@ -55,12 +57,18 @@ export const GameLog: React.FC<GameLogProps> = ({ logs, players = [], initialTab
             }`}
           >
             <ClipboardList className="w-3.5 h-3.5 text-emerald-600" />
-            <span>推理メモ</span>
+            <span>{language === 'en' ? 'Deduction Notes' : '推理メモ'}</span>
           </button>
         </div>
 
         <span className="text-[11px] font-bold text-slate-400">
-          {activeTab === 'logs' ? `${logs.length} 件` : 'ミスアタック防止'}
+          {activeTab === 'logs'
+            ? language === 'en'
+              ? `${logs.length} moves`
+              : `${logs.length} 件`
+            : language === 'en'
+            ? 'Prevent repeat misses'
+            : 'ミスアタック防止'}
         </span>
       </div>
 
@@ -69,8 +77,14 @@ export const GameLog: React.FC<GameLogProps> = ({ logs, players = [], initialTab
         <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 text-xs" tabIndex={0} aria-live="polite">
           {logs.length === 0 ? (
             <div className="text-center py-10 text-slate-400 space-y-1">
-              <p className="font-bold">まだアタック履歴はありません</p>
-              <p className="text-[11px]">手番が進むとここに履歴が表示されます</p>
+              <p className="font-bold">
+                {language === 'en' ? 'No moves recorded yet' : 'まだアタック履歴はありません'}
+              </p>
+              <p className="text-[11px]">
+                {language === 'en'
+                  ? 'Turns and attack history will appear here'
+                  : '手番が進むとここに履歴が表示されます'}
+              </p>
             </div>
           ) : (
             logs.map((log) => {

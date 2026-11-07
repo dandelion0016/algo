@@ -26,6 +26,7 @@
 | `algo_tutorial_skip_prompt` | `string` (`"true"`) | チュートリアル開始確認プロンプトの「次回から表示しない」設定。 |
 | `algo_sound_enabled` | `string` (`"true"` / `"false"`) | Web Audio API サウンド効果音の有効/無効設定（デフォルト `true`）。 |
 | `algo_assist_enabled` | `string` (`"true"` / `"false"`) | 推理アシスト（候補数字ハイライト・失策除外バッジ）の有効/無効設定（デフォルト `true`）。 |
+| `algo_language` | `string` (`"ja"` / `"en"`) | UI表示言語設定（Issue #162, ADR-0010）。未設定時は端末ロケール・タイムゾーンから自動判定（日本国内: `'ja'`, 海外: `'en'`）。 |
 | `algo_session_id` | `string` (`usr_xxxxxxxx`) | ゲストセッション識別子（`algo_user_id` のフォールバック/互換キーストア）。 |
 
 ---

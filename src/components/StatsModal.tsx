@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Trophy, X, Flame, Target, Zap, RotateCcw, Award, CheckCircle2, Lock, Calendar } from 'lucide-react';
 import { PlayerStats } from '../lib/statsManager';
 import { Achievement } from '../lib/achievementManager';
+import { useI18n } from '../lib/i18n';
 
 interface StatsModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({
   achievements,
   onResetStats,
 }) => {
+  const { language, t } = useI18n();
   const [activeTab, setActiveTab] = useState<'stats' | 'achievements'>('stats');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
@@ -67,15 +69,17 @@ export const StatsModal: React.FC<StatsModalProps> = ({
             </div>
             <div>
               <h3 id="stats-modal-title" className="text-lg font-black text-slate-900 tracking-tight">
-                戦績 ＆ アチーブメント
+                {language === 'en' ? 'Career Stats & Achievements' : '戦績 ＆ アチーブメント'}
               </h3>
-              <p className="text-xs text-slate-500 font-medium">通算記録とやり込み実績</p>
+              <p className="text-xs text-slate-500 font-medium">
+                {language === 'en' ? 'Match history and achievements' : '通算記録とやり込み実績'}
+              </p>
             </div>
           </div>
           <button
             type="button"
             data-testid="close-stats-modal"
-            aria-label="閉じる"
+            aria-label={t.common.close}
             onClick={onClose}
             className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
           >
@@ -96,7 +100,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({
             }`}
           >
             <Target className="w-4 h-4 text-algo-blue" />
-            <span>通算戦績</span>
+            <span>{language === 'en' ? 'Stats Overview' : '通算戦績'}</span>
           </button>
           <button
             type="button"
@@ -109,7 +113,11 @@ export const StatsModal: React.FC<StatsModalProps> = ({
             }`}
           >
             <Award className="w-4 h-4 text-amber-500" />
-            <span>アチーブメント ({unlockedCount}/{totalAchievements})</span>
+            <span>
+              {language === 'en'
+                ? `Achievements (${unlockedCount}/${totalAchievements})`
+                : `アチーブメント (${unlockedCount}/${totalAchievements})`}
+            </span>
           </button>
         </div>
 
