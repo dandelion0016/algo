@@ -122,7 +122,7 @@ export const DeckTracker: React.FC<DeckTrackerProps> = ({
                 summary.totalConfirmed
               )}
             >
-              <span>残弾:</span>
+              <span>{t.deckTracker.remainingLabel}</span>
               <span className="font-mono font-bold text-algo-blue">
                 {summary.totalRemaining}
               </span>

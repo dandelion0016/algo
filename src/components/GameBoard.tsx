@@ -2609,7 +2609,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     </div>
                     <div className="min-w-0">
                       <span className="font-black text-[10px] sm:text-xs text-slate-900 block leading-tight truncate">
-                        {language === 'ja' ? `${humanPlayer.name} の手札` : `${humanPlayer.name}'s Hand`}
+                        {language === 'ja'
+                          ? `${humanPlayer.name} の手札`
+                          : humanPlayer.name === 'あなた' || !humanPlayer.name
+                          ? 'Your Hand'
+                          : `${humanPlayer.name}'s Hand`}
                       </span>
                       <span className="text-[8px] sm:text-[9.5px] text-slate-400 font-semibold block leading-none">
                         {language === 'ja'

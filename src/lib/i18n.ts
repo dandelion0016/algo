@@ -259,6 +259,7 @@ export const translations = {
     },
     deckTracker: {
       title: '残弾トラッカー',
+      remainingLabel: '残弾:',
       activeAssist: '候補連動',
       activeAssistTitle: '推理候補ハイライト中',
       remainingSummary: (rem: number) => `残弾: ${rem} / 24`,
@@ -271,6 +272,12 @@ export const translations = {
       cardBadgeAria: (color: string, num: number, status: string) => `${color}${num} (${status})`,
       summaryTitle: (bRem: number, wRem: number, conf: number) =>
         `未確定: 黒${bRem}枚 / 白${wRem}枚 (確定: ${conf}枚)`,
+    },
+    card: {
+      hidden: '伏せ中',
+      revealed: '開示',
+      range: '候補: ',
+      rangeTooltip: (range: string) => `候補数字: ${range}`,
     },
     result: {
       victory: 'VICTORY!',
@@ -554,6 +561,7 @@ export const translations = {
     },
     deckTracker: {
       title: 'Card Tracker',
+      remainingLabel: 'Remaining:',
       activeAssist: 'Linked',
       activeAssistTitle: 'Candidate numbers highlighted',
       remainingSummary: (rem: number) => `Remaining: ${rem} / 24`,
@@ -566,6 +574,12 @@ export const translations = {
       cardBadgeAria: (color: string, num: number, status: string) => `${color}${num} (${status})`,
       summaryTitle: (bRem: number, wRem: number, conf: number) =>
         `Unrevealed: Black ${bRem} / White ${wRem} (Revealed: ${conf})`,
+    },
+    card: {
+      hidden: 'HIDDEN',
+      revealed: 'REVEALED',
+      range: 'Range: ',
+      rangeTooltip: (range: string) => `Candidate Range: ${range}`,
     },
     result: {
       victory: 'VICTORY!',
