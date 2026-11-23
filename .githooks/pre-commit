@@ -1,27 +1,58 @@
 #!/bin/sh
 
 # ==============================================================================
-# Git Native Pre-Commit Hook: Source File Auto-Format & Linter Check
+# Git Native Pre-Commit Hook: Staged File Syntax & Format Check
 # ==============================================================================
-# Automatically formats and checks syntax for staged files before commit.
+# Validates staged JS/JSON files before commit without relying on .agents/hooks/.
+# Uses project-local Prettier/ESLint if installed, otherwise zero-dependency checks.
 # ==============================================================================
 
-# Get staged files (Added, Copied, Modified, Renamed)
 staged_files=$(git diff --cached --name-only --diff-filter=ACMR)
 
 if [ -z "$staged_files" ]; then
     exit 0
 fi
 
-# Run auto-format and lint script on staged files
 if command -v node >/dev/null 2>&1; then
-    node .agents/hooks/auto-format-lint.js $staged_files
-elif command -v powershell >/dev/null 2>&1; then
-    powershell -NoProfile -ExecutionPolicy Bypass -File .agents/hooks/auto-format-lint.ps1 $staged_files
+    git diff --cached --name-only --diff-filter=ACMR | node -e '
+const fs = require("fs");
+const cp = require("child_process");
+const path = require("path");
+
+const files = fs.readFileSync(0, "utf8").split(/\r?\n/).filter(Boolean);
+const hasPrettier = fs.existsSync(path.join("node_modules", ".bin", "prettier")) ||
+                    fs.existsSync(path.join("node_modules", ".bin", "prettier.cmd"));
+
+let failed = false;
+for (const file of files) {
+  if (!fs.existsSync(file) || !fs.statSync(file).isFile()) continue;
+  const ext = path.extname(file).toLowerCase();
+
+  if (ext === ".json") {
+    try {
+      JSON.parse(fs.readFileSync(file, "utf8"));
+    } catch (err) {
+      console.error(`❌ [pre-commit] Invalid JSON in ${file}: ${err.message}`);
+      failed = true;
+    }
+  } else if ([".js", ".mjs", ".cjs"].includes(ext)) {
+    const res = cp.spawnSync(process.execPath, ["--check", file], { encoding: "utf8" });
+    if (res.status !== 0) {
+      console.error(`❌ [pre-commit] JS syntax error in ${file}:\n${res.stderr || res.stdout}`);
+      failed = true;
+    }
+  }
+
+  if (!failed && hasPrettier && [".js", ".mjs", ".cjs", ".ts", ".tsx", ".json", ".css", ".md", ".yml", ".yaml"].includes(ext)) {
+    cp.spawnSync("npx", ["--no-install", "prettier", "--write", file], { stdio: "ignore", shell: process.platform === "win32" });
+  }
+}
+if (failed) process.exit(1);
+' || exit 1
 fi
 
 # Re-stage any files that were formatted
-for file in $staged_files; do
+git diff --cached --name-only --diff-filter=ACMR | while IFS= read -r file; do
     if [ -f "$file" ]; then
         git add "$file"
     fi
